@@ -1,6 +1,6 @@
 [
   {
-    "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH2",
+    "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH",
     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
   },
   {
@@ -52,11 +52,11 @@
     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 5 }
   },
   {
-     "label": "DESPERFECTO INTERNOS1",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
+     "label": "DESPERFECTO INTERNOS",
+    "pasos": { "GRUPO": 0, "TIPO": 1, "SUBTIPO_L1": 2, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
   },
   {
      "label": "DESPERFECTO EXTERNO",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 1, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
   }
 ]
