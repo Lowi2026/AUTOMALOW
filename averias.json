@@ -1,0 +1,17 @@
+[
+  { "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH", "steps": 1 },
+  { "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC", "steps": 1 },
+  { "label": "INCOMUNICADO TOTAL - PROBLEMA CONFIGURACIÓN DE RED", "steps": 1 },
+  { "label": "CLIENTE AFECTADO POR AVERÍA MASIVA", "steps": 3 },
+  { "label": "RETROPORTABILIDAD", "steps": 3 },
+  { "label": "LENTITUD EN LA CONEXIÓN", "steps": 3 },
+  { "label": "CORTES EN EL SERVICIO", "steps": 3 },
+  { "label": "CORTES EN EL SERVICIO - TÉCNICO DIRECTO", "steps": 3 },
+  { "label": "FUERA DE UMBRALES", "steps": 3 },
+  { "label": "NO NAVEGA", "steps": 3 },
+  { "label": "INCOMUNICADO TOTAL - NO LEVANTA IP", "steps": 3 },
+  { "label": "INCOMUNICADO TOTAL - NO LEVANTA IP - TÉCNICO DIRECTO", "steps": 0 },
+  { "label": "ROUTER CON FALLOS EN PUERTOS LAN", "steps": 0 },
+  { "label": "DESPERFECTO INTERNO", "steps": 2 },
+  { "label": "DESPERFECTO EXTERNO", "steps": 2 }
+]
