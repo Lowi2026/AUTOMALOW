@@ -13,6 +13,5 @@
   { "label": "INCOMUNICADO TOTAL - NO LEVANTA IP - TÉCNICO DIRECTO", "steps": 0 },
   { "label": "ROUTER CON FALLOS EN PUERTOS LAN", "steps": 0 },
   { "label": "DESPERFECTO INTERNO", "steps": 2 },
-  { "label": "DESPERFECTO Externos", "steps": 2 },
-  { "label": "Hans", "steps": 2 }
+  { "label": "DESPERFECTO Hans", "steps": 2 }
 ]
