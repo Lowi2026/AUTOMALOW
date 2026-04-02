@@ -17,7 +17,7 @@
   },
   {
     "label": "RETROPORTABILIDAD",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
   },
   {
     "label": "LENTITUD EN LA CONEXIÓN",
@@ -25,10 +25,6 @@
   },
   {
     "label": "CORTES EN EL SERVICIO",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "CORTES EN EL SERVICIO - TÉCNICO DIRECTO",
     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
   },
   {
@@ -44,19 +40,7 @@
     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
   },
   {
-    "label": "INCOMUNICADO TOTAL - NO LEVANTA IP - TÉCNICO DIRECTO",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 5 }
-  },
-  {
     "label": "ROUTER CON FALLOS EN PUERTOS LAN",
     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 5 }
-  },
-  {
-     "label": "DESPERFECTO INTERNOS 1",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
-  },
-  {
-     "label": "DESPERFECTO EXTERNO",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
   }
 ]
