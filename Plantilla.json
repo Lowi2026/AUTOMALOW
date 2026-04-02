@@ -1,56 +1,66 @@
 {
-  "INCOMUNICADO - HFC": [
-    "Cliente indica que no tiene servicio",
-    "Se verifica en schaman que está incomunicado, se realiza reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
-    "Cliente incomunicado por posible corte o desconexión de la acometida",
-    "Se envia visita tecnica"
-  ],
-  "INCOMUNICADO - FTTH": [
-    "Cliente indica que no tiene servicio",
-    "Se verifica en schaman que está incomunicado, se realiza reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
-    "Cliente incomunicado por posible corte o desconexión de la acometida",
-    "Se envia visita tecnica"
-  ],
-  "INCOMUNICADO - NEBAL": [
-    "Cliente indica que no tiene servicio",
-    "Se verifica en schaman que está incomunicado, se realiza refresh NEBA y reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien, continua sin funcionar",
-    "Cliente incomunicado por posible corte o desconexión de la acometida",
-    "Se envia visita tecnica"
-  ],
-  "INCOMUNICADO - NO LEVANTA IP": [
-    "Cliente indica que no tiene servicio",
-    "Incomunicado total - No levanta Ip, esto indica schaman, se verifican conexiones, están bien, se realiza reinicio simultaneo de ONT y router",
-    "Desincronización de equipos",
-    "se realiza reinicio simultaneo de ONT y router"
-  ],
-  "PROBLEMAS SATURACION": [
-    "Cliente presenta lentitud en la red",
-    "Se verifica en schaman que hay saturación del router",
-    "hay saturación del router",
-    "Se realiza reset de fabrica, funciona, se deja en seguimiento"
-  ],
-  "masiva": [
-    "Cliente presenta avería masiva se verifica en aplicativos",
-    "N/A",
-    "hay avería masiva",
-    "Se brinda información correspondiente"
-  ],
-  "CORTE EN EL CABLE": [
-    "Cliente indica que no tiene servicio, indica que el cable está cortado",
-    "Se verifica en schaman que está incomunicado, cliente indica que tiene el cable cortado de fibra",
-    "Cliente incomunicado por corte del cable de fibra",
-    "Se envía visita tecnica"
-  ],
-  "CABLEADOS MAL CONECTADOS": [
-    "Cliente está sin servicio",
-    "se verifican conexiones y la cliente presenta cables mal conectados",
-    "Cliente tiene mal conectadso los cable de la ONT al router",
-    "Se guia para conexión correcta, el servicio funciona correctamente"
-  ],
-  "SIN_LLENAR": [
-    "",
-    "",
-    "",
-    ""
-  ]
+  "consulta": {
+    "INCOMUNICADO - NO LEVANTA IP": [
+      "Cliente indica falta de navegación, router sin alarma roja.",
+      "Schaman: Incomunicado (No levanta IP). Se realiza reset remoto y local sin éxito.",
+      "Desincronización lógica de equipos.",
+      "Se realiza reinicio simultáneo de ONT y Router. Se deja en observación."
+    ],
+    "PROBLEMAS SATURACION": [
+      "Cliente presenta lentitud en la red",
+      "Se verifica en schaman que hay saturación del router",
+      "hay saturación del router",
+      "Se realiza reset de fabrica, funciona, se deja en seguimiento"
+    ],
+    "CABLEADOS MAL CONECTADOS": [
+      "Cliente está sin servicio",
+      "se verifican conexiones y la cliente presenta cables mal conectados",
+      "Cliente tiene mal conectadso los cable de la ONT al router",
+      "Se guia para conexión correcta, el servicio funciona correctamente"
+    ],
+    "AV. MASIVA": [
+      "Cliente presenta avería masiva se verifica en aplicativos",
+      "N/A",
+      "hay avería masiva",
+      "Se brinda información correspondiente"
+    ],
+    "SIN_LLENAR": [
+      "",
+      "",
+      "",
+      ""
+    ]
+  },
+  "escalado": {
+    "INCOMUNICADO - NO LEVANTA IP": [
+      "Cliente incomunicado total tras pruebas básicas.",
+      "Schaman confirma 'No levanta IP'. Resets cruzados realizados. Bo Web Activo sin tráfico.",
+      "Fallo de sincronismo Nivel 3 / Posible fallo de puerto.",
+      "Se escala para visita técnica al no restablecerse tras reinicio simultáneo."
+    ],
+    "INCOMUNICADO - HFC": [
+      "Cliente indica que no tiene servicio",
+      "Se verifica en schaman que está incomunicado, se realiza reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
+      "Cliente incomunicado por posible corte o desconexión de la acometida",
+      "Se envia visita tecnica"
+    ],
+    "INCOMUNICADO - FTTH": [
+      "Cliente indica que no tiene servicio",
+      "Se verifica en schaman que está incomunicado, se realiza reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
+      "Cliente incomunicado por posible corte o desconexión de la acometida",
+      "Se envia visita tecnica"
+    ],
+    "INCOMUNICADO - NEBAL": [
+      "Cliente indica que no tiene servicio",
+      "Se verifica en schaman que está incomunicado, se realiza refresh NEBA y reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien, continua sin funcionar",
+      "Cliente incomunicado por posible corte o desconexión de la acometida",
+      "Se envia visita tecnica"
+    ],
+    "CORTE EN EL CABLE": [
+      "Cliente indica que no tiene servicio, indica que el cable está cortado",
+      "Se verifica en schaman que está incomunicado, cliente indica que tiene el cable cortado de fibra",
+      "Cliente incomunicado por corte del cable de fibra",
+      "Se envía visita tecnica"
+    ]
+  }
 }
