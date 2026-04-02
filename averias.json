@@ -53,7 +53,7 @@
   },
   {
     "label": "DESPERFECTO INTERNO",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 2, "extraCD1": 6 }
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 1, "sel16802": 3, "extraCD1": 6 }
   },
   {
     "label": "DESPERFECTO EXTERNO",
