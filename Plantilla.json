@@ -1,1 +1,80 @@
-
+{
+  "HFC": [
+    "Cliente indica que no tiene servicio",
+    "Se verifica en schaman que está incomunicado, se realiza reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
+    "Cliente incomunicado por posible corte o desconexión de la acometida",
+    "Se envia visita tecnica"
+  ],
+  "FTTH_1": [
+    "Cliente indica que no tiene servicio",
+    "Se verifica en schaman que está incomunicado, se realiza reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
+    "Cliente incomunicado por posible corte o desconexión de la acometida",
+    "Se envia visita tecnica"
+  ],
+  "FTTH_2": [
+    "Cliente indica que no tiene servicio",
+    "Se verifica en schaman que está incomunicado, se realiza reinicio de los dispositivos, se verifica que no hay masiva, se realiza verificación de conexiones, están bien, ONT continua en falla",
+    "Cliente incomunicado por posible corte o desconexión de la acometida",
+    "Se envia visita tecnica"
+  ],
+  "NEBA_1": [
+    "Cliente indica que no tiene servicio",
+    "Se verifica en schaman que está incomunicado, se realiza refresh NEBA y reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien, continua sin funcionar",
+    "Cliente incomunicado por posible corte o desconexión de la acometida",
+    "Se envia visita tecnica"
+  ],
+  "NEBA_2": [
+    "Cliente indica que no tiene servicio",
+    "Se verifica en schaman que está incomunicado, se realiza refresh NEBA y se reinicia la ONT, se verifica que no hay masiva, se realiza verificación de conexiones, están bien, continua sin funcionar",
+    "Cliente incomunicado por posible corte o desconexión de la acometida",
+    "Se envia visita tecnica"
+  ],
+  "DCZ_EQUIPOS": [
+    "Cliente indica que no tiene servicio",
+    "Incomunicado total - No levanta Ip, esto indica schaman, se verifican conexiones, están bien, se realiza reinicio simultaneo de ONT y router",
+    "Desincronización de equipos",
+    "se realiza reinicio simultaneo de ONT y router"
+  ],
+  "SATURACION": [
+    "Cliente presenta lentitud en la red",
+    "Se verifica en schaman que hay saturación del router",
+    "hay saturación del router",
+    "Se realiza reset de fabrica, funciona, se deja en seguimiento"
+  ],
+  "masiva": [
+    "Cliente presenta avería masiva se verifica en aplicativos",
+    "N/A",
+    "hay avería masiva",
+    "Se brinda información correspondiente"
+  ],
+  "CORTE_CABLE": [
+    "Cliente indica que no tiene servicio, indica que el cable está cortado",
+    "Se verifica en schaman que está incomunicado, cliente indica que tiene el cable cortado de fibra",
+    "Cliente incomunicado por corte del cable de fibra",
+    "Se envía visita tecnica"
+  ],
+  "AV_ABIERTA": [
+    "Cliente tiene averia abierta",
+    "N/A",
+    "N/A",
+    "Se indica que debe esperar la llamada del tecnico"
+  ],
+  "C_ONTR": [
+    "Cliente está sin servicio",
+    "se verifican conexiones y la cliente presenta cables mal conectados",
+    "Cliente tiene mal conectado el cable de la ONT al router",
+    "Se guia para conexión correcta, el servicio funciona correctamente"
+  ],
+  "C_COM": [
+    "Cliente indica que estaba con otra compañia pero que quiere volver a Lowi",
+    "Los dispositivos están desconectados",
+    "Cliente requiere reconexión de equipos",
+    "Se envia visita tecnica"
+  ],
+  "SIN_LLENAR": [
+    "",
+    "",
+    "",
+    ""
+  ]
+}
