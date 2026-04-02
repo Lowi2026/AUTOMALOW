@@ -1,62 +1,62 @@
 [
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 1, "extraCD1": 5 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
   },
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 1, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA CONFIGURACIÓN DE RED",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 1, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "CLIENTE AFECTADO POR AVERÍA MASIVA",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "RETROPORTABILIDAD",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "LENTITUD EN LA CONEXIÓN",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "CORTES EN EL SERVICIO",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "CORTES EN EL SERVICIO - TÉCNICO DIRECTO",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "FUERA DE UMBRALES",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "NO NAVEGA",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "INCOMUNICADO TOTAL - NO LEVANTA IP",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "INCOMUNICADO TOTAL - NO LEVANTA IP - TÉCNICO DIRECTO",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 0, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "ROUTER CON FALLOS EN PUERTOS LAN",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 0, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 6 }
   },
   {
-    "label": "DESPERFECTO INTERNO",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 1, "sel16802": 3, "extraCD1": 6 }
+    "label": "DESPERFECTO INTERNOS",
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 1, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 6 }
   },
   {
     "label": "DESPERFECTO EXTERNO",
-    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 2, "extraCD1": 6 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 6 }
   }
 ]
