@@ -1,17 +1,62 @@
 [
-  { "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH", "steps": 1 },
-  { "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC", "steps": 1 },
-  { "label": "INCOMUNICADO TOTAL - PROBLEMA CONFIGURACIÓN DE RED", "steps": 1 },
-  { "label": "CLIENTE AFECTADO POR AVERÍA MASIVA", "steps": 3 },
-  { "label": "RETROPORTABILIDAD", "steps": 3 },
-  { "label": "LENTITUD EN LA CONEXIÓN", "steps": 3 },
-  { "label": "CORTES EN EL SERVICIO", "steps": 3 },
-  { "label": "CORTES EN EL SERVICIO - TÉCNICO DIRECTO", "steps": 3 },
-  { "label": "FUERA DE UMBRALES", "steps": 3 },
-  { "label": "NO NAVEGA", "steps": 3 },
-  { "label": "INCOMUNICADO TOTAL - NO LEVANTA IP", "steps": 3 },
-  { "label": "INCOMUNICADO TOTAL - NO LEVANTA IP - TÉCNICO DIRECTO", "steps": 0 },
-  { "label": "ROUTER CON FALLOS EN PUERTOS LAN", "steps": 0 },
-  { "label": "DESPERFECTO INTERNO", "steps": 2 },
-  { "label": "DESPERFECTO Hans", "steps": 2 }
+  {
+    "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 1, "extraCD1": 6 }
+  },
+  {
+    "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 1, "extraCD1": 6 }
+  },
+  {
+    "label": "INCOMUNICADO TOTAL - PROBLEMA CONFIGURACIÓN DE RED",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 1, "extraCD1": 6 }
+  },
+  {
+    "label": "CLIENTE AFECTADO POR AVERÍA MASIVA",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "RETROPORTABILIDAD",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "LENTITUD EN LA CONEXIÓN",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "CORTES EN EL SERVICIO",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "CORTES EN EL SERVICIO - TÉCNICO DIRECTO",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "FUERA DE UMBRALES",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "NO NAVEGA",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "INCOMUNICADO TOTAL - NO LEVANTA IP",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 3, "extraCD1": 6 }
+  },
+  {
+    "label": "INCOMUNICADO TOTAL - NO LEVANTA IP - TÉCNICO DIRECTO",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 0, "extraCD1": 6 }
+  },
+  {
+    "label": "ROUTER CON FALLOS EN PUERTOS LAN",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 0, "extraCD1": 6 }
+  },
+  {
+    "label": "DESPERFECTO INTERNO",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 2, "extraCD1": 6 }
+  },
+  {
+    "label": "DESPERFECTO EXTERNO",
+    "pasos": { "sel16817": 0, "sel16800": 0, "sel16801": 0, "sel16802": 2, "extraCD1": 6 }
+  }
 ]
