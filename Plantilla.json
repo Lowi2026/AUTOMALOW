@@ -1,6 +1,6 @@
 {
   "Consulta - Solucione": {
-    "INCOMUNICADO - NO LEVANTA IP": [
+     "INCOMUNICADO - NO LEVANTA IP": [
       "Cliente indica falta de navegación, router sin alarma roja.",
       "Schaman: Incomunicado (No levanta IP). Se realiza reset remoto y local sin éxito.",
       "Desincronización lógica de equipos.",
@@ -24,18 +24,12 @@
       "hay avería masiva",
       "Se brinda información correspondiente"
     ],
-   "AV ABIERTA": [
-      "Cliente tiene averia abierta",
-      "N/A",
-      "N/A",
-      "Se indica que debe esperar la llamada del tecnico,informo del bono 50GB que se le brinda por su incidencia"
-    ],
-     "SIN_LLENAR": [
+    "SIN_LLENAR": [
       "",
       "",
       "",
       ""
-     ]  
+    ]
   },
   "Escalado - No solucione": {
     "INCOMUNICADO - NO LEVANTA IP": [
