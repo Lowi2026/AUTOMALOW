@@ -1,46 +1,62 @@
 [
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
+    "pasos": {
+      "GRUPO": "Envío técnico (Fibra Vodafone)",
+      "TIPO": "Avería de banda ancha",
+      "SUBTIPO_L1": "NET Incomunicado - No Conecta",
+      "SUBTIPO_L2": "Sincronismo",
+      "EXTRA_CIERRE": 5
+    }
   },
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
+    "pasos": {
+      "GRUPO": "Envío técnico (Fibra Vodafone)",
+      "TIPO": "Avería de banda ancha",
+      "SUBTIPO_L1": "NET Incomunicado - No Conecta",
+      "SUBTIPO_L2": "Sincronismo",
+      "EXTRA_CIERRE": 5
+    }
   },
   {
-    "label": "INCOMUNICADO TOTAL - PROBLEMA CONFIGURACIÓN DE RED",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "CLIENTE AFECTADO POR AVERÍA MASIVA",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "RETROPORTABILIDAD",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
+    "label": "INCOMUNICADO TOTAL - POSIBLE FALLO EQUIPO",
+    "pasos": {
+      "GRUPO": "Envío técnico (Fibra Vodafone)",
+      "TIPO": "Avería de banda ancha",
+      "SUBTIPO_L1": "NET Incomunicado - Equipo",
+      "SUBTIPO_L2": "Sincronismo",
+      "EXTRA_CIERRE": 5
+    }
   },
   {
     "label": "LENTITUD EN LA CONEXIÓN",
-     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
+    "pasos": {
+      "GRUPO": "Envío técnico (Fibra Vodafone)",
+      "TIPO": "Avería de banda ancha",
+      "SUBTIPO_L1": "NET Mala Calidad - Lentitud o Cortes",
+      "SUBTIPO_L2": "Sincronismo",
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "SERVICIO NO NAVEGA",
+    "pasos": {
+      "GRUPO": "Envío técnico (Fibra Vodafone)",
+      "TIPO": "Avería de banda ancha",
+      "SUBTIPO_L1": "NET No Navega - Ciertas páginas",
+      "SUBTIPO_L2": "Sincronismo",
+      "EXTRA_CIERRE": 5
+    }
   },
   {
     "label": "CORTES EN EL SERVICIO",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "FUERA DE UMBRALES",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "NO NAVEGA",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "INCOMUNICADO TOTAL - NO LEVANTA IP",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
-  },
-  {
-    "label": "ROUTER CON FALLOS EN PUERTOS LAN",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 5 }
+    "pasos": {
+      "GRUPO": "Envío técnico (Fibra Vodafone)",
+      "TIPO": "Avería de banda ancha",
+      "SUBTIPO_L1": "NET Mala Calidad - Lentitud o Cortes",
+      "SUBTIPO_L2": "Sincronismo",
+      "EXTRA_CIERRE": 5
+    }
   }
 ]
