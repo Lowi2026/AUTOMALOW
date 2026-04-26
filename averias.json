@@ -21,7 +21,7 @@
   },
   {
     "label": "LENTITUD EN LA CONEXIÓN",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
+     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
   },
   {
     "label": "CORTES EN EL SERVICIO",
