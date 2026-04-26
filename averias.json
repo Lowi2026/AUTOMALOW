@@ -22,5 +22,5 @@
     {
     "label": "BLOQUEADO IMPAGO ERRONEAMENTE",
     "pasos": { "GRUPO": 1, "TIPO": 1, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
-  },
+  }
 ]
