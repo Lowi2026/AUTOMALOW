@@ -1,7 +1,7 @@
 [
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 2, "EXTRA_CIERRE": 5 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
   },
   {
     "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC",
