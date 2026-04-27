@@ -4,8 +4,26 @@
       "Cliente indica falta de navegación, router sin alarma roja.",
       "Schaman: Incomunicado (No levanta IP). Se realiza reset remoto y local sin éxito.",
       "Desincronización lógica de equipos.",
-      "Se realiza reinicio simultáneo de ONT y Router. Se deja en observación."
+      "Se realiza reinicio simultáneo de ONT y Router."
     ],
+     "INCOMUNICADO TOTAL-PROBLEMA DE SINCRONISMO-NEBAL/FTTH": [
+      "Cliente incomunicado por posible corte o desconexión de la acometida.",
+      "Schaman: Incomunicado Total. Se realiza reset remoto y local sin éxito,se comprueba cableados.",
+      "Se verifica en schaman que está incomunicado, se realiza refresh NEBA y reset manual, se verifica que no hay masiva, se realiza verificación de conexiones, están bien, continua sin funcionar.",
+      "Se envia visita tecnica."
+    ],
+    "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC": [
+      "Cliente incomunicado por posible corte o desconexión de la acometida.",
+      "Schaman: Incomunicado . Se realiza reset remoto y local sin éxito, se comprueba cableados.",
+      "Se verifica en schaman que está incomunicado, se verifica que no hay masiva, se realiza verificación de conexiones, están bien",
+      "Se envia visita tecnica."
+    ],  
+    "LENTITUD EN LA CONEXIÓN": [
+      "LENTITUD EN LA CONEXIÓN",
+      "Se realizan pruebas con cliente, velociad Bajada :   velocidad subida :  probado sobre red 2.4/5GHZ en dispositivo MOVIL/ORDENADOR/PORTATIL",
+      "Posible fallo de router, se realiza configuracion y se mantiene en fallo",
+      "Se envia tecnico/Escalo a N2"
+    ],  
     "PROBLEMAS SATURACION": [
       "Cliente presenta lentitud en la red",
       "Se verifica en schaman que hay saturación del router",
