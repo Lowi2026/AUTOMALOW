@@ -19,9 +19,15 @@
       "Se envia visita tecnica."
     ],  
     "LENTITUD EN LA CONEXIÓN": [
-      "LENTITUD EN LA CONEXIÓN",
-      "Se realizan pruebas con cliente, velociad Bajada :   velocidad subida :  probado sobre red 2.4/5GHZ en dispositivo MOVIL/ORDENADOR/PORTATIL",
+      "Lentitud en la conexion ",
+      "Se realizan pruebas con cliente, velociad Bajada :   velocidad subida :  probado sobre red 2.4/5GHZ/Cable categoria 5E o mas. en dispositivo MOVIL/ORDENADOR/PORTATIL",
       "Posible fallo de router, se realiza configuracion y se mantiene en fallo",
+      "Se envia tecnico/Escalo a N2/Soluciono dejo en seguimiento"
+    ],  
+     "CORTES WIFI": [
+      "CORTES WIFI",
+      "Se realizan pruebas con cliente,presenta cortes en red WIFI 2.4/5GHZ en dispositivos :  a distancia : se comprueba sobre 1/2 dispositivos ",
+      "Posible fallo de equipo/Se realiza configuracion desde reset de fabrica y configuracion WIFI y queda funcionando/Se comprueba que puede ser fallo de cliente",
       "Se envia tecnico/Escalo a N2/Soluciono dejo en seguimiento"
     ],  
     "PROBLEMAS SATURACION": [
@@ -36,6 +42,12 @@
       "Cliente tiene mal conectadso los cable de la ONT al router",
       "Se guia para conexión correcta, el servicio funciona correctamente"
     ],
+     "CORTE EN EL CABLE": [
+      "Cliente indica que no tiene servicio, indica que el cable está cortado",
+      "Se verifica en schaman que está incomunicado, cliente indica que tiene el cable cortado de fibra o desconectado",
+      "Cliente incomunicado por corte del cable de fibra o posible fallo externo",
+      "Se envía visita tecnica"
+    ],    
     "AV. MASIVA": [
       "Cliente presenta avería masiva se verifica en aplicativos",
       "N/A",
