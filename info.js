@@ -17,14 +17,14 @@ javascript:(async function(){
         } catch(e) { return null; }
     };
 
-    /* --- EXTRACCIÓN DE DATOS DE LA WEB --- */
+    /* --- EXTRAE DATOS REALES DE LA WEB --- */
     const getVal = (keys) => {
         const body = document.body.innerText;
         for (let key of keys) {
             let index = body.toLowerCase().indexOf(key.toLowerCase());
             if (index > -1) {
                 let result = body.slice(index + key.length).split("\n")[0].trim();
-                return result.replace(/\(Modificar\)/gi, "").trim();
+                return result.replace(/\(Modificar\)/gi, "").trim() || "N/A";
             }
         }
         return "N/A";
@@ -42,36 +42,30 @@ javascript:(async function(){
             .g-btn:hover { background: #4a007d; transform: translateY(-2px); box-shadow: 2px 2px 0px #1a0026; }
             .g-btn i { color: #c58cff; font-size: 14px; }
             .g-close { background: #1a1a1a !important; margin-top: 15px; width: 100%; justify-content: center; color: #888 !important; }
-            .g-nt { position: fixed; top: 20px; right: 20px; background: #260038; border: 1px solid #9b4dff; padding: 12px 25px; border-radius: 15px; color: #fff; z-index: 1000001; animation: g-in 0.4s; font-family: sans-serif; }
+            .g-nt { position: fixed; top: 20px; right: 20px; background: #260038; border: 1px solid #9b4dff; padding: 12px 25px; border-radius: 15px; color: #fff; z-index: 1000001; animation: g-in 0.4s; font-family: sans-serif; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
         `;
         document.head.appendChild(s);
     };
 
     const toast = (m) => {
-        const n = document.createElement("div"); n.className = "g-nt"; n.innerHTML = `ฅ^•ﻌ•^ฅ | ${m}`;
+        const n = document.createElement("div"); n.className = "g-nt"; n.innerHTML = `<i class="fa-solid fa-check-double"></i> | ${m}`;
         document.body.appendChild(n); setTimeout(() => n.remove(), 3000);
     };
 
-    /* --- FUNCIÓN DE COPIADO CON FORMATO EXACTO --- */
-    const copyToClipboard = (titulo, datosArray, categoria) => {
-        const nombre = getVal(["Nombre del cliente:", "Nombre:", "Cliente:"]);
-        const dni = getVal(["DNI/NIE/Pasaporte:", "DNI:", "CIF:"]);
-        const id = getVal(["AMDOCS ID:", "ID Cliente:", "Customer ID:"]);
-        const direccion = getVal(["Dirección de instalación:", "Dirección:"]);
-        const movil = getVal(["Teléfono de contacto:", "Móvil:", "Teléfono:"]);
-
+    /* --- GENERADOR DE PLANTILLA FINAL --- */
+    const copyToClipboard = (titulo, f, cat) => {
         const finalTemplate = [
-            `PLANTILLA FRONT SOPORTE // ${categoria.toUpperCase()}`,
-            `• Nombre: ${nombre}`,
-            `• DNI: ${dni}`,
-            `• ID: ${id}`,
-            `• Dirección: ${direccion}`,
-            `• # Móvil: ${movil}`,
-            `• Qué dice el cliente que le sucede: ${datosArray[0] || "N/A"}`,
-            `• Pruebas realizadas: ${datosArray[1] || "N/A"}`,
-            `• Diagnóstico: ${datosArray[2] || "N/A"}`,
-            `• Solución: ${datosArray[3] || "N/A"}`
+            `PLANTILLA FRONT SOPORTE // ${cat}`,
+            `• Nombre: ${getVal(["Nombre del cliente:", "Nombre:", "Cliente:"])}`,
+            `• DNI: ${getVal(["DNI/NIE/Pasaporte:", "DNI:", "DNI/NIE:"])}`,
+            `• ID: ${getVal(["AMDOCS ID:", "ID Cliente:", "ID:"])}`,
+            `• Dirección: ${getVal(["Dirección de instalación:", "Dirección:"])}`,
+            `• # Móvil: ${getVal(["Teléfono de contacto:", "Móvil:", "Teléfono:"])}`,
+            `• Qué dice el cliente que le sucede: ${f[0] || "N/A"}`,
+            `• Pruebas realizadas: ${f[1] || "N/A"}`,
+            `• Diagnóstico: ${f[2] || "N/A"}`,
+            `• Solución: ${f[3] || "N/A"}`
         ].join("\n");
 
         navigator.clipboard.writeText(finalTemplate);
@@ -84,28 +78,28 @@ javascript:(async function(){
         m.innerHTML = `<div style="font-size:30px; text-align:center; margin-bottom:5px">ฅ^•ﻌ•^ฅ</div><div class="g-tit">${tit}</div><div class="g-grid" id="g-g"></div>`;
         const g = m.querySelector("#g-g");
         opciones.forEach(o => {
-            const b = document.createElement("button"); b.className = "g-b g-btn";
+            const b = document.createElement("button"); b.className = "g-btn";
             b.innerHTML = `<i class="fa-solid ${o.icon || 'fa-bolt'}"></i><span>${o.label}</span>`;
-            b.onclick = () => { m.remove(); o.act(); }; g.appendChild(b);
+            b.onclick = () => { if(!o.sub) m.remove(); o.act(); }; g.appendChild(b);
         });
         const c = document.createElement("button"); c.className = "g-btn g-close"; c.innerHTML = `<i class="fa-solid fa-xmark"></i> CERRAR`;
         c.onclick = () => m.remove(); m.appendChild(c);
         document.body.appendChild(m);
     };
 
-    /* INICIO */
+    /* --- INICIO DE APLICACIÓN --- */
     injectStyles();
     const plantillas = await loadData('Plantilla.json');
-    if (!plantillas) return alert("Error cargando JSON");
+    if (!plantillas) return;
 
     if (u.includes("lowi.es")) {
-        showMenu("PLANTILLAS SOPORTE", [
-            { label: "CONSULTAS", icon: "fa-comments", act: () => {
+        showMenu("GATITO CLOUD SOPORTE", [
+            { label: "CONSULTAS", icon: "fa-comments", sub: true, act: () => {
                 showMenu("CONSULTAS GENERALES", Object.keys(plantillas["Consulta - Solucione"]).map(k => ({
                     label: k, icon: "fa-file-lines", act: () => copyToClipboard(k, plantillas["Consulta - Solucione"][k], "CONSULTAS GENERALES")
                 })));
             }},
-            { label: "ESCALADOS", icon: "fa-arrow-up-right-from-square", act: () => {
+            { label: "ESCALADOS", icon: "fa-arrow-up-right-from-square", sub: true, act: () => {
                 showMenu("ESCALADOS TÉCNICOS", Object.keys(plantillas["Escalado - No solucione"]).map(k => ({
                     label: k, icon: "fa-triangle-exclamation", act: () => copyToClipboard(k, plantillas["Escalado - No solucione"][k], "ESCALADO")
                 })));
