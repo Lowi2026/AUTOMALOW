@@ -2,6 +2,7 @@ javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
+    /* 1. RECURSOS */
     if (!document.querySelector('link[data-fa]')) {
         const fa = document.createElement("link");
         fa.rel = "stylesheet";
@@ -17,7 +18,7 @@ javascript:(async function(){
         } catch(e) { return null; }
     };
 
-    /* --- EXTRAE DATOS REALES DE LA WEB --- */
+    /* 2. EXTRACCIÓN DINÁMICA DE LA WEB */
     const getVal = (keys) => {
         const body = document.body.innerText;
         for (let key of keys) {
@@ -30,6 +31,20 @@ javascript:(async function(){
         return "N/A";
     };
 
+    /* 3. UTILIDADES JIRA */
+    const wait = t => new Promise(r => setTimeout(r, t));
+    const fmt = d => {
+        const m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return `${String(d.getDate()).padStart(2, "0")}/${m[d.getMonth()]}/${String(d.getFullYear()).slice(2)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    };
+    const nextLab = d => {
+        if (d.getDay() === 5) d.setDate(d.getDate() + 3);
+        else if (d.getDay() === 6) d.setDate(d.getDate() + 2);
+        else d.setDate(d.getDate() + 1);
+        return d;
+    };
+
+    /* 4. ESTILOS */
     const injectStyles = () => {
         if(document.getElementById("g-styles")) return;
         const s = document.createElement("style");
@@ -40,10 +55,10 @@ javascript:(async function(){
             .g-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
             .g-btn { background: #34004d; color: #f6f0ff; border: none; padding: 12px; border-radius: 12px; cursor: pointer; font-size: 10px; font-weight: 700; transition: 0.2s; box-shadow: 4px 4px 0px #1a0026; display: flex; align-items: center; gap: 8px; text-transform: uppercase; }
             .g-btn:hover { background: #4a007d; transform: translateY(-2px); box-shadow: 2px 2px 0px #1a0026; }
-            .g-btn i { color: #c58cff; font-size: 14px; }
             .g-close { background: #1a1a1a !important; margin-top: 15px; width: 100%; justify-content: center; color: #888 !important; }
             .g-nt { position: fixed; top: 20px; right: 20px; background: #260038; border: 1px solid #9b4dff; padding: 12px 25px; border-radius: 15px; color: #fff; z-index: 1000001; animation: g-in 0.4s; font-family: sans-serif; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
+            .g-ld { position: fixed; bottom: 20px; right: 20px; width: 280px; background: rgba(42,0,63,.95); color: #fff; padding: 16px; border-radius: 14px; z-index: 1000000; box-shadow: 0 8px 20px rgba(0,0,0,.5); border: 1px solid #9b4dff; }
         `;
         document.head.appendChild(s);
     };
@@ -53,10 +68,10 @@ javascript:(async function(){
         document.body.appendChild(n); setTimeout(() => n.remove(), 3000);
     };
 
-    /* --- GENERADOR DE PLANTILLA FINAL --- */
-    const copyToClipboard = (titulo, f, cat) => {
-        const finalTemplate = [
-            `PLANTILLA FRONT SOPORTE // ${cat}`,
+    /* 5. FUNCIÓN CLAVE: COPIADO CON DATOS DE CLIENTE */
+    const copyTemplate = (titulo, f, cat) => {
+        const res = [
+            `PLANTILLA FRONT SOPORTE // ${cat.toUpperCase()}`,
             `• Nombre: ${getVal(["Nombre del cliente:", "Nombre:", "Cliente:"])}`,
             `• DNI: ${getVal(["DNI/NIE/Pasaporte:", "DNI:", "DNI/NIE:"])}`,
             `• ID: ${getVal(["AMDOCS ID:", "ID Cliente:", "ID:"])}`,
@@ -67,11 +82,11 @@ javascript:(async function(){
             `• Diagnóstico: ${f[2] || "N/A"}`,
             `• Solución: ${f[3] || "N/A"}`
         ].join("\n");
-
-        navigator.clipboard.writeText(finalTemplate);
+        navigator.clipboard.writeText(res);
         toast("Copiado: " + titulo);
     };
 
+    /* 6. MENÚS */
     const showMenu = (tit, opciones) => {
         const ex = document.getElementById("g-ui"); if(ex) ex.remove();
         const m = document.createElement("div"); m.id = "g-ui"; m.className = "g-m";
@@ -87,21 +102,21 @@ javascript:(async function(){
         document.body.appendChild(m);
     };
 
-    /* --- INICIO DE APLICACIÓN --- */
+    /* INICIO */
     injectStyles();
     const plantillas = await loadData('Plantilla.json');
-    if (!plantillas) return;
+    const averias = await loadData('averias.json');
 
     if (u.includes("lowi.es")) {
         showMenu("GATITO CLOUD SOPORTE", [
             { label: "CONSULTAS", icon: "fa-comments", sub: true, act: () => {
                 showMenu("CONSULTAS GENERALES", Object.keys(plantillas["Consulta - Solucione"]).map(k => ({
-                    label: k, icon: "fa-file-lines", act: () => copyToClipboard(k, plantillas["Consulta - Solucione"][k], "CONSULTAS GENERALES")
+                    label: k, icon: "fa-file-lines", act: () => copyTemplate(k, plantillas["Consulta - Solucione"][k], "CONSULTAS GENERALES")
                 })));
             }},
             { label: "ESCALADOS", icon: "fa-arrow-up-right-from-square", sub: true, act: () => {
                 showMenu("ESCALADOS TÉCNICOS", Object.keys(plantillas["Escalado - No solucione"]).map(k => ({
-                    label: k, icon: "fa-triangle-exclamation", act: () => copyToClipboard(k, plantillas["Escalado - No solucione"][k], "ESCALADO")
+                    label: k, icon: "fa-triangle-exclamation", act: () => copyTemplate(k, plantillas["Escalado - No solucione"][k], "ESCALADO")
                 })));
             }}
         ]);
