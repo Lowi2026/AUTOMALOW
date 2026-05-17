@@ -1,0 +1,170 @@
+{
+  "Original": {
+    "Normal": [
+      "",
+      "",
+      "",
+      ""
+    ]
+  },
+  "Incomunicado Total": {
+    "Enviar Técnico Campo": [
+      "No tengo internet",
+      "DINAMICO_INCOMUNICADO",
+      "DINAMICO_INCOMUNICADO",
+      "se envía contrata para arreglo de acometida"
+    ]
+  },
+  "Cortes de Servicio": {
+    "Resuelto (CPE/Bandas)": [
+      "El internet va y viene",
+      "DINAMICO_CORTES_RESUELTO",
+      "Saturación temporal del cpe",
+      "Se hace reinicio de fabrica, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes"
+    ],
+    "Técnico (Cambio CPE)": [
+      "El internet va y viene",
+      "DINAMICO_CORTES_TECNICO",
+      "Señal degradada tras saturación del cpe",
+      "Se envía contrata para revisión y posible cambio de cpe"
+    ],
+    "Escalar a NV2": [
+      "El internet va y viene",
+      "DINAMICO_CORTES_NV2",
+      "Posible fallo en red o saturación de cpe",
+      "Se escala a NV2 para revisión de red"
+    ]
+  },
+  "Lentitud": {
+    "Resuelto (Optimizado)": [
+      "Me va muy lento el internet",
+      "Reinicio de fábrica, separación de bandas, test de velocidad correcto",
+      "Saturación del router",
+      "Se realizo reinicio de fábrica, se separan bandas y se comprueba con cliente que el internet ya no va lento"
+    ],
+    "Enviar Técnico": [
+      "Me va muy lento el internet",
+      "Reinicio de fábrica sin mejora, test bajo",
+      "Posible daño en cpe o nodo",
+      "Se envía contrata para revisión y posible cambio de cpe"
+    ],
+    "Escalar a NV2": [
+      "Me va muy lento el internet",
+      "Test persistente bajo",
+      "Posible fallo en red",
+      "Se escala a NV2"
+    ]
+  },
+  "Bandas WiFi": {
+    "Separar Redes": [
+      "Necesito separar la red wifi",
+      "Se valida en Schaman bandas unificadas se separan y se configura nombre",
+      "Desea separar bandas para uso personal",
+      "Se separan bandas y se comprueba conexión correcta"
+    ],
+    "No responde (Voxont)": [
+      "Necesito separar la red wifi",
+      "No se pudo acceder al router",
+      "Cpe no responde",
+      "Se envía contrata es voxont no hay acceso remoto"
+    ]
+  },
+  "Contraseña WiFi": {
+    "Resuelto (Cambiada)": [
+      "Quiero cambiar la contraseña del WiFi",
+      "Se accede al router, se modifica clave",
+      "Requería cambio de clave",
+      "Se cambio la contraseña y se comprueba conexión correcta con nueva clave"
+    ],
+    "No responde (Voxont)": [
+      "Quiero cambiar la contraseña del WiFi",
+      "No se pudo acceder al router",
+      "Cpe no responde",
+      "Se envía contrata es voxont no hay acceso remoto"
+    ]
+  },
+  "Mando TV": {
+    "Resuelto": [
+      "El mando no funciona",
+      "emparejamiento, cambio de pilas, mando responde",
+      "desconfiguración",
+      "Se deja resuelto"
+    ],
+    "No Funciona (Escalar)": [
+      "El mando no funciona",
+      "mando sin luces, no empareja",
+      "mando defectuoso",
+      "Se escala a NV2 para cambio"
+    ]
+  },
+  "Avería Masiva": {
+    "Solo Información": [
+      "No tengo wifi aún, ¿qué ha pasado con la incidencia?",
+      "Se accede a Schaman, sigue averia presente, se valdia en Smart averia masiva en curso, se lee información y se le da al cliente",
+      "Solo quiere saber sobre la masiva",
+      "Se revisa averia masiva y se le da la información al cliente de lo que esta ocurriendo y se le pide espere"
+    ],
+    "Crear Ticket Asociado": [
+      "No tengo wifi",
+      "Se accede a Schaman, se valida averia masiva presente, se valdia en Smart averia masiva en curso, se le informa al cliente de tiempos aproxiamdos y bono de datos mientras se resuelve",
+      "Solo quiere saber sobre la masiva",
+      "Se revisa averia masiva y se le da la información al cliente de lo que esta ocurriendo y se le pide espere se crea ticket"
+    ]
+  },
+  "Fuera de Umbrales": {
+    "Resuelto": [
+      "El internet va y viene o va muy lento",
+      "DINAMICO_FUERA_RESUELTO",
+      "Saturación del router o parámetros degradados",
+      "DINAMICO_FUERA_RESUELTO_SOL"
+    ],
+    "No mejora (Contrata)": [
+      "El internet va y viene o va muy lento",
+      "DINAMICO_FUERA_NO",
+      "posible daño en nodo o cpe",
+      "Se envía contrata para revisión y posible cambio de cpe o revisión de nodo"
+    ]
+  },
+  "Incomunicado por IP": {
+    "Resuelto": [
+      "No tengo internet",
+      "Ajuste de cableado, reinicio manual de fábrica, apertura de bandas, levanta servicio con ip correctamente",
+      "cpe saturado",
+      "Se deja resuelto"
+    ],
+    "No levanta (Contrata)": [
+      "No tengo internet",
+      "cpe incomunicado por IP",
+      "pérdida de IP",
+      "Se envía contrata"
+    ]
+  },
+  "Error 101": {
+    "En reparto (Esperar)": [
+      "Me sale error 101",
+      "Se valido en logistica esta reparto aún el deco no han pasado 48 horas",
+      "No se activado el deco porque logistica no ha notificado aún",
+      "Se indica al cliente que espere a que logistica indique que ya se entrego el deco y notifique la entrega para que se active el servicio automaticamente"
+    ],
+    "Escalar a NV2 (MAC)": [
+      "Me sale error 101",
+      "Se verifico estado en logistica esta entregado y ya pasaron 48 horas, se revisa la mac y no es la misma",
+      "Mac diferente",
+      "Se escala a NV2 para revision de error 101"
+    ]
+  },
+  "Técnico Incumplido": {
+    "Cita en curso / Esperar": [
+      "Tengo cita con el técnico",
+      "Se valida cita programada en Smart, se verifica fecha y hora de cita se le informa que no ha pasado el tiempo de espera",
+      "Cita aún en tiempo de espera",
+      "Se informa al cliente que debe esperar dentro de la franja horaria indicada y se le pide paciencia"
+    ],
+    "Incumplimiento (Reportar)": [
+      "El técnico no vino a la cita",
+      "Se verifica en Smart que la cita ya pasó y se valida que el técnico no presentó la visita",
+      "Incumplimiento de visita técnica",
+      "Se disculpa con el cliente y se reporta técnico en base black list"
+    ]
+  }
+}
