@@ -1,4 +1,4 @@
-/* 8:14 */
+
 javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.staticaly.net/gh/Lowi2026/AUTOMALOW@main/';
@@ -10,7 +10,7 @@ javascript:(async function(){
         fa.dataset.fa = "true";
         document.head.appendChild(fa);
     }
-
+/* 8:22 */
     const loadData = async (f) => {
         try {
             const r = await fetch(`${REPO}${f}?t=${Date.now()}`);
