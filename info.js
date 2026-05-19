@@ -100,6 +100,7 @@ javascript:(async function(){
             .g-close-x { position: absolute; top: -2px; right: 2px; color: #FF5A5A; font-size: 16px; cursor: pointer; transition: transform 0.15s; }
             .g-close-x:hover { transform: scale(1.1); }
             
+            /* CAJAS RAÍZ PRINCIPALES */
             .g-root-block { margin-bottom: 8px; border-radius: 10px; border: 1px solid #3D1B54; background: #1F0F29; overflow: hidden; }
             .g-root-trigger { padding: 11px 14px; font-size: 13.5px; font-weight: 600; color: #FFF; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
             .g-root-trigger:hover { background: #281433; }
@@ -107,10 +108,12 @@ javascript:(async function(){
             .g-root-block.active { border-color: #4A1F66; }
             .g-root-block.active .g-root-trigger i.fa-chevron-down { transform: rotate(180deg); }
             
+            /* CONTENEDOR INTERNO DE SUB-ACORDEONES */
             .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; }
             .g-root-content::before { content: ''; position: absolute; left: 14px; top: 12px; bottom: 12px; width: 2px; background: #441A5C; border-radius: 2px; }
             .g-root-block.active .g-root-content { display: block; }
             
+            /* SUB-ACORDEONES (Cortes, Lentitud, etc.) */
             .g-sub-accordion { margin-bottom: 6px; margin-left: 12px; border-radius: 8px; border: 1px solid #36174A; background: #22102E; overflow: hidden; }
             .g-sub-accordion:last-child { margin-bottom: 0; }
             .g-sub-trigger { padding: 8px 12px; font-size: 12px; font-weight: 600; color: #E5D6ED; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
@@ -119,17 +122,21 @@ javascript:(async function(){
             .g-sub-accordion.active { border-color: #532373; }
             .g-sub-accordion.active .g-sub-trigger i.fa-chevron-down { transform: rotate(180deg); }
             
+            /* DESPLEGABLE FINAL DE ACCIONES */
             .g-sub-content { display: none; padding: 8px 10px; background: #1A0C24; border-top: 1px solid #2C133D; }
             .g-sub-accordion.active .g-sub-content { display: block; }
             
+            /* BOTONES REDONDEADOS ESTILO FOTO 2 */
             .g-action-btn { background: #7A22B4; color: #FFF; border: none; padding: 7px 14px; margin-bottom: 6px; border-radius: 20px; cursor: pointer; font-size: 11.5px; font-weight: 600; width: 100%; text-align: center; transition: background 0.15s, transform 0.1s; box-sizing: border-box; }
             .g-action-btn:last-child { margin-bottom: 0; }
             .g-action-btn:hover { background: #912FD4; }
             .g-action-btn:active { transform: scale(0.98); }
             
+            /* BOTÓN OCULTAR INTERFAZ ABAJO */
             .g-cierre-asistente { width: 100%; padding: 10px; margin-top: 8px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-cierre-asistente:hover { background: #FFF; }
 
+            /* TOAST NOTIFICACIÓN */
             .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
         `;
@@ -141,83 +148,39 @@ javascript:(async function(){
         document.body.appendChild(n); setTimeout(() => n.remove(), 2000);
     };
 
-    const copyTemplateFront = (grupo, clave, servicio, esTV = false) => {
+    const copyTemplateFront = (titulo, f, servicio) => {
         const bloqueTexto = servicio.texto;
-        let c = ["", "", "", ""]; 
+        let c = [...f]; 
         const tech = detectarTecnologiaScript1(bloqueTexto);
 
-        if (esTV) {
-            /* PROCESAMIENTO TEXTOS FIJOS DEL SCRIPT 1 EN EL CÓDIGO DIRECTO */
-            if (grupo === "Mando TV") {
-                c[0] = "El mando no funciona";
-                if (clave === "Resuelto") {
-                    c[1] = "emparejamiento, cambio de pilas, mando responde";
-                    c[2] = "desconfiguración";
-                    c[3] = "Se deja resuelto";
-                } else if (clave === "Escalar a NV2") {
-                    c[1] = "mando sin luces, no empareja al decodificador";
-                    c[2] = "mando defectuoso";
-                    c[3] = "Se escala a NV2 para cambio";
-                }
-            } 
-            else if (grupo === "TV Canales") {
-                if (clave === "No ve algún canal") {
-                    c[0] = "No ve algún canal";
-                    c[1] = "Se verifica señal del deco y se explica al cliente cuál es el canal directamente";
-                    c[2] = "Cliente no localiza el canal";
-                    c[3] = "Se le indica el canal directo y se confirma que ya lo ve";
-                } else if (clave === "No salen canales deportivos") {
-                    c[0] = "No le salen los canales deportivos";
-                    c[1] = "Reinicio de fábrica al deco, se configura desde el inicio con el cliente y se revisa la lista de canales";
-                    c[2] = "El deco necesita reconfiguración completa";
-                    c[3] = "Reinicio de fábrica al deco, configuración inicial con el cliente y verificación de canales deportivos";
-                }
-            } 
-            else if (grupo === "Error 101") {
-                c[0] = "Me sale error 101";
-                if (clave === "Información") {
-                    c[1] = "Se valida en logística que está en reparto, aún no han pasado 48 horas desde el deco";
-                    c[2] = "No se ha activado el deco porque logística no ha notificado aún";
-                    c[3] = "Se indica al cliente que espere a que logística confirme la entrega del deco y que el servicio se active automáticamente";
-                } else if (clave === "Escalar a NV2") {
-                    c[1] = "Se verificó el estado en logística, está entregado y ya pasaron 48 horas, se revisa la MAC y no es la misma";
-                    c[2] = "MAC diferente";
-                    c[3] = "Se escala a NV2 para revisión de error 101";
-                }
+        if (c[1] === "DINAMICO_INCOMUNICADO") {
+            if (tech === "HFC") {
+                c[1] = "router con luces intermitentes, sin acceso remoto al cpe, se valida cableado sin daños";
+                c[2] = "posible daño en acometida HFC";
+            } else {
+                const tieneOnt = detectarONT(bloqueTexto);
+                c[1] = tieneOnt ? "ONT en rojo en alarm, sin acceso remoto, se valida el cableado no presenta daños y no hay acceso a cpe" : "router con ONT integrada sin sincronismo, se valida el cableado no presenta daños, conectado correctamente router";
+                c[2] = tieneOnt ? "posible daño en tramo óptico" : "posible daño en fibra";
             }
-        } else {
-            /* PROCESAMIENTO DINÁMICO DESDE PL.JSON PARA INTERNET */
-            if (plantillas && plantillas[grupo] && plantillas[grupo][clave]) {
-                c = [...plantillas[grupo][clave]];
-            }
-            
-            if (c[1] === "DINAMICO_INCOMUNICADO") {
-                if (tech === "HFC") {
-                    c[1] = "router con luces intermitentes, sin acceso remoto al cpe, se valida cableado sin daños";
-                    c[2] = "posible daño en acometida HFC";
-                } else {
-                    const tieneOnt = detectarONT(bloqueTexto);
-                    c[1] = tieneOnt ? "ONT en rojo en alarm, sin acceso remoto, se valida el cableado no presenta daños y no hay acceso a cpe" : "router con ONT integrada sin sincronismo, se valida el cableado no presenta daños, conectado correctamente router";
-                    c[2] = tieneOnt ? "posible daño en tramo óptico" : "posible daño en fibra";
-                }
-            }
-            if (c[1] === "DINAMICO_CORTES_RESUELTO") {
-                c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es estable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal estable en ambas bandas wifi";
-            }
-            if (c[1] === "DINAMICO_CORTES_TECNICO") {
-                c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes en Schaman, reinicio de fábrica sin mejora";
-                c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
-            }
-            if (c[1] === "DINAMICO_CORTES_NV2") {
-                c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistentes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistentes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
-            }
-            if (c[1] === "DINAMICO_FUERA_RESUELTO") {
-                c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
-                c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
-            }
-            if (c[1] === "DINAMICO_FUERA_NO") {
-                c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
-            }
+        }
+
+        if (c[1] === "DINAMICO_CORTES_RESUELTO") {
+            c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es estable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal estable en ambas bandas wifi";
+        }
+        if (c[1] === "DINAMICO_CORTES_TECNICO") {
+            c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes en Schaman, reinicio de fábrica sin mejora";
+            c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
+        }
+        if (c[1] === "DINAMICO_CORTES_NV2") {
+            c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistentes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistentes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
+        }
+
+        if (c[1] === "DINAMICO_FUERA_RESUELTO") {
+            c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
+            c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
+        }
+        if (c[1] === "DINAMICO_FUERA_NO") {
+            c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
         }
 
         const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
@@ -266,6 +229,8 @@ javascript:(async function(){
     const averias = await loadData('averias.json');
 
     if (u.includes("lowi.es")) {
+        if (!plantillas) return alert("❌ Error: No se pudo mapear el archivo PL.json.");
+        
         const bt = document.body.innerText;
         const iP = bt.indexOf("Internet principal");
         const iA = bt.indexOf("Internet adicional");
@@ -291,18 +256,10 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
-        /* DEFINICIÓN DE CARPETAS RAÍZ */
         const categoriasRaiz = [
-            { id: "internet", label: "Internet / WiFi", icon: "fa-wifi" },
-            { id: "tv", label: "TV", icon: "fa-tv" }
+            { id: "internet", label: "Internet / WiFi", icon: "fa-wifi", matchKeywords: ["original", "incomunicado", "cortes", "lentitud", "contraseña", "bandas", "umbrales", "técnico", "masiva"] },
+            { id: "tv", label: "TV", icon: "fa-tv", matchKeywords: ["mando", "error"] }
         ];
-
-        /* MAPA INTERNO FIJO DE TV (REPLICADO DEL SCRIPT 1) */
-        const estructuraFijaTV = {
-            "Mando TV": ["Resuelto", "Escalar a NV2"],
-            "TV Canales": ["No ve algún canal", "No salen canales deportivos"],
-            "Error 101": ["Información", "Escalar a NV2"]
-        };
 
         categoriasRaiz.forEach(raiz => {
             serviciosActivos.forEach(s => {
@@ -320,59 +277,33 @@ javascript:(async function(){
                 const rootContent = rootBlock.querySelector(".g-root-content");
                 let tieneHijos = false;
 
-                if (raiz.id === "internet" && plantillas) {
-                    /* RENDERIZAR INTERNET DESDE EL JSON */
-                    const palabrasFiltro = ["original", "incomunicado", "cortes", "lentitud", "contraseña", "bandas", "umbrales", "técnico", "masiva"];
-                    
-                    Object.keys(plantillas).forEach(grupo => {
-                        const grupoLimpio = grupo.toLowerCase();
-                        const perteneceAInternet = palabrasFiltro.some(k => grupoLimpio.includes(k));
+                Object.keys(plantillas).forEach(grupo => {
+                    const grupoLimpio = grupo.toLowerCase();
+                    const perteneceARaiz = raiz.matchKeywords.some(keyword => grupoLimpio.includes(keyword));
 
-                        if (perteneceAInternet) {
-                            tieneHijos = true;
-                            const subAccordion = document.createElement("div");
-                            subAccordion.className = "g-sub-accordion";
-                            subAccordion.innerHTML = `
-                                <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
-                                <div class="g-sub-content"></div>
-                            `;
-                            const subContent = subAccordion.querySelector(".g-sub-content");
-                            
-                            Object.keys(plantillas[grupo]).forEach(clave => {
-                                const btn = document.createElement("button");
-                                btn.className = "g-action-btn";
-                                btn.textContent = clave;
-                                btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s, false); };
-                                subContent.appendChild(btn);
-                            });
-
-                            subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
-                                e.stopPropagation();
-                                const activeNow = subAccordion.classList.contains("active");
-                                rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
-                                if (!activeNow) subAccordion.classList.add("active");
-                            };
-                            rootContent.appendChild(subAccordion);
-                        }
-                    });
-                } 
-                else if (raiz.id === "tv") {
-                    /* RENDERIZAR TV DIRECTAMENTE DESDE LA ESTRUCTURA FIJA DEL SCRIPT */
-                    tieneHijos = true;
-                    Object.keys(estructuraFijaTV).forEach(grupo => {
+                    if (perteneceARaiz) {
+                        tieneHijos = true;
                         const subAccordion = document.createElement("div");
                         subAccordion.className = "g-sub-accordion";
+                        
                         subAccordion.innerHTML = `
-                            <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
+                            <div class="g-sub-trigger">
+                                <span>${grupo}</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </div>
                             <div class="g-sub-content"></div>
                         `;
+                        
                         const subContent = subAccordion.querySelector(".g-sub-content");
                         
-                        estructuraFijaTV[grupo].forEach(clave => {
+                        Object.keys(plantillas[grupo]).forEach(clave => {
                             const btn = document.createElement("button");
                             btn.className = "g-action-btn";
                             btn.textContent = clave;
-                            btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s, true); };
+                            btn.onclick = (e) => {
+                                e.stopPropagation();
+                                copyTemplateFront(`${grupo} -> ${clave}`, plantillas[grupo][clave], s);
+                            };
                             subContent.appendChild(btn);
                         });
 
@@ -382,9 +313,10 @@ javascript:(async function(){
                             rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
                             if (!activeNow) subAccordion.classList.add("active");
                         };
+
                         rootContent.appendChild(subAccordion);
-                    });
-                }
+                    }
+                });
 
                 rootBlock.querySelector(".g-root-trigger").onclick = () => {
                     const activeNow = rootBlock.classList.contains("active");
@@ -392,7 +324,9 @@ javascript:(async function(){
                     if (!activeNow) rootBlock.classList.add("active");
                 };
 
-                if (tieneHijos) rootBox.appendChild(rootBlock);
+                if (tieneHijos) {
+                    rootBox.appendChild(rootBlock);
+                }
             });
         });
 
