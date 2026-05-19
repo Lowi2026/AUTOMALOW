@@ -2,7 +2,6 @@ javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
-    /* 1. CARGA DE RECURSOS (ICONOS) */
     if (!document.querySelector('link[data-fa]')) {
         const fa = document.createElement("link");
         fa.rel = "stylesheet";
@@ -18,7 +17,6 @@ javascript:(async function(){
         } catch(e) { return null; }
     };
 
-    /* 2. EXTRACCIÓN DINÁMICA DE TEXTOS WEB */
     const getVal = (keys) => {
         const body = document.body.innerText;
         for (let key of keys) {
@@ -74,7 +72,6 @@ javascript:(async function(){
         return false;
     };
 
-    /* 3. UTILIDADES JIRA */
     const wait = t => new Promise(r => setTimeout(r, t));
     const fmt = d => {
         const m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -87,48 +84,44 @@ javascript:(async function(){
         return d;
     };
 
-    /* 4. INYECCIÓN DE ESTILOS EXACTOS A LA FOTO 2 */
     const injectStyles = () => {
         if(document.getElementById("g-styles")) return;
         const s = document.createElement("style");
         s.id = "g-styles";
         s.textContent = `
-            .g-container { background: #130617; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.9); border: 1px solid #2f0d3a; width: 370px; padding: 18px; z-index: 999999; font-family: 'Segoe UI', Arial, sans-serif; color: #fff; max-height: 85vh; overflow-y: auto; box-sizing: border-box; }
+            .g-container { background: #1a0f1f; position: fixed; top: 100px; right: 20px; border-radius: 12px; box-shadow: 0 0 20px rgba(128,0,255,0.35); border: 1px solid #5a1e80; width: 280px; padding: 14px; z-index: 999999; font-family: Arial, sans-serif; text-align: left; max-height: 80vh; overflow-y: auto; cursor: move; }
             .g-container::-webkit-scrollbar { width: 6px; }
-            .g-container::-webkit-scrollbar-track { background: #130617; }
-            .g-container::-webkit-scrollbar-thumb { background: #4f1564; border-radius: 10px; }
+            .g-container::-webkit-scrollbar-track { background: #2a0f3a; border-radius: 10px; }
+            .g-container::-webkit-scrollbar-thumb { background: #7b2cbf; border-radius: 10px; }
             
-            .g-header { position: relative; text-align: center; margin-bottom: 15px; }
-            .g-title { font-weight: 700; font-size: 16px; color: #f0c9ff; margin: 0; text-shadow: 0 0 8px rgba(240,201,255,0.3); }
-            .g-subtitle { font-size: 11px; color: #b5b5b5; margin: 4px 0 0 0; }
-            .g-close-x { position: absolute; top: -5px; right: 0; color: #ff5c5c; font-size: 18px; cursor: pointer; transition: 0.2s; }
+            .g-header { position: relative; text-align: center; margin-bottom: 4px; padding-bottom: 8px; }
+            .g-title { font-weight: 600; font-size: 15px; color: #d9a6ff; margin: 0; letter-spacing: 0.5px; }
+            .g-subtitle { font-size: 11px; color: #c9c9c9; margin: 0; margin-top: -6px; margin-bottom: 12px; }
+            .g-close-x { position: absolute; top: 8px; right: 10px; color: #ff6b6b; font-size: 18px; cursor: pointer; }
             
-            /* RAÍZ PRINCIPAL (Internet / TV) */
-            .g-root-block { margin-bottom: 10px; border: 1px solid #4a155c; border-radius: 8px; overflow: hidden; background: #1d0924; }
-            .g-root-trigger { padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #280a33; user-select: none; }
-            .g-root-trigger:hover { background: #350d44; }
-            .g-root-trigger i.fa-chevron-down { transition: transform 0.2s; color: #dfa6ff; font-size: 12px; }
+            .g-root-block { margin-top: 8px; background: #2a0f3a; border-radius: 8px; border: 1px solid #5a1e80; overflow: hidden; }
+            .g-root-trigger { padding: 10px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+            .g-root-trigger:hover { background: #3a1450; }
+            .g-root-trigger i.fa-chevron-down { transition: transform 0.2s; color: #dfa6ff; font-size: 10px; }
             .g-root-block.active .g-root-trigger i.fa-chevron-down { transform: rotate(180deg); }
-            .g-root-content { display: none; padding: 8px; background: #130617; }
+            .g-root-content { display: none; padding: 5px 6px 8px 4px; margin-left: 4px; margin-top: 5px; margin-bottom: 8px; border-left: 2px solid #9d4edd; }
             .g-root-block.active .g-root-content { display: block; }
             
-            /* SUB-ACORDEÓN (Averías internas) */
-            .g-sub-accordion { margin-bottom: 6px; border: 1px solid #3d144c; border-radius: 6px; overflow: hidden; }
-            .g-sub-trigger { background: #1d0924; padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; border-bottom: 1px solid transparent; }
-            .g-sub-trigger:hover { background: #2b0d36; }
-            .g-sub-trigger i.fa-chevron-down { transition: transform 0.2s; color: #fff; font-size: 11px; }
-            .g-sub-accordion.active .g-sub-trigger { border-bottom-color: #3d144c; background: #2b0d36; }
+            .g-sub-accordion { }
+            .g-sub-trigger { padding: 0 10px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; height: 35px; }
+            .g-sub-trigger i.fa-chevron-down { transition: transform 0.2s; color: #dfa6ff; font-size: 10px; }
             .g-sub-accordion.active .g-sub-trigger i.fa-chevron-down { transform: rotate(180deg); }
-            .g-sub-content { display: none; background: #130617; padding: 8px 6px; }
+            .g-sub-content { display: none; padding: 5px 0 0 0; }
             .g-sub-accordion.active .g-sub-content { display: block; }
             
-            /* BOTONES DE ACCIÓN (Estilo Foto 2) */
-            .g-action-btn { background: #601f7a; color: #fff; border: none; padding: 9px 12px; border-radius: 15px; cursor: pointer; font-size: 11px; font-weight: 600; width: 100%; text-align: center; margin-bottom: 6px; transition: background 0.15s; display: block; box-sizing: border-box; }
+            .g-action-btn { background: #7b2cbf; color: #fff; border: none; padding: 8px; margin: 4px 0; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; width: 100%; text-align: left; text-transform: uppercase; transition: background 0.15s; display: block; box-sizing: border-box; }
             .g-action-btn:last-child { margin-bottom: 0; }
-            .g-action-btn:hover { background: #7c269e; }
+            .g-action-btn:hover { background: #9d4edd; transform: translateY(-1px); }
             
-            /* NOTIFICACIÓN TOAST */
-            .g-nt { position: fixed; top: 20px; right: 20px; background: #21072e; border: 1px solid #b05cff; padding: 11px 22px; border-radius: 10px; color: #fff; z-index: 1000001; animation: g-in 0.25s forwards; font-family: sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.6); font-weight: bold; font-size: 12px; }
+            .g-cierre-asistente { width: 100%; padding: 8px; margin-top: 12px; border-radius: 8px; border: 1px solid #ff6b6b; color: #ff6b6b; background: transparent; cursor: pointer; font-size: 11px; font-weight: bold; text-align: center; }
+            .g-cierre-asistente:hover { background: rgba(255,107,107,0.1); }
+
+            .g-nt { position: fixed; top: 20px; right: 20px; background: #7b2cbf; padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000001; animation: g-in 0.3s forwards; font-family: Arial, sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-weight: bold; font-size: 13px; }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
         `;
         document.head.appendChild(s);
@@ -139,18 +132,17 @@ javascript:(async function(){
         document.body.appendChild(n); setTimeout(() => n.remove(), 2500);
     };
 
-    /* 5. PROCESADOR DE REGLAS LOGICAS */
     const copyTemplateFront = (titulo, f, servicio) => {
-        const bTexto = servicio.texto;
+        const bloqueTexto = servicio.texto;
         let c = [...f]; 
-        const tech = detectarTecnologiaScript1(bTexto);
+        const tech = detectarTecnologiaScript1(bloqueTexto);
 
         if (c[1] === "DINAMICO_INCOMUNICADO") {
             if (tech === "HFC") {
                 c[1] = "router con luces intermitentes, sin acceso remoto al cpe, se valida cableado sin daños";
                 c[2] = "posible daño en acometida HFC";
             } else {
-                const tieneOnt = detectarONT(bTexto);
+                const tieneOnt = detectarONT(bloqueTexto);
                 c[1] = tieneOnt ? "ONT en rojo en alarm, sin acceso remoto, se valida el cableado no presenta daños y no hay acceso a cpe" : "router con ONT integrada sin sincronismo, se valida el cableado no presenta daños, conectado correctamente router";
                 c[2] = tieneOnt ? "posible daño en tramo óptico" : "posible daño en fibra";
             }
@@ -175,13 +167,13 @@ javascript:(async function(){
             c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
         }
 
-        const vel = (bTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
+        const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
 
         const res = [
             `Nombre: ${getVal(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"])}`,
             `DNI: ${getVal(["DNI/NIE/Pasaporte:", "DNI:", "DNI/NIE:", "Documento:"])}`,
             `ID: ${getVal(["AMDOCS ID:", "ID Cliente:", "ID:"])}`,
-            `Dirección: ${extraerDireccion(bTexto)}`,
+            `Dirección: ${extraerDireccion(bloqueTexto)}`,
             `Móvil: ${extraerMoviles()}`,
             `• Qué dice el cliente que le sucede: ${c[0] || "N/A"}`,
             `• Pruebas realizadas: ${c[1] || "N/A"}`,
@@ -193,16 +185,49 @@ javascript:(async function(){
         ].join("\n");
 
         navigator.clipboard.writeText(res);
-        toast("Copiado en portapapeles");
+        toast("Copiado ✔");
     };
 
-    /* INICIO DEL RENDERIZADO COMPATIBLE CON PL.JSON */
+    function makeDraggable(el) {
+        var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+        if (document.getElementById(el.id + "header")) {
+            document.getElementById(el.id + "header").onmousedown = dragMouseDown;
+        } else {
+            el.onmousedown = dragMouseDown;
+        }
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+            el.style.top = (el.offsetTop - pos2) + "px";
+            el.style.left = (el.offsetLeft - pos1) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
     injectStyles();
     const plantillas = await loadData('PL.json');
     const averias = await loadData('averias.json');
 
     if (u.includes("lowi.es")) {
-        if (!plantillas) return alert("❌ Error: No se pudo mapear el archivo PL.json.");
+        if (!plantillas) return alert("❌ Error: PL.json");
         
         const bt = document.body.innerText;
         const iP = bt.indexOf("Internet principal");
@@ -212,23 +237,23 @@ javascript:(async function(){
             { t: "Adicional", texto: iA > -1 ? bt.slice(iA) : "" }
         ].filter(s => s.texto.trim());
 
-        if (!serviciosActivos.length) return alert("⚠️ No se ha localizado información de Internet en pantalla.");
+        if (!serviciosActivos.length) return alert("⚠️ No Internet.");
 
-        const ex = document.getElementById("g-ui-accordion"); if(ex) ex.remove();
-        const wrapper = document.createElement("div"); wrapper.id = "g-ui-accordion"; wrapper.className = "g-container";
+        const ex = document.getElementById("g-ui-dragg"); if(ex) ex.remove();
+        const container = document.createElement("div"); container.id = "g-ui-dragg"; container.className = "g-container";
         
-        wrapper.innerHTML = `
-            <div class="g-header">
+        container.innerHTML = `
+            <div class="g-header" id="g-ui-draggheader">
                 <div class="g-close-x" id="g-close-btn"><i class="fa-solid fa-xmark"></i></div>
                 <h3 class="g-title">Generador de Plantillas</h3>
                 <p class="g-subtitle">Selecciona la tipificación que necesites</p>
             </div>
             <div id="g-root-box"></div>
+            <button class="g-cierre-asistente" id="g-cierre-total">OCULTAR INTERFAZ</button>
         `;
         
-        const rootBox = wrapper.querySelector("#g-root-box");
+        const rootBox = container.querySelector("#g-root-box");
 
-        // PASO 1: SEPARACIÓN DE BLOQUES RAÍZ FIJOS (INTERNET VS TV) COMO EN LA FOTO 2
         const categoriasRaiz = [
             { id: "internet", label: "Internet / WiFi", icon: "fa-wifi", matchKeywords: ["original", "incomunicado", "cortes", "lentitud", "contraseña", "bandas", "umbrales", "técnico", "masiva"] },
             { id: "tv", label: "TV", icon: "fa-tv", matchKeywords: ["mando", "error"] }
@@ -239,7 +264,6 @@ javascript:(async function(){
                 const rootBlock = document.createElement("div");
                 rootBlock.className = "g-root-block";
                 
-                // Título de la Raíz (Ej: Internet / WiFi (Principal))
                 rootBlock.innerHTML = `
                     <div class="g-root-trigger">
                         <span><i class="fa-solid ${raiz.icon}" style="margin-right:8px; color:#dfa6ff;"></i> ${raiz.label} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
@@ -251,7 +275,6 @@ javascript:(async function(){
                 const rootContent = rootBlock.querySelector(".g-root-content");
                 let tieneHijos = false;
 
-                // PASO 2: CLASIFICACIÓN Y GENERACIÓN DE SUB-ACORDEONES DINÁMICOS
                 Object.keys(plantillas).forEach(grupo => {
                     const grupoLimpio = grupo.toLowerCase();
                     const perteneceARaiz = raiz.matchKeywords.some(keyword => grupoLimpio.includes(keyword));
@@ -271,19 +294,17 @@ javascript:(async function(){
                         
                         const subContent = subAccordion.querySelector(".g-sub-content");
                         
-                        // PASO 3: INSERCIÓN DE BOTONES DE ACCIÓN INTERNOS CENTRADOS
                         Object.keys(plantillas[grupo]).forEach(clave => {
                             const btn = document.createElement("button");
                             btn.className = "g-action-btn";
                             btn.textContent = clave;
                             btn.onclick = (e) => {
-                                e.stopPropagation(); // Evita interferencias con el contenedor colapsable
+                                e.stopPropagation();
                                 copyTemplateFront(`${grupo} -> ${clave}`, plantillas[grupo][clave], s);
                             };
                             subContent.appendChild(btn);
                         });
 
-                        // Evento interactivo exclusivo para el Sub-Acordeón
                         subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
                             e.stopPropagation();
                             const activeNow = subAccordion.classList.contains("active");
@@ -295,7 +316,6 @@ javascript:(async function(){
                     }
                 });
 
-                // Evento interactivo exclusivo para la Raíz Superior
                 rootBlock.querySelector(".g-root-trigger").onclick = () => {
                     const activeNow = rootBlock.classList.contains("active");
                     rootBox.querySelectorAll(".g-root-block").forEach(el => el.classList.remove("active"));
@@ -308,14 +328,13 @@ javascript:(async function(){
             });
         });
 
-        wrapper.querySelector("#g-close-btn").onclick = () => wrapper.remove();
-        document.body.appendChild(wrapper);
+        container.querySelector("#g-close-btn").onclick = () => container.remove();
+        container.querySelector("#g-cierre-total").onclick = () => container.remove();
+        document.body.appendChild(container);
+        makeDraggable(container);
     }
-    // =========================================================================
-    // ENTORNO ENABLER.ES (Inyector Jira unificado con el mismo diseño visual)
-    // =========================================================================
     else if (u.includes("enabler.es")) {
-        if (!averias) return alert("❌ Error: No se pudo obtener el archivo averias.json.");
+        if (!averias) return alert("❌ Error: averias.json");
         
         const dk = (e, k) => e?.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
         const di = e => { if (!e) return; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -331,18 +350,19 @@ javascript:(async function(){
             dk(i, "Enter"); await wait(e); i.blur();
         }
 
-        const ex = document.getElementById("g-ui-accordion"); if(ex) ex.remove();
-        const wrapper = document.createElement("div"); wrapper.id = "g-ui-accordion"; wrapper.className = "g-container";
+        const ex = document.getElementById("g-ui-dragg"); if(ex) ex.remove();
+        const container = document.createElement("div"); container.id = "g-ui-dragg"; container.className = "g-container";
         
-        wrapper.innerHTML = `
-            <div class="g-header">
+        container.innerHTML = `
+            <div class="g-header" id="g-ui-draggheader">
                 <div class="g-close-x" id="g-close-btn"><i class="fa-solid fa-xmark"></i></div>
                 <h3 class="g-title">Robot Inyector Jira</h3>
                 <p class="g-subtitle">Ejecución automática de campos</p>
             </div>
             <div id="g-root-box"></div>
+            <button class="g-cierre-asistente" id="g-cierre-total">OCULTAR INTERFAZ</button>
         `;
-        const rootBox = wrapper.querySelector("#g-root-box");
+        const rootBox = container.querySelector("#g-root-box");
 
         const rootBlock = document.createElement("div");
         rootBlock.className = "g-root-block active";
@@ -351,7 +371,7 @@ javascript:(async function(){
                 <span><i class="fa-solid fa-robot" style="margin-right:8px; color:#dfa6ff;"></i> Averías Automatizadas</span>
                 <i class="fa-solid fa-chevron-down"></i>
             </div>
-            <div class="g-root-content" style="display:block; padding:10px;"></div>
+            <div class="g-root-content" style="display:block; padding-left:0; margin-left:0; border:none;"></div>
         `;
         const rootContent = rootBlock.querySelector(".g-root-content");
 
@@ -359,8 +379,9 @@ javascript:(async function(){
             const btn = document.createElement("button");
             btn.className = "g-action-btn";
             btn.textContent = t.label;
+            btn.style.textTransform = "none";
             btn.onclick = async () => {
-                wrapper.remove();
+                container.remove();
                 toast("Procesando Jira...");
                 try {
                     const p = t.pasos;
@@ -396,16 +417,18 @@ javascript:(async function(){
                     const ex = document.querySelector('#cd-1 input[id^="react-select"]');
                     if (ex) await ejecutarSeleccion(ex, p.EXTRA_CIERRE || 0, 100, 200);
 
-                    toast("¡Jira Automatizado! 🚀");
-                } catch (err) { toast("Error en la inyección."); }
+                    toast("Jira Automatizado ✔");
+                } catch (err) { toast("Error."); }
             };
             rootContent.appendChild(btn);
         });
 
         rootBox.appendChild(rootBlock);
-        wrapper.querySelector("#g-close-btn").onclick = () => wrapper.remove();
-        document.body.appendChild(wrapper);
+        container.querySelector("#g-close-btn").onclick = () => container.remove();
+        container.querySelector("#g-cierre-total").onclick = () => container.remove();
+        document.body.appendChild(container);
+        makeDraggable(container);
     } else {
-        alert("⚠️ Ejecutar únicamente en lowi.es o enabler.es");
+        alert("⚠️ lowi.es / enabler.es");
     }
 })();
