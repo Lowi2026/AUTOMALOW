@@ -89,47 +89,63 @@ javascript:(async function(){
         const s = document.createElement("style");
         s.id = "g-styles";
         s.textContent = `
-            .g-container { background: #1a0f1f; position: fixed; top: 100px; right: 20px; border-radius: 12px; box-shadow: 0 0 20px rgba(128,0,255,0.35); border: 1px solid #5a1e80; width: 280px; padding: 14px; z-index: 999999; font-family: Arial, sans-serif; text-align: left; max-height: 80vh; overflow-y: auto; cursor: move; }
-            .g-container::-webkit-scrollbar { width: 6px; }
-            .g-container::-webkit-scrollbar-track { background: #2a0f3a; border-radius: 10px; }
-            .g-container::-webkit-scrollbar-thumb { background: #7b2cbf; border-radius: 10px; }
+            .g-container { background: #180C20; position: fixed; top: 80px; right: 25px; border-radius: 16px; box-shadow: 0 10px 35px rgba(0,0,0,0.6); border: 1px solid #2D143D; width: 320px; padding: 16px; z-index: 999999; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-height: 85vh; overflow-y: auto; display: flex; flex-direction: column; box-sizing: border-box; }
+            .g-container::-webkit-scrollbar { width: 5px; }
+            .g-container::-webkit-scrollbar-track { background: transparent; }
+            .g-container::-webkit-scrollbar-thumb { background: #441A5C; border-radius: 10px; }
             
-            .g-header { position: relative; text-align: center; margin-bottom: 4px; padding-bottom: 8px; }
-            .g-title { font-weight: 600; font-size: 15px; color: #d9a6ff; margin: 0; letter-spacing: 0.5px; }
-            .g-subtitle { font-size: 11px; color: #c9c9c9; margin: 0; margin-top: -6px; margin-bottom: 12px; }
-            .g-close-x { position: absolute; top: 8px; right: 10px; color: #ff6b6b; font-size: 18px; cursor: pointer; }
+            .g-header { position: relative; text-align: center; margin-bottom: 14px; user-select: none; cursor: move; }
+            .g-title { font-weight: 700; font-size: 16px; color: #E3B3FF; margin: 0; }
+            .g-subtitle { font-size: 11px; color: #A493B0; margin: 3px 0 0 0; }
+            .g-close-x { position: absolute; top: -2px; right: 2px; color: #FF5A5A; font-size: 16px; cursor: pointer; transition: transform 0.15s; }
+            .g-close-x:hover { transform: scale(1.1); }
             
-            .g-root-block { margin-top: 8px; background: #2a0f3a; border-radius: 8px; border: 1px solid #5a1e80; overflow: hidden; }
-            .g-root-trigger { padding: 10px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
-            .g-root-trigger:hover { background: #3a1450; }
-            .g-root-trigger i.fa-chevron-down { transition: transform 0.2s; color: #dfa6ff; font-size: 10px; }
+            /* CAJAS RAÍZ PRINCIPALES */
+            .g-root-block { margin-bottom: 8px; border-radius: 10px; border: 1px solid #3D1B54; background: #1F0F29; overflow: hidden; }
+            .g-root-trigger { padding: 11px 14px; font-size: 13.5px; font-weight: 600; color: #FFF; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+            .g-root-trigger:hover { background: #281433; }
+            .g-root-trigger i.fa-chevron-down { transition: transform 0.2s; color: #FFF; font-size: 11px; }
+            .g-root-block.active { border-color: #4A1F66; }
             .g-root-block.active .g-root-trigger i.fa-chevron-down { transform: rotate(180deg); }
-            .g-root-content { display: none; padding: 5px 6px 8px 4px; margin-left: 4px; margin-top: 5px; margin-bottom: 8px; border-left: 2px solid #9d4edd; }
+            
+            /* CONTENEDOR INTERNO DE SUB-ACORDEONES */
+            .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; }
+            .g-root-content::before { content: ''; position: absolute; left: 14px; top: 12px; bottom: 12px; width: 2px; background: #441A5C; border-radius: 2px; }
             .g-root-block.active .g-root-content { display: block; }
             
-            .g-sub-accordion { }
-            .g-sub-trigger { padding: 0 10px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; height: 35px; }
-            .g-sub-trigger i.fa-chevron-down { transition: transform 0.2s; color: #dfa6ff; font-size: 10px; }
+            /* SUB-ACORDEONES (Cortes, Lentitud, etc.) */
+            .g-sub-accordion { margin-bottom: 6px; margin-left: 12px; border-radius: 8px; border: 1px solid #36174A; background: #22102E; overflow: hidden; }
+            .g-sub-accordion:last-child { margin-bottom: 0; }
+            .g-sub-trigger { padding: 8px 12px; font-size: 12px; font-weight: 600; color: #E5D6ED; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+            .g-sub-trigger:hover { background: #2D153D; }
+            .g-sub-trigger i.fa-chevron-down { transition: transform 0.2s; color: #B59EBF; font-size: 10px; }
+            .g-sub-accordion.active { border-color: #532373; }
             .g-sub-accordion.active .g-sub-trigger i.fa-chevron-down { transform: rotate(180deg); }
-            .g-sub-content { display: none; padding: 5px 0 0 0; }
+            
+            /* DESPLEGABLE FINAL DE ACCIONES */
+            .g-sub-content { display: none; padding: 8px 10px; background: #1A0C24; border-top: 1px solid #2C133D; }
             .g-sub-accordion.active .g-sub-content { display: block; }
             
-            .g-action-btn { background: #7b2cbf; color: #fff; border: none; padding: 8px; margin: 4px 0; border-radius: 8px; cursor: pointer; font-size: 11px; font-weight: bold; width: 100%; text-align: left; text-transform: uppercase; transition: background 0.15s; display: block; box-sizing: border-box; }
+            /* BOTONES REDONDEADOS ESTILO FOTO 2 */
+            .g-action-btn { background: #7A22B4; color: #FFF; border: none; padding: 7px 14px; margin-bottom: 6px; border-radius: 20px; cursor: pointer; font-size: 11.5px; font-weight: 600; width: 100%; text-align: center; transition: background 0.15s, transform 0.1s; box-sizing: border-box; }
             .g-action-btn:last-child { margin-bottom: 0; }
-            .g-action-btn:hover { background: #9d4edd; transform: translateY(-1px); }
+            .g-action-btn:hover { background: #912FD4; }
+            .g-action-btn:active { transform: scale(0.98); }
             
-            .g-cierre-asistente { width: 100%; padding: 8px; margin-top: 12px; border-radius: 8px; border: 1px solid #ff6b6b; color: #ff6b6b; background: transparent; cursor: pointer; font-size: 11px; font-weight: bold; text-align: center; }
-            .g-cierre-asistente:hover { background: rgba(255,107,107,0.1); }
+            /* BOTÓN OCULTAR INTERFAZ ABAJO */
+            .g-cierre-asistente { width: 100%; padding: 10px; margin-top: 8px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
+            .g-cierre-asistente:hover { background: #FFF; }
 
-            .g-nt { position: fixed; top: 20px; right: 20px; background: #7b2cbf; padding: 12px 18px; border-radius: 8px; color: #fff; z-index: 1000001; animation: g-in 0.3s forwards; font-family: Arial, sans-serif; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-weight: bold; font-size: 13px; }
+            /* TOAST NOTIFICACIÓN */
+            .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
         `;
         document.head.appendChild(s);
     };
 
     const toast = (m) => {
-        const n = document.createElement("div"); n.className = "g-nt"; n.innerHTML = `<i class="fa-solid fa-check-double"></i> | ${m}`;
-        document.body.appendChild(n); setTimeout(() => n.remove(), 2500);
+        const n = document.createElement("div"); n.className = "g-nt"; n.innerHTML = `<i class="fa-solid fa-check"></i> | ${m}`;
+        document.body.appendChild(n); setTimeout(() => n.remove(), 2000);
     };
 
     const copyTemplateFront = (titulo, f, servicio) => {
@@ -185,41 +201,27 @@ javascript:(async function(){
         ].join("\n");
 
         navigator.clipboard.writeText(res);
-        toast("Copiado ✔");
+        toast("Copiado con éxito");
     };
 
-    function makeDraggable(el) {
-        var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
-        if (document.getElementById(el.id + "header")) {
-            document.getElementById(el.id + "header").onmousedown = dragMouseDown;
-        } else {
-            el.onmousedown = dragMouseDown;
-        }
+    function makeDraggable(el, handleId) {
+        var p1 = 0, p2 = 0, p3 = 0, p4 = 0;
+        const handle = document.getElementById(handleId);
+        if (handle) { handle.onmousedown = dragMouseDown; } else { el.onmousedown = dragMouseDown; }
 
         function dragMouseDown(e) {
-            e = e || window.event;
-            e.preventDefault();
-            pos3 = e.clientX;
-            pos4 = e.clientY;
-            document.onmouseup = closeDragElement;
-            document.onmousemove = elementDrag;
+            if(e.target.closest('button') || e.target.closest('.g-close-x') || e.target.closest('.g-root-trigger') || e.target.closest('.g-sub-trigger')) return;
+            e = e || window.event; e.preventDefault();
+            p3 = e.clientX; p4 = e.clientY;
+            document.onmouseup = closeDragElement; document.onmousemove = elementDrag;
         }
-
         function elementDrag(e) {
-            e = e || window.event;
-            e.preventDefault();
-            pos1 = pos3 - e.clientX;
-            pos2 = pos4 - e.clientY;
-            pos3 = e.clientX;
-            pos4 = e.clientY;
-            el.style.top = (el.offsetTop - pos2) + "px";
-            el.style.left = (el.offsetLeft - pos1) + "px";
+            e = e || window.event; e.preventDefault();
+            p1 = p3 - e.clientX; p2 = p4 - e.clientY;
+            p3 = e.clientX; p4 = e.clientY;
+            el.style.top = (el.offsetTop - p2) + "px"; el.style.left = (el.offsetLeft - p1) + "px";
         }
-
-        function closeDragElement() {
-            document.onmouseup = null;
-            document.onmousemove = null;
-        }
+        function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
     }
 
     injectStyles();
@@ -227,7 +229,7 @@ javascript:(async function(){
     const averias = await loadData('averias.json');
 
     if (u.includes("lowi.es")) {
-        if (!plantillas) return alert("❌ Error: PL.json");
+        if (!plantillas) return alert("❌ Error: No se pudo mapear el archivo PL.json.");
         
         const bt = document.body.innerText;
         const iP = bt.indexOf("Internet principal");
@@ -237,19 +239,19 @@ javascript:(async function(){
             { t: "Adicional", texto: iA > -1 ? bt.slice(iA) : "" }
         ].filter(s => s.texto.trim());
 
-        if (!serviciosActivos.length) return alert("⚠️ No Internet.");
+        if (!serviciosActivos.length) return alert("⚠️ No se localizó información del servicio de Internet.");
 
         const ex = document.getElementById("g-ui-dragg"); if(ex) ex.remove();
         const container = document.createElement("div"); container.id = "g-ui-dragg"; container.className = "g-container";
         
         container.innerHTML = `
-            <div class="g-header" id="g-ui-draggheader">
+            <div class="g-header" id="g-drag-handle">
                 <div class="g-close-x" id="g-close-btn"><i class="fa-solid fa-xmark"></i></div>
                 <h3 class="g-title">Generador de Plantillas</h3>
                 <p class="g-subtitle">Selecciona la tipificación que necesites</p>
             </div>
             <div id="g-root-box"></div>
-            <button class="g-cierre-asistente" id="g-cierre-total">OCULTAR INTERFAZ</button>
+            <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
         `;
         
         const rootBox = container.querySelector("#g-root-box");
@@ -266,7 +268,7 @@ javascript:(async function(){
                 
                 rootBlock.innerHTML = `
                     <div class="g-root-trigger">
-                        <span><i class="fa-solid ${raiz.icon}" style="margin-right:8px; color:#dfa6ff;"></i> ${raiz.label} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
+                        <span><i class="fa-solid ${raiz.icon}" style="margin-right:8px; color:#E3B3FF;"></i> ${raiz.label} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
                         <i class="fa-solid fa-chevron-down"></i>
                     </div>
                     <div class="g-root-content"></div>
@@ -331,10 +333,10 @@ javascript:(async function(){
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
         document.body.appendChild(container);
-        makeDraggable(container);
+        makeDraggable(container, "g-drag-handle");
     }
     else if (u.includes("enabler.es")) {
-        if (!averias) return alert("❌ Error: averias.json");
+        if (!averias) return alert("❌ Error: No se pudo mapear el archivo averias.json.");
         
         const dk = (e, k) => e?.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
         const di = e => { if (!e) return; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -354,13 +356,13 @@ javascript:(async function(){
         const container = document.createElement("div"); container.id = "g-ui-dragg"; container.className = "g-container";
         
         container.innerHTML = `
-            <div class="g-header" id="g-ui-draggheader">
+            <div class="g-header" id="g-drag-handle">
                 <div class="g-close-x" id="g-close-btn"><i class="fa-solid fa-xmark"></i></div>
                 <h3 class="g-title">Robot Inyector Jira</h3>
                 <p class="g-subtitle">Ejecución automática de campos</p>
             </div>
             <div id="g-root-box"></div>
-            <button class="g-cierre-asistente" id="g-cierre-total">OCULTAR INTERFAZ</button>
+            <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
         `;
         const rootBox = container.querySelector("#g-root-box");
 
@@ -368,10 +370,10 @@ javascript:(async function(){
         rootBlock.className = "g-root-block active";
         rootBlock.innerHTML = `
             <div class="g-root-trigger">
-                <span><i class="fa-solid fa-robot" style="margin-right:8px; color:#dfa6ff;"></i> Averías Automatizadas</span>
+                <span><i class="fa-solid fa-robot" style="margin-right:8px; color:#E3B3FF;"></i> Averías Automatizadas</span>
                 <i class="fa-solid fa-chevron-down"></i>
             </div>
-            <div class="g-root-content" style="display:block; padding-left:0; margin-left:0; border:none;"></div>
+            <div class="g-root-content" style="display:block; padding: 10px 4px 4px 4px; border:none; margin-left:0;"></div>
         `;
         const rootContent = rootBlock.querySelector(".g-root-content");
 
@@ -379,7 +381,6 @@ javascript:(async function(){
             const btn = document.createElement("button");
             btn.className = "g-action-btn";
             btn.textContent = t.label;
-            btn.style.textTransform = "none";
             btn.onclick = async () => {
                 container.remove();
                 toast("Procesando Jira...");
@@ -418,7 +419,7 @@ javascript:(async function(){
                     if (ex) await ejecutarSeleccion(ex, p.EXTRA_CIERRE || 0, 100, 200);
 
                     toast("Jira Automatizado ✔");
-                } catch (err) { toast("Error."); }
+                } catch (err) { toast("Error en la inyección."); }
             };
             rootContent.appendChild(btn);
         });
@@ -427,8 +428,8 @@ javascript:(async function(){
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
         document.body.appendChild(container);
-        makeDraggable(container);
+        makeDraggable(container, "g-drag-handle");
     } else {
-        alert("⚠️ lowi.es / enabler.es");
+        alert("⚠️ Ejecutar únicamente en lowi.es o enabler.es");
     }
 })();
