@@ -1,7 +1,7 @@
 /* 8:14 */
 javascript:(async function(){
     const u = window.location.href;
-    const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
+    const REPO = 'https://cdn.staticaly.net/gh/Lowi2026/AUTOMALOW@main/';
     
     if (!document.querySelector('link[data-fa]')) {
         const fa = document.createElement("link");
