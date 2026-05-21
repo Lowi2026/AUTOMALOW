@@ -179,8 +179,9 @@
       "Se verifica en Smart que la cita ya pasó y se valida que el técnico no presentó la visita",
       "Incumplimiento de visita técnica",
       "Se disculpa con el cliente y se reporta técnico en base black list"
-    ],
-    "Proceso migracion": {
+    ]
+  },
+  "Proceso Migración": {
     "Ya esta cancelado en SMART": [
       "Solicita la migracion de servicio",
       "Se comprueba que el servicio ya esta cancelado en SMART, le indicaron contactarle nuevamente.",
@@ -192,7 +193,6 @@
       "Se comprueba el servicio, tiene la ficha activa, no se ha realizado proceso aun.",
       "cliente debe ser conctactado desde Migraciones N2",
       "Se le informa a cliente que debe esperar contacto del area, los cuales le informaran de si la migracion es posible o no."
-    ]
     ]
   }
 }
