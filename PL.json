@@ -153,6 +153,20 @@
       "Se escala a NV2 para revision de error 101"
     ]
   },
+  "Canales": {
+    "No ve algun canal": [
+      "No ve algún canal",
+      " Se verifica señal del deco y se explica al cliente cuál es el canal directamente",
+      "Cliente no localiza el canal",
+      "Se le indica el canal directo y se confirma que ya lo ve"
+    ],
+    "No sale pack deportes": [
+      "No le salen los canales deportivos",
+      "Reinicio de fábrica al deco, se configura desde el inicio con el cliente y se revisa la lista de canales",
+      "El deco necesita reconfiguración completa",
+      "Reinicio de fábrica al deco, configuración inicial con el cliente y verificación de canales deportivos"
+    ]
+  },
   "Técnico Incumplido": {
     "Cita en curso / Esperar": [
       "Tengo cita con el técnico",
@@ -165,6 +179,20 @@
       "Se verifica en Smart que la cita ya pasó y se valida que el técnico no presentó la visita",
       "Incumplimiento de visita técnica",
       "Se disculpa con el cliente y se reporta técnico en base black list"
+    ],
+    "Proceso migracion": {
+    "Ya esta cancelado en SMART": [
+      "Solicita la migracion de servicio",
+      "Se comprueba que el servicio ya esta cancelado en SMART, le indicaron contactarle nuevamente.",
+      "Cliente debe ser contactado nuevamente desde Migraciones N2",
+      "Se le informa a cliente que debe esperar contacto nuevamente del area, los cuales le informaran de la migracion."
+    ],
+    "Solicita migrar": [
+      "Cliente indica que quiere cambiar de cable o servicio",
+      "Se comprueba el servicio, tiene la ficha activa, no se ha realizado proceso aun.",
+      "cliente debe ser conctactado desde Migraciones N2",
+      "Se le informa a cliente que debe esperar contacto del area, los cuales le informaran de si la migracion es posible o no."
+    ]
     ]
   }
 }
