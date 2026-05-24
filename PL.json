@@ -1,10 +1,18 @@
 {
   "Original": {
-    "Normal": [
+    "Sin rellenar": [
       "",
       "",
       "",
       ""
+    ]
+  },
+  "Estado Averia": {
+    "Info Averia Tecnica": [
+      "Consulta por estado de incidencia ",
+      "Se comprueba que el cliente esta a la espera de una visita tecnica, consulta por informacion acerca de la averia",
+      "Cliente a la espera de resolucion de la averia",
+      "Se le informa al cliente sobre el estado de la incidencia y se recuerda la activación del bono de 50GB "
     ]
   },
   "Incomunicado Total": {
