@@ -1,6 +1,6 @@
 javascript:(async function(){
     const u = window.location.href;
-   const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
+    const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
     // Cuando vayas a llamar a tus archivos JSON dentro del código, hazlo así:
     // Al sumarle '?v=' + Date.now(), destruyes la caché del servidor al instante
@@ -135,8 +135,11 @@ javascript:(async function(){
             .g-action-btn:hover { background: #912FD4; }
             .g-action-btn:active { transform: scale(0.98); }
             
-            .g-cierre-asistente { width: 100%; padding: 10px; margin-top: 8px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
+            .g-footer-buttons { display: flex; gap: 8px; margin-top: 8px; width: 100%; box-sizing: border-box; }
+            .g-cierre-asistente { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-cierre-asistente:hover { background: #FFF; }
+            .g-copy-tt-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #FFF; background: #2980b9; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
+            .g-copy-tt-btn:hover { background: #3498db; }
 
             .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
@@ -171,14 +174,14 @@ javascript:(async function(){
             }
         }
         if (c[1] === "DINAMICO_CORTES_RESUELTO") {
-            c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es estable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal estable en ambas bandas wifi";
+            c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal estable en ambas bandas wifi";
         }
         if (c[1] === "DINAMICO_CORTES_TECNICO") {
             c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes en Schaman, reinicio de fábrica sin mejora";
             c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
         }
         if (c[1] === "DINAMICO_CORTES_NV2") {
-            c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistentes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistentes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
+            c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistententes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistentes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
         }
         if (c[1] === "DINAMICO_FUERA_RESUELTO") {
             c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
@@ -251,7 +254,9 @@ javascript:(async function(){
                 <p class="g-subtitle">Selecciona la tipificación que necesites</p>
             </div>
             <div id="g-root-box"></div>
-            <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
+            <div class="g-footer-buttons">
+                <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
+            </div>
         `;
         
         const rootBox = container.querySelector("#g-root-box");
@@ -279,8 +284,8 @@ javascript:(async function(){
 
                 if (plantillas) {
                     Object.keys(plantillas).forEach(grupo => {
-                        const grupoLimpio = grupo.toLowerCase();
-                        const perteneceARaiz = raiz.keywords.some(k => grupoLimpio.includes(k));
+                        const grupoLimpio = group => group.toLowerCase();
+                        const perteneceARaiz = raiz.keywords.some(k => grupoLimpio(grupo).includes(k));
 
                         if (perteneceARaiz) {
                             tieneHijos = true;
@@ -353,7 +358,10 @@ javascript:(async function(){
                 <p class="g-subtitle">Ejecución automática de campos</p>
             </div>
             <div id="g-root-box"></div>
-            <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
+            <div class="g-footer-buttons">
+                <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
+                <button class="g-copy-tt-btn" id="g-copy-tt"><i class="fa-solid fa-copy" style="margin-right:4px;"></i> Copiar TT</button>
+            </div>
         `;
         const rootBox = container.querySelector("#g-root-box");
 
@@ -418,6 +426,47 @@ javascript:(async function(){
         rootBox.appendChild(rootBlock);
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
+        
+        // Asignación de la lógica del nuevo botón Copiar TT
+        container.querySelector("#g-copy-tt").onclick = () => {
+            var el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
+            if (!el) {
+                alert("No se encontró el TT");
+                return;
+            }
+            var tt = el.textContent.trim();
+            navigator.clipboard.writeText(tt).then(function(){
+                var old = document.getElementById("copied-toast");
+                if(old) old.remove();
+                var t = document.createElement("div");
+                t.id = "copied-toast";
+                t.innerHTML = '<i class="fa-solid fa-circle-check"></i> Copiado: ' + tt;
+                Object.assign(t.style, {
+                    position: "fixed",
+                    bottom: "20px",
+                    right: "20px",
+                    background: "#2ecc71",
+                    color: "white",
+                    padding: "12px 18px",
+                    borderRadius: "8px",
+                    fontSize: "15px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    zIndex: 99999,
+                    opacity: "0",
+                    transition: "opacity 0.4s"
+                });
+                document.body.appendChild(t);
+                setTimeout(function(){ t.style.opacity = "1"; }, 50);
+                setTimeout(function(){
+                    t.style.opacity = "0";
+                    setTimeout(function(){ t.remove(); }, 400);
+                }, 2500);
+            });
+        };
+
         document.body.appendChild(container);
         makeDraggable(container, "g-drag-handle");
     } else {
