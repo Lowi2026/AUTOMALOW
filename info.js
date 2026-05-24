@@ -287,8 +287,8 @@ javascript:(async function(){
 
                 if (plantillas) {
                     Object.keys(plantillas).forEach(grupo => {
-                        const grupoLimpio = group => group.toLowerCase();
-                        const perteneceARaiz = raiz.keywords.some(k => grupoLimpio(grupo).includes(k));
+                        const grupoLimpio = grupo.toLowerCase();
+                        const perteneceARaiz = raiz.keywords.some(k => grupoLimpio.includes(k));
 
                         if (perteneceARaiz) {
                             tieneHijos = true;
