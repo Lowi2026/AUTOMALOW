@@ -129,7 +129,7 @@ javascript:(async function(){
             .g-root-block.active { border-color: #4A1F66; }
             .g-root-block.active .g-root-trigger i.fa-chevron-down { transform: rotate(180deg); }
             
-            .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; max-height: 260px; overflow-y: auto; }
+            .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; max-height: 340px; overflow-y: auto; }
             .g-root-content::before { content: ''; position: absolute; left: 14px; top: 12px; bottom: 12px; width: 2px; background: #441A5C; border-radius: 2px; }
             .g-root-block.active .g-root-content { display: block; }
             
@@ -282,71 +282,63 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
-        /* AQUÍ ESTÁ EL CAMBIO: AGREGADAS LAS PALABRAS 'estado' Y 'sincronismo' AL FILTRO */
-        const categoriesData = [
-            { id: "internet", label: "Internet / WiFi", icon: "fa-wifi", keywords: ["original", "estado", "incomunicado", "sincronismo", "cortes", "lentitud", "bandas", "contraseña", "umbrales", "ip", "técnico", "masiva", "migración"] },
-            { id: "tv", label: "TV", icon: "fa-tv", keywords: ["mando", "error 101", "canales"] }
-        ];
-
-        categoriesData.forEach(raiz => {
+        if (plantillas) {
             serviciosActivos.forEach(s => {
+                /* CREACIÓN DEL CONTENEDOR RAÍZ AUTOMÁTICO */
                 const rootBlock = document.createElement("div");
-                rootBlock.className = "g-root-block";
+                rootBlock.className = "g-root-block active"; // Se inicializa abierto para mayor comodidad
                 
                 rootBlock.innerHTML = `
                     <div class="g-root-trigger">
-                        <span><i class="fa-solid ${raiz.icon}" style="margin-right:8px; color:#E3B3FF;"></i> ${raiz.label} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
+                        <span><i class="fa-solid fa-folder-open" style="margin-right:8px; color:#E3B3FF;"></i> Plantillas Disponibles ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
                         <i class="fa-solid fa-chevron-down"></i>
                     </div>
-                    <div class="g-root-content"></div>
+                    <div class="g-root-content" style="display:block;"></div>
                 `;
                 
                 const rootContent = rootBlock.querySelector(".g-root-content");
-                let tieneHijos = false;
 
-                if (plantillas) {
-                    Object.keys(plantillas).forEach(grupo => {
-                        const grupoLimpio = grupo.toLowerCase();
-                        const perteneceARaiz = raiz.keywords.some(k => grupoLimpio.includes(k));
-
-                        if (perteneceARaiz) {
-                            tieneHijos = true;
-                            const subAccordion = document.createElement("div");
-                            subAccordion.className = "g-sub-accordion";
-                            subAccordion.innerHTML = `
-                                <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
-                                <div class="g-sub-content"></div>
-                            `;
-                            const subContent = subAccordion.querySelector(".g-sub-content");
-                            
-                            Object.keys(plantillas[grupo]).forEach(clave => {
-                                const btn = document.createElement("button");
-                                btn.className = "g-action-btn";
-                                btn.textContent = clave;
-                                btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s); };
-                                subContent.appendChild(btn);
-                            });
-
-                            subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
-                                e.stopPropagation();
-                                const activeNow = subAccordion.classList.contains("active");
-                                rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
-                                if (!activeNow) subAccordion.classList.add("active");
-                            };
-                            rootContent.appendChild(subAccordion);
-                        }
+                /* ITERACIÓN DIRECTA DE LAS CLAVES DEL JSON (SIN FILTROS) */
+                Object.keys(plantillas).forEach(grupo => {
+                    const subAccordion = document.createElement("div");
+                    subAccordion.className = "g-sub-accordion";
+                    subAccordion.innerHTML = `
+                        <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
+                        <div class="g-sub-content"></div>
+                    `;
+                    const subContent = subAccordion.querySelector(".g-sub-content");
+                    
+                    Object.keys(plantillas[grupo]).forEach(clave => {
+                        const btn = document.createElement("button");
+                        btn.className = "g-action-btn";
+                        btn.textContent = clave;
+                        btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s); };
+                        subContent.appendChild(btn);
                     });
-                }
+
+                    subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
+                        e.stopPropagation();
+                        const activeNow = subAccordion.classList.contains("active");
+                        rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
+                        if (!activeNow) subAccordion.classList.add("active");
+                    };
+                    rootContent.appendChild(subAccordion);
+                });
 
                 rootBlock.querySelector(".g-root-trigger").onclick = () => {
                     const activeNow = rootBlock.classList.contains("active");
-                    rootBox.querySelectorAll(".g-root-block").forEach(el => el.classList.remove("active"));
-                    if (!activeNow) rootBlock.classList.add("active");
+                    if (activeNow) {
+                        rootBlock.classList.remove("active");
+                        rootContent.style.display = "none";
+                    } else {
+                        rootBlock.classList.add("active");
+                        rootContent.style.display = "block";
+                    }
                 };
 
-                if (tieneHijos) rootBox.appendChild(rootBlock);
+                rootBox.appendChild(rootBlock);
             });
-        });
+        }
 
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
