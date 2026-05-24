@@ -1,6 +1,14 @@
 javascript:(async function(){
     const u = window.location.href;
-    const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
+   const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
+    
+    // Cuando vayas a llamar a tus archivos JSON dentro del código, hazlo así:
+    // Al sumarle '?v=' + Date.now(), destruyes la caché del servidor al instante
+    const respuestaAverias = await fetch(REPO + 'averias.json?v=' + Date.now());
+    const averias = await respuestaAverias.json();
+    
+    const respuestaPlantillas = await fetch(REPO + 'PL.json?v=' + Date.now());
+    const plantillas = await respuestaPlantillas.json();
     
     if (!document.querySelector('link[data-fa]')) {
         const fa = document.createElement("link");
