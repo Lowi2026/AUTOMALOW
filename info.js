@@ -200,10 +200,16 @@ javascript:(async function(){
         }
         if (c[1] === "DINAMICO_FUERA_RESUELTO") {
             c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
-            c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas and se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
+            c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
         }
         if (c[1] === "DINAMICO_FUERA_NO") {
             c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
+        }
+        
+        if (c[3] === "DINAMICO_FUERA_RESUELTO_SOL") {
+            c[3] = tech === "HFC" 
+                ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" 
+                : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
         }
 
         const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
@@ -276,8 +282,9 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
+        /* AQUÍ ESTÁ EL CAMBIO: AGREGADAS LAS PALABRAS 'estado' Y 'sincronismo' AL FILTRO */
         const categoriesData = [
-            { id: "internet", label: "Internet / WiFi", icon: "fa-wifi", keywords: ["original", "incomunicado", "cortes", "lentitud", "contraseña", "bandas", "umbrales", "técnico", "masiva", "migración"] },
+            { id: "internet", label: "Internet / WiFi", icon: "fa-wifi", keywords: ["original", "estado", "incomunicado", "sincronismo", "cortes", "lentitud", "bandas", "contraseña", "umbrales", "ip", "técnico", "masiva", "migración"] },
             { id: "tv", label: "TV", icon: "fa-tv", keywords: ["mando", "error 101", "canales"] }
         ];
 
