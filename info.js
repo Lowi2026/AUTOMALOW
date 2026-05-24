@@ -2,8 +2,7 @@ javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
-    // Cuando vayas a llamar a tus archivos JSON dentro del código, hazlo así:
-    // Al sumarle '?v=' + Date.now(), destruyes la caché del servidor al instante
+    // Carga de datos destruyendo la caché del servidor al instante
     const respuestaAverias = await fetch(REPO + 'averias.json?v=' + Date.now());
     const averias = await respuestaAverias.json();
     
@@ -138,16 +137,20 @@ javascript:(async function(){
             .g-footer-buttons { display: flex; gap: 8px; margin-top: 8px; width: 100%; box-sizing: border-box; }
             .g-cierre-asistente { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-cierre-asistente:hover { background: #FFF; }
-            .g-copy-tt-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #FFF; background: #2980b9; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
-            .g-copy-tt-btn:hover { background: #3498db; }
+            
+            /* Botón de Copiar TT unificado con la gama morada de la interfaz */
+            .g-copy-tt-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #FFF; background: #5c188c; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
+            .g-copy-tt-btn:hover { background: #7A22B4; }
 
-            .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
+            .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
         `;
         document.head.appendChild(s);
     };
 
     const toast = (m) => {
+        const old = document.querySelector(".g-nt");
+        if (old) old.remove();
         const n = document.createElement("div"); n.className = "g-nt"; n.innerHTML = `<i class="fa-solid fa-check"></i> | ${m}`;
         document.body.appendChild(n); setTimeout(() => n.remove(), 2000);
     };
@@ -427,7 +430,7 @@ javascript:(async function(){
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
         
-        // Asignación de la lógica del nuevo botón Copiar TT
+        // Lógica de Copiar TT unificada con los Toasts morados nativos
         container.querySelector("#g-copy-tt").onclick = () => {
             var el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
             if (!el) {
@@ -436,34 +439,7 @@ javascript:(async function(){
             }
             var tt = el.textContent.trim();
             navigator.clipboard.writeText(tt).then(function(){
-                var old = document.getElementById("copied-toast");
-                if(old) old.remove();
-                var t = document.createElement("div");
-                t.id = "copied-toast";
-                t.innerHTML = '<i class="fa-solid fa-circle-check"></i> Copiado: ' + tt;
-                Object.assign(t.style, {
-                    position: "fixed",
-                    bottom: "20px",
-                    right: "20px",
-                    background: "#2ecc71",
-                    color: "white",
-                    padding: "12px 18px",
-                    borderRadius: "8px",
-                    fontSize: "15px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    zIndex: 99999,
-                    opacity: "0",
-                    transition: "opacity 0.4s"
-                });
-                document.body.appendChild(t);
-                setTimeout(function(){ t.style.opacity = "1"; }, 50);
-                setTimeout(function(){
-                    t.style.opacity = "0";
-                    setTimeout(function(){ t.remove(); }, 400);
-                }, 2500);
+                toast("TT Copiado: " + tt);
             });
         };
 
