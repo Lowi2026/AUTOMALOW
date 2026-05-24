@@ -23,6 +23,14 @@
       "se envía contrata para arreglo de acometida"
     ]
   },
+  "Sincronismo": {
+    "Sincroniza no Navega": [
+      "Cliente sin internet  ",
+      "Se verifica que el router sincroniza correctamente, el router esta recientemente restaurado con dispositivos conectados pero aun no puede navegar, se realiza reinicio, se cambia nombre de red pero el fallo persiste ",
+      "Router sincroniza pero no navega ",
+      "Se escala/Soluciono/Envio tecnico"
+    ]
+  },
   "Cortes de Servicio": {
     "Resuelto (CPE/Bandas)": [
       "El internet va y viene",
