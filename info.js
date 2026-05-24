@@ -115,7 +115,7 @@ javascript:(async function(){
             .g-root-block.active { border-color: #4A1F66; }
             .g-root-block.active .g-root-trigger i.fa-chevron-down { transform: rotate(180deg); }
             
-            .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; }
+            .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; max-height: 260px; overflow-y: auto; }
             .g-root-content::before { content: ''; position: absolute; left: 14px; top: 12px; bottom: 12px; width: 2px; background: #441A5C; border-radius: 2px; }
             .g-root-block.active .g-root-content { display: block; }
             
