@@ -230,9 +230,6 @@ javascript:(async function(){
     }
 
     injectStyles();
-    const plantillas = await loadData('PL.json');
-    const averias = await loadData('averias.json');
-
     if (u.includes("lowi.es")) {
         const bt = document.body.innerText;
         const iP = bt.indexOf("Internet principal");
