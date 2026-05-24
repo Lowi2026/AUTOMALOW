@@ -2,7 +2,7 @@ javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
-    // Carga de datos destruyendo la caché del servidor al instante
+    /* Carga de datos destruyendo la caché del servidor al instante */
     const respuestaAverias = await fetch(REPO + 'averias.json?v=' + Date.now());
     const averias = await respuestaAverias.json();
     
@@ -30,10 +30,25 @@ javascript:(async function(){
             let index = body.toLowerCase().indexOf(key.toLowerCase());
             if (index > -1) {
                 let result = body.slice(index + key.length).split("\n")[0].trim();
-                return result.replace(/\(Modificar\)/gi, "").trim() || "N/A";
+                result = result.replace(/\(Modificar\)/gi, "").trim();
+                return result || "N/A";
             }
         }
         return "N/A";
+    };
+
+    /* FUNCIÓN DE EXTRACCIÓN DE DOCUMENTO CON SOPORTE COMPLETO PARA NIE */
+    const extraerDocumentoIdentidad = () => {
+        let doc = getVal(["DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"]);
+        
+        if (doc === "N/A") {
+            const txt = document.body.innerText;
+            const regexDoc = /(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i;
+            const match = txt.match(regexDoc);
+            if (match) doc = match[1];
+        }
+        
+        return doc !== "N/A" ? doc.toUpperCase().replace(/[\s-]/g, "") : "N/A";
     };
 
     const extraerMoviles = () => {
@@ -138,7 +153,6 @@ javascript:(async function(){
             .g-cierre-asistente { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-cierre-asistente:hover { background: #FFF; }
             
-            /* Botón de Copiar TT unificado con la gama morada de la interfaz */
             .g-copy-tt-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #FFF; background: #5c188c; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-copy-tt-btn:hover { background: #7A22B4; }
 
@@ -160,12 +174,10 @@ javascript:(async function(){
         let c = ["", "", "", ""]; 
         const tech = detectarTecnologiaScript1(bloqueTexto);
 
-        /* CARGA DINÁMICA ABSOLUTA DESDE TU PL.JSON */
         if (plantillas && plantillas[grupo] && plantillas[grupo][clave]) {
             c = [...plantillas[grupo][clave]];
         }
         
-        /* REEMPLAZOS DINÁMICOS POR TECNOLOGÍA EN INTERNET */
         if (c[1] === "DINAMICO_INCOMUNICADO") {
             if (tech === "HFC") {
                 c[1] = "router con luces intermitentes, sin acceso remoto al cpe, se valida cableado sin daños";
@@ -177,7 +189,7 @@ javascript:(async function(){
             }
         }
         if (c[1] === "DINAMICO_CORTES_RESUELTO") {
-            c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal estable en ambas bandas wifi";
+            c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
         }
         if (c[1] === "DINAMICO_CORTES_TECNICO") {
             c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes en Schaman, reinicio de fábrica sin mejora";
@@ -198,7 +210,7 @@ javascript:(async function(){
 
         const res = [
             `Nombre: ${getVal(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"])}`,
-            `DNI: ${getVal(["DNI/NIE/Pasaporte:", "DNI:", "DNI/NIE:", "Documento:"])}`,
+            `DNI/NIE: ${extraerDocumentoIdentidad()}`,
             `ID: ${getVal(["AMDOCS ID:", "ID Cliente:", "ID:"])}`,
             `Dirección: ${extraerDireccion(bloqueTexto)}`,
             `Móvil: ${extraerMoviles()}`,
@@ -264,12 +276,12 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
-        const categoriasRaiz = [
+        const categoriesData = [
             { id: "internet", label: "Internet / WiFi", icon: "fa-wifi", keywords: ["original", "incomunicado", "cortes", "lentitud", "contraseña", "bandas", "umbrales", "técnico", "masiva", "migración"] },
             { id: "tv", label: "TV", icon: "fa-tv", keywords: ["mando", "error 101", "canales"] }
         ];
 
-        categoriasRaiz.forEach(raiz => {
+        categoriesData.forEach(raiz => {
             serviciosActivos.forEach(s => {
                 const rootBlock = document.createElement("div");
                 rootBlock.className = "g-root-block";
@@ -430,7 +442,6 @@ javascript:(async function(){
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
         
-        // Lógica de Copiar TT unificada con los Toasts morados nativos
         container.querySelector("#g-copy-tt").onclick = () => {
             var el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
             if (!el) {
