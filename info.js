@@ -1,8 +1,8 @@
 javascript:(async function(){
     const u = window.location.href;
-    /* Usamos Githack para evitar bloqueos por Throttle de jsDelivr */
-    const REPO = 'https://glcdn.githack.com/Lowi2026/AUTOMALOW/raw/main/';
+    const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
+    /* Carga de datos destruyendo la caché del servidor al instante */
     const respuestaAverias = await fetch(REPO + 'averias.json?v=' + Date.now());
     const averias = await respuestaAverias.json();
     
@@ -17,6 +17,13 @@ javascript:(async function(){
         document.head.appendChild(fa);
     }
 
+    const loadData = async (f) => {
+        try {
+            const r = await fetch(`${REPO}${f}?t=${Date.now()}`);
+            return await r.json();
+        } catch(e) { return null; }
+    };
+
     const getVal = (keys) => {
         const body = document.body.innerText;
         for (let key of keys) {
@@ -30,14 +37,17 @@ javascript:(async function(){
         return "N/A";
     };
 
+    /* FUNCIÓN DE EXTRACCIÓN DE DOCUMENTO CON SOPORTE COMPLETO PARA NIE */
     const extraerDocumentoIdentidad = () => {
         let doc = getVal(["DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"]);
+        
         if (doc === "N/A") {
             const txt = document.body.innerText;
             const regexDoc = /(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i;
             const match = txt.match(regexDoc);
             if (match) doc = match[1];
         }
+        
         return doc !== "N/A" ? doc.toUpperCase().replace(/[\s-]/g, "") : "N/A";
     };
 
@@ -72,12 +82,16 @@ javascript:(async function(){
         if (clean.includes("NEBAL")) return "NEBAL";
         if (clean.includes("NEBAF")) return "NEBAF";
         if (clean.includes("HFC")) return "HFC";
+        if (clean.includes("FTTH")) return "FTTH";
         return "FTTH";
     };
 
     const detectarONT = (bloqueTexto) => {
         const clean = bloqueTexto.toUpperCase();
-        return clean.includes("ONT") && (clean.includes("ALARM") || clean.includes("LOS RED") || clean.includes("EXTERNA"));
+        if (clean.includes("ONT") && (clean.includes("ALARM") || clean.includes("LOS RED") || clean.includes("EXTERNA"))) {
+            return true;
+        }
+        return false;
     };
 
     const wait = t => new Promise(r => setTimeout(r, t));
@@ -138,6 +152,9 @@ javascript:(async function(){
             .g-footer-buttons { display: flex; gap: 8px; margin-top: 8px; width: 100%; box-sizing: border-box; }
             .g-cierre-asistente { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-cierre-asistente:hover { background: #FFF; }
+            
+            .g-copy-tt-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #FFF; background: #5c188c; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
+            .g-copy-tt-btn:hover { background: #7A22B4; }
 
             .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
@@ -153,7 +170,7 @@ javascript:(async function(){
     };
 
     const copyTemplateFront = (grupo, clave, servicio) => {
-        const bloqueTexto = servicio ? servicio.texto : document.body.innerText;
+        const bloqueTexto = servicio.texto;
         let c = ["", "", "", ""]; 
         const tech = detectarTecnologiaScript1(bloqueTexto);
 
@@ -188,8 +205,11 @@ javascript:(async function(){
         if (c[1] === "DINAMICO_FUERA_NO") {
             c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
         }
+        
         if (c[3] === "DINAMICO_FUERA_RESUELTO_SOL") {
-            c[3] = tech === "HFC" ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
+            c[3] = tech === "HFC" 
+                ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" 
+                : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
         }
 
         const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
@@ -263,17 +283,14 @@ javascript:(async function(){
         const rootBox = container.querySelector("#g-root-box");
 
         if (plantillas) {
-            /* Localizar la clave exacta de TV en el JSON de forma insensible a mayúsculas/minúsculas */
-            const claveTvExacta = Object.keys(plantillas).find(k => k.toUpperCase() === "TV");
-
-            /* 1. SECCIÓN DE INTERNET / WIFI (DINÁMICA POR SERVICIO ACTIVO) */
             serviciosActivos.forEach(s => {
+                /* CREACIÓN DEL CONTENEDOR RAÍZ AUTOMÁTICO */
                 const rootBlock = document.createElement("div");
-                rootBlock.className = "g-root-block active"; 
+                rootBlock.className = "g-root-block active"; // Se inicializa abierto para mayor comodidad
                 
                 rootBlock.innerHTML = `
                     <div class="g-root-trigger">
-                        <span><i class="fa-solid fa-wifi" style="margin-right:8px; color:#E3B3FF;"></i> Internet / WiFi ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
+                        <span><i class="fa-solid fa-folder-open" style="margin-right:8px; color:#E3B3FF;"></i> Plantillas Disponibles ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
                         <i class="fa-solid fa-chevron-down"></i>
                     </div>
                     <div class="g-root-content" style="display:block;"></div>
@@ -281,10 +298,8 @@ javascript:(async function(){
                 
                 const rootContent = rootBlock.querySelector(".g-root-content");
 
-                /* Cargamos todas las categorías EXCEPTUANDO la de "TV/Tv" en el bloque de internet */
+                /* ITERACIÓN DIRECTA DE LAS CLAVES DEL JSON (SIN FILTROS) */
                 Object.keys(plantillas).forEach(grupo => {
-                    if (grupo.toUpperCase() === "TV") return; 
-
                     const subAccordion = document.createElement("div");
                     subAccordion.className = "g-sub-accordion";
                     subAccordion.innerHTML = `
@@ -312,45 +327,17 @@ javascript:(async function(){
 
                 rootBlock.querySelector(".g-root-trigger").onclick = () => {
                     const activeNow = rootBlock.classList.contains("active");
-                    rootBlock.classList.toggle("active", !activeNow);
-                    rootContent.style.display = activeNow ? "none" : "block";
+                    if (activeNow) {
+                        rootBlock.classList.remove("active");
+                        rootContent.style.display = "none";
+                    } else {
+                        rootBlock.classList.add("active");
+                        rootContent.style.display = "block";
+                    }
                 };
 
                 rootBox.appendChild(rootBlock);
             });
-
-            /* 2. SECCIÓN DE TV INDEPENDIENTE (A PRUEBA DE MAYÚSCULAS/MINÚSCULAS) */
-            if (claveTvExacta) {
-                const tvBlock = document.createElement("div");
-                tvBlock.className = "g-root-block"; // Inicia cerrado
-                
-                tvBlock.innerHTML = `
-                    <div class="g-root-trigger">
-                        <span><i class="fa-solid fa-tv" style="margin-right:8px; color:#E3B3FF;"></i> TV</span>
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </div>
-                    <div class="g-root-content" style="display:none; padding: 10px 14px;"></div>
-                `;
-                
-                const tvContent = tvBlock.querySelector(".g-root-content");
-
-                /* Renderizamos los botones leyendo la clave exacta encontrada en el JSON */
-                Object.keys(plantillas[claveTvExacta]).forEach(clave => {
-                    const btn = document.createElement("button");
-                    btn.className = "g-action-btn";
-                    btn.textContent = clave;
-                    btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(claveTvExacta, clave, null); };
-                    tvContent.appendChild(btn);
-                });
-
-                tvBlock.querySelector(".g-root-trigger").onclick = () => {
-                    const activeNow = tvBlock.classList.contains("active");
-                    tvBlock.classList.toggle("active", !activeNow);
-                    tvContent.style.display = activeNow ? "none" : "block";
-                };
-
-                rootBox.appendChild(tvBlock);
-            }
         }
 
         container.querySelector("#g-close-btn").onclick = () => container.remove();
@@ -359,20 +346,115 @@ javascript:(async function(){
         makeDraggable(container, "g-drag-handle");
     }
     else if (u.includes("enabler.es")) {
-        /* (Inyector Jira - Intacto) */
         if (!averias) return alert("❌ Error: No se pudo mapear el archivo averias.json.");
+        
+        const dk = (e, k) => e?.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+        const di = e => { if (!e) return; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); };
+        const x = p => document.evaluate(p, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+        
+        async function ejecutarSeleccion(i, s, b = 80, e = 200) {
+            if (!i) return; i.focus();
+            const c = i.closest(".atlas-select__control") || i.parentElement;
+            c.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+            await wait(150);
+            if (s > 0) { for (let j = 0; j < s; j++) { dk(i, "ArrowDown"); await wait(b); } }
+            else { dk(i, "ArrowDown"); await wait(50); dk(i, "ArrowUp"); await wait(50); }
+            dk(i, "Enter"); await wait(e); i.blur();
+        }
+
         const ex = document.getElementById("g-ui-dragg"); if(ex) ex.remove();
         const container = document.createElement("div"); container.id = "g-ui-dragg"; container.className = "g-container";
-        container.innerHTML = `<div class="g-header" id="g-drag-handle"><h3 class="g-title">Robot Inyector Jira</h3></div><div id="g-root-box"></div>`;
+        
+        container.innerHTML = `
+            <div class="g-header" id="g-drag-handle">
+                <div class="g-close-x" id="g-close-btn"><i class="fa-solid fa-xmark"></i></div>
+                <h3 class="g-title">Robot Inyector Jira</h3>
+                <p class="g-subtitle">Ejecución automática de campos</p>
+            </div>
+            <div id="g-root-box"></div>
+            <div class="g-footer-buttons">
+                <button class="g-cierre-asistente" id="g-cierre-total">Ocultar Interfaz</button>
+                <button class="g-copy-tt-btn" id="g-copy-tt"><i class="fa-solid fa-copy" style="margin-right:4px;"></i> Copiar TT</button>
+            </div>
+        `;
         const rootBox = container.querySelector("#g-root-box");
-        const rootBlock = document.createElement("div"); rootBlock.className = "g-root-block active";
-        rootBlock.innerHTML = `<div class="g-root-trigger"><span><i class="fa-solid fa-robot"></i> Averías</span></div><div class="g-root-content" style="display:block;"></div>`;
+
+        const rootBlock = document.createElement("div");
+        rootBlock.className = "g-root-block active";
+        rootBlock.innerHTML = `
+            <div class="g-root-trigger">
+                <span><i class="fa-solid fa-robot" style="margin-right:8px; color:#E3B3FF;"></i> Averías Automatizadas</span>
+                <i class="fa-solid fa-chevron-down"></i>
+            </div>
+            <div class="g-root-content" style="display:block; padding: 10px 4px 4px 4px; border:none; margin-left:0;"></div>
+        `;
         const rootContent = rootBlock.querySelector(".g-root-content");
+
         averias.forEach(t => {
-            const btn = document.createElement("button"); btn.className = "g-action-btn"; btn.textContent = t.label;
+            const btn = document.createElement("button");
+            btn.className = "g-action-btn";
+            btn.textContent = t.label;
+            btn.onclick = async () => {
+                container.remove();
+                toast("Procesando Jira...");
+                try {
+                    const p = t.pasos;
+                    const sum = document.getElementById("summary");
+                    if (sum) { sum.value = t.label.replace(" - TÉCNICO DIRECTO", ""); di(sum); }
+
+                    await ejecutarSeleccion(document.querySelector("#react-select-customfield_16817-instance-input"), p.GRUPO || 0);
+                    await wait(400);
+                    await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16800 .atlas-select__input"), p.TIPO || 0);
+                    await wait(400);
+                    await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16801 .atlas-select__input"), p.SUBTIPO_L1 || 0);
+                    await wait(500);
+
+                    const iL2 = document.querySelector("#insight-atlas-select-16802")?.querySelector("input");
+                    if (iL2) await ejecutarSeleccion(iL2, p.SUBTIPO_L2 || 0, 100, 300);
+
+                    const ic = x('//*[@id="customfield_16820"]'), is = x('//*[@id="customfield_16821"]');
+                    if (ic && is && ic.value && !is.value) { is.value = ic.value; di(is); }
+
+                    const h = new Date(), fdt = x('//*[@id="customfield_16825"]');
+                    if (fdt) { fdt.value = fmt(h); di(fdt); }
+
+                    const fi = x('//*[@id="customfield_16823"]');
+                    if (fi) { const d = nextLab(new Date(h)); d.setHours(8, 0, 0, 0); fi.value = fmt(d); di(fi); }
+
+                    const ff2 = x('//*[@id="customfield_16824"]');
+                    if (ff2) { const d = nextLab(new Date(h)); d.setHours(16, 0, 0, 0); ff2.value = fmt(d); di(ff2); }
+
+                    const ok = x('//*[@id="customfield_16833"]');
+                    if (ok) { ok.value = "OK"; di(ok); }
+
+                    await wait(800);
+                    const ex = document.querySelector('#cd-1 input[id^="react-select"]');
+                    if (ex) await ejecutarSeleccion(ex, p.EXTRA_CIERRE || 0, 100, 200);
+
+                    toast("Jira Automatizado ✔");
+                } catch (err) { toast("Error en la inyección."); }
+            };
             rootContent.appendChild(btn);
         });
-        rootBox.appendChild(rootBlock); document.body.appendChild(container);
+
+        rootBox.appendChild(rootBlock);
+        container.querySelector("#g-close-btn").onclick = () => container.remove();
+        container.querySelector("#g-cierre-total").onclick = () => container.remove();
+        
+        container.querySelector("#g-copy-tt").onclick = () => {
+            var el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
+            if (!el) {
+                alert("No se encontró el TT");
+                return;
+            }
+            var tt = el.textContent.trim();
+            navigator.clipboard.writeText(tt).then(function(){
+                toast("TT Copiado: " + tt);
+            });
+        };
+
+        document.body.appendChild(container);
+        makeDraggable(container, "g-drag-handle");
     } else {
         alert("⚠️ Ejecutar únicamente en lowi.es o enabler.es");
     }
