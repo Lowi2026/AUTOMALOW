@@ -2,8 +2,8 @@ javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
-    /* Carga de datos destruyendo la cache del servidor al instante */
-    const respuestaAverias = await fetch(REPO + 'AV.json?v=' + Date.now());
+    /* Carga de datos destruyendo la caché del servidor al instante */
+    const respuestaAverias = await fetch(REPO + 'averias.json?v=' + Date.now());
     const averias = await respuestaAverias.json();
     
     const respuestaPlantillas = await fetch(REPO + 'PL.json?v=' + Date.now());
@@ -37,15 +37,17 @@ javascript:(async function(){
         return "N/A";
     };
 
-    /* EXTRACCIÓN DE DOCUMENTO (SOPORTE NIE) */
+    /* FUNCIÓN DE EXTRACCIÓN DE DOCUMENTO CON SOPORTE COMPLETO PARA NIE */
     const extraerDocumentoIdentidad = () => {
         let doc = getVal(["DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"]);
+        
         if (doc === "N/A") {
             const txt = document.body.innerText;
             const regexDoc = /(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i;
             const match = txt.match(regexDoc);
             if (match) doc = match[1];
         }
+        
         return doc !== "N/A" ? doc.toUpperCase().replace(/[\s-]/g, "") : "N/A";
     };
 
@@ -86,7 +88,10 @@ javascript:(async function(){
 
     const detectarONT = (bloqueTexto) => {
         const clean = bloqueTexto.toUpperCase();
-        return clean.includes("ONT") && (clean.includes("ALARM") || clean.includes("LOS RED") || clean.includes("EXTERNA"));
+        if (clean.includes("ONT") && (clean.includes("ALARM") || clean.includes("LOS RED") || clean.includes("EXTERNA"))) {
+            return true;
+        }
+        return false;
     };
 
     const wait = t => new Promise(r => setTimeout(r, t));
@@ -110,36 +115,47 @@ javascript:(async function(){
             .g-container::-webkit-scrollbar { width: 5px; }
             .g-container::-webkit-scrollbar-track { background: transparent; }
             .g-container::-webkit-scrollbar-thumb { background: #441A5C; border-radius: 10px; }
+            
             .g-header { position: relative; text-align: center; margin-bottom: 14px; user-select: none; cursor: move; }
             .g-title { font-weight: 700; font-size: 16px; color: #E3B3FF; margin: 0; }
             .g-subtitle { font-size: 11px; color: #A493B0; margin: 3px 0 0 0; }
             .g-close-x { position: absolute; top: -2px; right: 2px; color: #FF5A5A; font-size: 16px; cursor: pointer; transition: transform 0.15s; }
             .g-close-x:hover { transform: scale(1.1); }
+            
             .g-root-block { margin-bottom: 8px; border-radius: 10px; border: 1px solid #3D1B54; background: #1F0F29; overflow: hidden; }
             .g-root-trigger { padding: 11px 14px; font-size: 13.5px; font-weight: 600; color: #FFF; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
             .g-root-trigger:hover { background: #281433; }
             .g-root-trigger i.fa-chevron-down { transition: transform 0.2s; color: #FFF; font-size: 11px; }
             .g-root-block.active { border-color: #4A1F66; }
             .g-root-block.active .g-root-trigger i.fa-chevron-down { transform: rotate(180deg); }
+            
             .g-root-content { display: none; padding: 6px 10px 10px 10px; background: #160A1C; border-top: 1px solid #2B133B; position: relative; max-height: 340px; overflow-y: auto; }
             .g-root-content::before { content: ''; position: absolute; left: 14px; top: 12px; bottom: 12px; width: 2px; background: #441A5C; border-radius: 2px; }
             .g-root-block.active .g-root-content { display: block; }
+            
             .g-sub-accordion { margin-bottom: 6px; margin-left: 12px; border-radius: 8px; border: 1px solid #36174A; background: #22102E; overflow: hidden; }
+            .g-sub-accordion:last-child { margin-bottom: 0; }
             .g-sub-trigger { padding: 8px 12px; font-size: 12px; font-weight: 600; color: #E5D6ED; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
             .g-sub-trigger:hover { background: #2D153D; }
             .g-sub-trigger i.fa-chevron-down { transition: transform 0.2s; color: #B59EBF; font-size: 10px; }
             .g-sub-accordion.active { border-color: #532373; }
             .g-sub-accordion.active .g-sub-trigger i.fa-chevron-down { transform: rotate(180deg); }
+            
             .g-sub-content { display: none; padding: 8px 10px; background: #1A0C24; border-top: 1px solid #2C133D; }
             .g-sub-accordion.active .g-sub-content { display: block; }
+            
             .g-action-btn { background: #7A22B4; color: #FFF; border: none; padding: 7px 14px; margin-bottom: 6px; border-radius: 20px; cursor: pointer; font-size: 11.5px; font-weight: 600; width: 100%; text-align: center; transition: background 0.15s, transform 0.1s; box-sizing: border-box; }
+            .g-action-btn:last-child { margin-bottom: 0; }
             .g-action-btn:hover { background: #912FD4; }
             .g-action-btn:active { transform: scale(0.98); }
+            
             .g-footer-buttons { display: flex; gap: 8px; margin-top: 8px; width: 100%; box-sizing: border-box; }
             .g-cierre-asistente { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #160A1C; background: #E2D5EA; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-cierre-asistente:hover { background: #FFF; }
+            
             .g-copy-tt-btn { flex: 1; padding: 10px; border-radius: 8px; border: none; color: #FFF; background: #5c188c; cursor: pointer; font-size: 11px; font-weight: 700; text-align: center; letter-spacing: 0.5px; text-transform: uppercase; transition: background 0.15s; }
             .g-copy-tt-btn:hover { background: #7A22B4; }
+
             .g-nt { position: fixed; top: 20px; right: 20px; background: #7A22B4; padding: 11px 18px; border-radius: 8px; color: #FFF; z-index: 1000001; animation: g-in 0.25s forwards; font-size: 12px; font-weight: bold; box-shadow: 0 5px 15px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; }
             @keyframes g-in { from { transform: translateX(100%); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
         `;
@@ -153,13 +169,15 @@ javascript:(async function(){
         document.body.appendChild(n); setTimeout(() => n.remove(), 2000);
     };
 
-    const copyTemplateFront = (grupo, clave, servicio) => {
+    /* MODIFICADO: Ahora recibe la categoría raíz para buscar correctamente en los 3 niveles del nuevo JSON */
+    const copyTemplateFront = (categoriaRaiz, grupo, clave, servicio) => {
         const bloqueTexto = servicio.texto;
         let c = ["", "", "", ""]; 
         const tech = detectarTecnologiaScript1(bloqueTexto);
 
-        if (plantillas && plantillas[grupo] && plantillas[grupo][clave]) {
-            c = [...plantillas[grupo][clave]];
+        /* Acceso en profundidad seguro al nuevo JSON de 3 niveles */
+        if (plantillas && plantillas[categoriaRaiz] && plantillas[categoriaRaiz][grupo] && plantillas[categoriaRaiz][grupo][clave]) {
+            c = [...plantillas[categoriaRaiz][grupo][clave]];
         }
         
         if (c[1] === "DINAMICO_INCOMUNICADO") {
@@ -180,17 +198,20 @@ javascript:(async function(){
             c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
         }
         if (c[1] === "DINAMICO_CORTES_NV2") {
-            c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistententes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistententes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
+            c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistententes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistentes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
         }
         if (c[1] === "DINAMICO_FUERA_RESUELTO") {
-            c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se reviso en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
+            c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
             c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
         }
         if (c[1] === "DINAMICO_FUERA_NO") {
             c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
         }
+        
         if (c[3] === "DINAMICO_FUERA_RESUELTO_SOL") {
-            c[3] = tech === "HFC" ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
+            c[3] = tech === "HFC" 
+                ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" 
+                : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
         }
 
         const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
@@ -263,57 +284,78 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
+        /* MODIFICADO: Generación de bloques y acordeones por mapeo de 3 niveles del nuevo JSON */
         if (plantillas) {
             serviciosActivos.forEach(s => {
-                const rootBlock = document.createElement("div");
-                rootBlock.className = "g-root-block active";
-                rootBlock.innerHTML = `
-                    <div class="g-root-trigger">
-                        <span><i class="fa-solid fa-folder-open" style="margin-right:8px; color:#E3B3FF;"></i> Plantillas Disponibles ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </div>
-                    <div class="g-root-content" style="display:block;"></div>
-                `;
                 
-                const rootContent = rootBlock.querySelector(".g-root-content");
-
-                Object.keys(plantillas).forEach(grupo => {
-                    const subAccordion = document.createElement("div");
-                    subAccordion.className = "g-sub-accordion";
-                    subAccordion.innerHTML = `
-                        <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="g-sub-content"></div>
-                    `;
-                    const subContent = subAccordion.querySelector(".g-sub-content");
+                Object.keys(plantillas).forEach(categoriaRaiz => {
                     
-                    Object.keys(plantillas[grupo]).forEach(clave => {
-                        const btn = document.createElement("button");
-                        btn.className = "g-action-btn";
-                        btn.textContent = clave;
-                        btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s); };
-                        subContent.appendChild(btn);
+                    /* Selección del icono FontAwesome adecuado según la clave raíz */
+                    let icono = "fa-solid fa-folder";
+                    if (categoriaRaiz.toLowerCase().includes("internet") || categoriaRaiz.toLowerCase().includes("wifi")) {
+                        icono = "fa-solid fa-wifi";
+                    } else if (categoriaRaiz.toLowerCase().includes("tv")) {
+                        icono = "fa-solid fa-tv";
+                    }
+
+                    const rootBlock = document.createElement("div");
+                    rootBlock.className = "g-root-block"; // Cambiado a colapsado por defecto como tus fotos
+                    
+                    rootBlock.innerHTML = `
+                        <div class="g-root-trigger">
+                            <span><i class="${icono}" style="margin-right:8px; color:#E3B3FF;"></i> ${categoriaRaiz} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <div class="g-root-content" style="display:none;"></div>
+                    `;
+                    
+                    const rootContent = rootBlock.querySelector(".g-root-content");
+
+                    /* Segundo Nivel (Subcategorías / Grupos) */
+                    Object.keys(plantillas[categoriaRaiz]).forEach(grupo => {
+                        const subAccordion = document.createElement("div");
+                        subAccordion.className = "g-sub-accordion";
+                        subAccordion.innerHTML = `
+                            <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
+                            <div class="g-sub-content"></div>
+                        `;
+                        const subContent = subAccordion.querySelector(".g-sub-content");
+                        
+                        /* Tercer Nivel (Botones de Copia finales) */
+                        Object.keys(plantillas[categoriaRaiz][grupo]).forEach(clave => {
+                            const btn = document.createElement("button");
+                            btn.className = "g-action-btn";
+                            btn.textContent = clave;
+                            btn.onclick = (e) => { 
+                                e.stopPropagation(); 
+                                copyTemplateFront(categoriaRaiz, grupo, clave, s); 
+                            };
+                            subContent.appendChild(btn);
+                        });
+
+                        subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
+                            e.stopPropagation();
+                            const activeNow = subAccordion.classList.contains("active");
+                            rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
+                            if (!activeNow) subAccordion.classList.add("active");
+                        };
+                        rootContent.appendChild(subAccordion);
                     });
 
-                    subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
-                        e.stopPropagation();
-                        const activeNow = subAccordion.classList.contains("active");
-                        rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
-                        if (!activeNow) subAccordion.classList.add("active");
+                    rootBlock.querySelector(".g-root-trigger").onclick = () => {
+                        const activeNow = rootBlock.classList.contains("active");
+                        rootBox.querySelectorAll(".g-root-block").forEach(el => {
+                            el.classList.remove("active");
+                            el.querySelector(".g-root-content").style.display = "none";
+                        });
+                        if (!activeNow) {
+                            rootBlock.classList.add("active");
+                            rootContent.style.display = "block";
+                        }
                     };
-                    rootContent.appendChild(subAccordion);
-                });
 
-                rootBlock.querySelector(".g-root-trigger").onclick = () => {
-                    const activeNow = rootBlock.classList.contains("active");
-                    if (activeNow) {
-                        rootBlock.classList.remove("active");
-                        rootContent.style.display = "none";
-                    } else {
-                        rootBlock.classList.add("active");
-                        rootContent.style.display = "block";
-                    }
-                };
-                rootBox.appendChild(rootBlock);
+                    rootBox.appendChild(rootBlock);
+                });
             });
         }
 
@@ -322,9 +364,8 @@ javascript:(async function(){
         document.body.appendChild(container);
         makeDraggable(container, "g-drag-handle");
     }
-    /* ================= ASISTENTE JIRA (ENABLER) ================= */
     else if (u.includes("enabler.es")) {
-        if (!averias) return alert("❌ Error: No se pudo mapear el archivo AV.json.");
+        if (!averias) return alert("❌ Error: No se pudo mapear el archivo averias.json.");
         
         const dk = (e, k) => e?.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
         const di = e => { if (!e) return; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -372,38 +413,27 @@ javascript:(async function(){
             const btn = document.createElement("button");
             btn.className = "g-action-btn";
             btn.textContent = t.label;
-            
             btn.onclick = async () => {
-                container.style.pointerEvents = "none";
-                container.style.opacity = "0.5";
+                container.remove();
                 toast("Procesando Jira...");
-                
                 try {
-                    const p = t.pasos || {};
+                    const p = t.pasos;
                     const sum = document.getElementById("summary");
-                    if (sum) { sum.value = t.label; di(sum); }
+                    if (sum) { sum.value = t.label.replace(" - TÉCNICO DIRECTO", ""); di(sum); }
 
-                    /* PRIORIDAD (Corregido con fusión nula ?? para respetar los ceros) */
-                    await ejecutarSeleccion(document.querySelector("#react-select-customfield_16817-instance-input"), p.PRIORIDAD ?? 0);
-                    await wait(300);
-                    
-                    /* GRUPO Y TIPO */
-                    if (!t.label.toUpperCase().includes("MASIVA")) {
-                        await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16800 .atlas-select__input"), p.GRUPO ?? 0);
-                        await wait(300);
-                        await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16801 .atlas-select__input"), p.TIPO ?? 0);
-                        await wait(400);
-                    }
+                    await ejecutarSeleccion(document.querySelector("#react-select-customfield_16817-instance-input"), p.GRUPO || 0);
+                    await wait(400);
+                    await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16800 .atlas-select__input"), p.TIPO || 0);
+                    await wait(400);
+                    await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16801 .atlas-select__input"), p.SUBTIPO_L1 || 0);
+                    await wait(500);
 
-                    /* SUBTIPO */
                     const iL2 = document.querySelector("#insight-atlas-select-16802")?.querySelector("input");
-                    if (iL2) await ejecutarSeleccion(iL2, p.SUBTIPO_L1 ?? 0, 100, 300);
+                    if (iL2) await ejecutarSeleccion(iL2, p.SUBTIPO_L2 || 0, 100, 300);
 
-                    /* TRANSFERENCIA DE TELÉFONOS */
                     const ic = x('//*[@id="customfield_16820"]'), is = x('//*[@id="customfield_16821"]');
                     if (ic && is && ic.value && !is.value) { is.value = ic.value; di(is); }
 
-                    /* CONFIGURACIÓN DE FECHAS */
                     const h = new Date(), fdt = x('//*[@id="customfield_16825"]');
                     if (fdt) { fdt.value = fmt(h); di(fdt); }
 
@@ -416,19 +446,12 @@ javascript:(async function(){
                     const ok = x('//*[@id="customfield_16833"]');
                     if (ok) { ok.value = "OK"; di(ok); }
 
-                    await wait(400);
-                    
-                    /* CIERRE EXTRA / CD1 */
-                    const exInput = document.querySelector('#cd-1 input[id^="react-select"]');
-                    if (exInput) await ejecutarSeleccion(exInput, p.EXTRA_CIERRE ?? 5, 100, 200);
+                    await wait(800);
+                    const ex = document.querySelector('#cd-1 input[id^="react-select"]');
+                    if (ex) await ejecutarSeleccion(ex, p.EXTRA_CIERRE || 0, 100, 200);
 
                     toast("Jira Automatizado ✔");
-                } catch (err) { 
-                    toast("Error en la inyección."); 
-                } finally {
-                    container.style.pointerEvents = "auto";
-                    container.style.opacity = "1";
-                }
+                } catch (err) { toast("Error en la inyección."); }
             };
             rootContent.appendChild(btn);
         });
@@ -439,9 +462,14 @@ javascript:(async function(){
         
         container.querySelector("#g-copy-tt").onclick = () => {
             var el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
-            if (!el) { alert("No se encontró el TT"); return; }
+            if (!el) {
+                alert("No se encontró el TT");
+                return;
+            }
             var tt = el.textContent.trim();
-            navigator.clipboard.writeText(tt).then(function(){ toast("TT Copiado: " + tt); });
+            navigator.clipboard.writeText(tt).then(function(){
+                toast("TT Copiado: " + tt);
+            });
         };
 
         document.body.appendChild(container);
