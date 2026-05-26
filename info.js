@@ -169,13 +169,15 @@ javascript:(async function(){
         document.body.appendChild(n); setTimeout(() => n.remove(), 2000);
     };
 
-    const copyTemplateFront = (grupo, clave, servicio) => {
+    /* MODIFICADO: Ahora recibe la categoría raíz para buscar correctamente en los 3 niveles del nuevo JSON */
+    const copyTemplateFront = (categoriaRaiz, grupo, clave, servicio) => {
         const bloqueTexto = servicio.texto;
         let c = ["", "", "", ""]; 
         const tech = detectarTecnologiaScript1(bloqueTexto);
 
-        if (plantillas && plantillas[grupo] && plantillas[grupo][clave]) {
-            c = [...plantillas[grupo][clave]];
+        /* Acceso en profundidad seguro al nuevo JSON de 3 niveles */
+        if (plantillas && plantillas[categoriaRaiz] && plantillas[categoriaRaiz][grupo] && plantillas[categoriaRaiz][grupo][clave]) {
+            c = [...plantillas[categoriaRaiz][grupo][clave]];
         }
         
         if (c[1] === "DINAMICO_INCOMUNICADO") {
@@ -282,61 +284,78 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
+        /* MODIFICADO: Generación de bloques y acordeones por mapeo de 3 niveles del nuevo JSON */
         if (plantillas) {
             serviciosActivos.forEach(s => {
-                /* CREACIÓN DEL CONTENEDOR RAÍZ AUTOMÁTICO */
-                const rootBlock = document.createElement("div");
-                rootBlock.className = "g-root-block active"; // Se inicializa abierto para mayor comodidad
                 
-                rootBlock.innerHTML = `
-                    <div class="g-root-trigger">
-                        <span><i class="fa-solid fa-folder-open" style="margin-right:8px; color:#E3B3FF;"></i> Plantillas Disponibles ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </div>
-                    <div class="g-root-content" style="display:block;"></div>
-                `;
-                
-                const rootContent = rootBlock.querySelector(".g-root-content");
-
-                /* ITERACIÓN DIRECTA DE LAS CLAVES DEL JSON (SIN FILTROS) */
-                Object.keys(plantillas).forEach(grupo => {
-                    const subAccordion = document.createElement("div");
-                    subAccordion.className = "g-sub-accordion";
-                    subAccordion.innerHTML = `
-                        <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
-                        <div class="g-sub-content"></div>
-                    `;
-                    const subContent = subAccordion.querySelector(".g-sub-content");
+                Object.keys(plantillas).forEach(categoriaRaiz => {
                     
-                    Object.keys(plantillas[grupo]).forEach(clave => {
-                        const btn = document.createElement("button");
-                        btn.className = "g-action-btn";
-                        btn.textContent = clave;
-                        btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s); };
-                        subContent.appendChild(btn);
+                    /* Selección del icono FontAwesome adecuado según la clave raíz */
+                    let icono = "fa-solid fa-folder";
+                    if (categoriaRaiz.toLowerCase().includes("internet") || categoriaRaiz.toLowerCase().includes("wifi")) {
+                        icono = "fa-solid fa-wifi";
+                    } else if (categoriaRaiz.toLowerCase().includes("tv")) {
+                        icono = "fa-solid fa-tv";
+                    }
+
+                    const rootBlock = document.createElement("div");
+                    rootBlock.className = "g-root-block"; // Cambiado a colapsado por defecto como tus fotos
+                    
+                    rootBlock.innerHTML = `
+                        <div class="g-root-trigger">
+                            <span><i class="${icono}" style="margin-right:8px; color:#E3B3FF;"></i> ${categoriaRaiz} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
+                            <i class="fa-solid fa-chevron-down"></i>
+                        </div>
+                        <div class="g-root-content" style="display:none;"></div>
+                    `;
+                    
+                    const rootContent = rootBlock.querySelector(".g-root-content");
+
+                    /* Segundo Nivel (Subcategorías / Grupos) */
+                    Object.keys(plantillas[categoriaRaiz]).forEach(grupo => {
+                        const subAccordion = document.createElement("div");
+                        subAccordion.className = "g-sub-accordion";
+                        subAccordion.innerHTML = `
+                            <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
+                            <div class="g-sub-content"></div>
+                        `;
+                        const subContent = subAccordion.querySelector(".g-sub-content");
+                        
+                        /* Tercer Nivel (Botones de Copia finales) */
+                        Object.keys(plantillas[categoriaRaiz][grupo]).forEach(clave => {
+                            const btn = document.createElement("button");
+                            btn.className = "g-action-btn";
+                            btn.textContent = clave;
+                            btn.onclick = (e) => { 
+                                e.stopPropagation(); 
+                                copyTemplateFront(categoriaRaiz, grupo, clave, s); 
+                            };
+                            subContent.appendChild(btn);
+                        });
+
+                        subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
+                            e.stopPropagation();
+                            const activeNow = subAccordion.classList.contains("active");
+                            rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
+                            if (!activeNow) subAccordion.classList.add("active");
+                        };
+                        rootContent.appendChild(subAccordion);
                     });
 
-                    subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
-                        e.stopPropagation();
-                        const activeNow = subAccordion.classList.contains("active");
-                        rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
-                        if (!activeNow) subAccordion.classList.add("active");
+                    rootBlock.querySelector(".g-root-trigger").onclick = () => {
+                        const activeNow = rootBlock.classList.contains("active");
+                        rootBox.querySelectorAll(".g-root-block").forEach(el => {
+                            el.classList.remove("active");
+                            el.querySelector(".g-root-content").style.display = "none";
+                        });
+                        if (!activeNow) {
+                            rootBlock.classList.add("active");
+                            rootContent.style.display = "block";
+                        }
                     };
-                    rootContent.appendChild(subAccordion);
+
+                    rootBox.appendChild(rootBlock);
                 });
-
-                rootBlock.querySelector(".g-root-trigger").onclick = () => {
-                    const activeNow = rootBlock.classList.contains("active");
-                    if (activeNow) {
-                        rootBlock.classList.remove("active");
-                        rootContent.style.display = "none";
-                    } else {
-                        rootBlock.classList.add("active");
-                        rootContent.style.display = "block";
-                    }
-                };
-
-                rootBox.appendChild(rootBlock);
             });
         }
 
