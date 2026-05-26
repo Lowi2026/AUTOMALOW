@@ -1,0 +1,122 @@
+[
+  {
+    "label": "INCOMUNICADO TOTAL - PROBLEMA DE SINCRONISMO - NEBAL/FFTH",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 1,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "INCOMUNICADO TOTAL - PROBLEMA SINCRONISMO - HFC",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 1,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "CLIENTE AFECTADO POR AVERÍA MASIVA",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 0,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "RETROPORTABILIDAD",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 0,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "LENTITUD EN LA CONEXIÓN",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 3,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "CORTES EN EL SERVICIO",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 3,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "FUERA DE UMBRALES",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 3,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "NO NAVEGA",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 3,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "INCOMUNICADO TOTAL - NO LEVANTA IP",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 1,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "CPE CON FALLOS EN PUERTOS LAN",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 0,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "DESPERFECTO INTERNO",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 2,
+      "EXTRA_CIERRE": 5
+    }
+  },
+  {
+    "label": "DESPERFECTO EXTERNO",
+    "pasos": {
+      "PRIORIDAD": 0,
+      "GRUPO": 0,
+      "TIPO": 0,
+      "SUBTIPO_L1": 2,
+      "EXTRA_CIERRE": 5
+    }
+  }
+]
