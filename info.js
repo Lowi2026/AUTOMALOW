@@ -2,8 +2,8 @@ javascript:(async function(){
     const u = window.location.href;
     const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
     
-    /* Carga de datos destruyendo la caché del servidor al instante */
-    const respuestaAverias = await fetch(REPO + 'averias.json?v=' + Date.now());
+    /* Carga de datos destruyendo la caché del servidor al instante con la nueva ruta AV.json */
+    const respuestaAverias = await fetch(REPO + 'AV.json?v=' + Date.now());
     const averias = await respuestaAverias.json();
     
     const respuestaPlantillas = await fetch(REPO + 'PL.json?v=' + Date.now());
@@ -169,15 +169,13 @@ javascript:(async function(){
         document.body.appendChild(n); setTimeout(() => n.remove(), 2000);
     };
 
-    /* MODIFICADO: Ahora recibe la categoría raíz para buscar correctamente en los 3 niveles del nuevo JSON */
-    const copyTemplateFront = (categoriaRaiz, grupo, clave, servicio) => {
+    const copyTemplateFront = (grupo, clave, servicio) => {
         const bloqueTexto = servicio.texto;
         let c = ["", "", "", ""]; 
         const tech = detectarTecnologiaScript1(bloqueTexto);
 
-        /* Acceso en profundidad seguro al nuevo JSON de 3 niveles */
-        if (plantillas && plantillas[categoriaRaiz] && plantillas[categoriaRaiz][grupo] && plantillas[categoriaRaiz][grupo][clave]) {
-            c = [...plantillas[categoriaRaiz][grupo][clave]];
+        if (plantillas && plantillas[grupo] && plantillas[grupo][clave]) {
+            c = [...plantillas[grupo][clave]];
         }
         
         if (c[1] === "DINAMICO_INCOMUNICADO") {
@@ -284,78 +282,61 @@ javascript:(async function(){
         
         const rootBox = container.querySelector("#g-root-box");
 
-        /* MODIFICADO: Generación de bloques y acordeones por mapeo de 3 niveles del nuevo JSON */
         if (plantillas) {
             serviciosActivos.forEach(s => {
+                /* CREACIÓN DEL CONTENEDOR RAÍZ AUTOMÁTICO */
+                const rootBlock = document.createElement("div");
+                rootBlock.className = "g-root-block active"; // Se inicializa abierto para mayor comodidad
                 
-                Object.keys(plantillas).forEach(categoriaRaiz => {
-                    
-                    /* Selección del icono FontAwesome adecuado según la clave raíz */
-                    let icono = "fa-solid fa-folder";
-                    if (categoriaRaiz.toLowerCase().includes("internet") || categoriaRaiz.toLowerCase().includes("wifi")) {
-                        icono = "fa-solid fa-wifi";
-                    } else if (categoriaRaiz.toLowerCase().includes("tv")) {
-                        icono = "fa-solid fa-tv";
-                    }
+                rootBlock.innerHTML = `
+                    <div class="g-root-trigger">
+                        <span><i class="fa-solid fa-folder-open" style="margin-right:8px; color:#E3B3FF;"></i> Plantillas Disponibles ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <div class="g-root-content" style="display:block;"></div>
+                `;
+                
+                const rootContent = rootBlock.querySelector(".g-root-content");
 
-                    const rootBlock = document.createElement("div");
-                    rootBlock.className = "g-root-block"; // Cambiado a colapsado por defecto como tus fotos
-                    
-                    rootBlock.innerHTML = `
-                        <div class="g-root-trigger">
-                            <span><i class="${icono}" style="margin-right:8px; color:#E3B3FF;"></i> ${categoriaRaiz} ${serviciosActivos.length > 1 ? `(${s.t})` : ''}</span>
-                            <i class="fa-solid fa-chevron-down"></i>
-                        </div>
-                        <div class="g-root-content" style="display:none;"></div>
+                /* ITERACIÓN DIRECTA DE LAS CLAVES DEL JSON (SIN FILTROS) */
+                Object.keys(plantillas).forEach(grupo => {
+                    const subAccordion = document.createElement("div");
+                    subAccordion.className = "g-sub-accordion";
+                    subAccordion.innerHTML = `
+                        <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
+                        <div class="g-sub-content"></div>
                     `;
+                    const subContent = subAccordion.querySelector(".g-sub-content");
                     
-                    const rootContent = rootBlock.querySelector(".g-root-content");
-
-                    /* Segundo Nivel (Subcategorías / Grupos) */
-                    Object.keys(plantillas[categoriaRaiz]).forEach(grupo => {
-                        const subAccordion = document.createElement("div");
-                        subAccordion.className = "g-sub-accordion";
-                        subAccordion.innerHTML = `
-                            <div class="g-sub-trigger"><span>${grupo}</span><i class="fa-solid fa-chevron-down"></i></div>
-                            <div class="g-sub-content"></div>
-                        `;
-                        const subContent = subAccordion.querySelector(".g-sub-content");
-                        
-                        /* Tercer Nivel (Botones de Copia finales) */
-                        Object.keys(plantillas[categoriaRaiz][grupo]).forEach(clave => {
-                            const btn = document.createElement("button");
-                            btn.className = "g-action-btn";
-                            btn.textContent = clave;
-                            btn.onclick = (e) => { 
-                                e.stopPropagation(); 
-                                copyTemplateFront(categoriaRaiz, grupo, clave, s); 
-                            };
-                            subContent.appendChild(btn);
-                        });
-
-                        subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
-                            e.stopPropagation();
-                            const activeNow = subAccordion.classList.contains("active");
-                            rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
-                            if (!activeNow) subAccordion.classList.add("active");
-                        };
-                        rootContent.appendChild(subAccordion);
+                    Object.keys(plantillas[grupo]).forEach(clave => {
+                        const btn = document.createElement("button");
+                        btn.className = "g-action-btn";
+                        btn.textContent = clave;
+                        btn.onclick = (e) => { e.stopPropagation(); copyTemplateFront(grupo, clave, s); };
+                        subContent.appendChild(btn);
                     });
 
-                    rootBlock.querySelector(".g-root-trigger").onclick = () => {
-                        const activeNow = rootBlock.classList.contains("active");
-                        rootBox.querySelectorAll(".g-root-block").forEach(el => {
-                            el.classList.remove("active");
-                            el.querySelector(".g-root-content").style.display = "none";
-                        });
-                        if (!activeNow) {
-                            rootBlock.classList.add("active");
-                            rootContent.style.display = "block";
-                        }
+                    subAccordion.querySelector(".g-sub-trigger").onclick = (e) => {
+                        e.stopPropagation();
+                        const activeNow = subAccordion.classList.contains("active");
+                        rootContent.querySelectorAll(".g-sub-accordion").forEach(el => el.classList.remove("active"));
+                        if (!activeNow) subAccordion.classList.add("active");
                     };
-
-                    rootBox.appendChild(rootBlock);
+                    rootContent.appendChild(subAccordion);
                 });
+
+                rootBlock.querySelector(".g-root-trigger").onclick = () => {
+                    const activeNow = rootBlock.classList.contains("active");
+                    if (activeNow) {
+                        rootBlock.classList.remove("active");
+                        rootContent.style.display = "none";
+                    } else {
+                        rootBlock.classList.add("active");
+                        rootContent.style.display = "block";
+                    }
+                };
+
+                rootBox.appendChild(rootBlock);
             });
         }
 
@@ -364,8 +345,9 @@ javascript:(async function(){
         document.body.appendChild(container);
         makeDraggable(container, "g-drag-handle");
     }
+    /* ================= NUEVA LÓGICA DEL AUTOMATIZADOR JIRA (MANTENIENDO COPIAR TT) ================= */
     else if (u.includes("enabler.es")) {
-        if (!averias) return alert("❌ Error: No se pudo mapear el archivo averias.json.");
+        if (!averias) return alert("❌ Error: No se pudo mapear el archivo AV.json.");
         
         const dk = (e, k) => e?.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
         const di = e => { if (!e) return; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); };
@@ -413,23 +395,31 @@ javascript:(async function(){
             const btn = document.createElement("button");
             btn.className = "g-action-btn";
             btn.textContent = t.label;
+            
             btn.onclick = async () => {
-                container.remove();
+                /* CAMBIADO: Mantenemos la interfaz visible ralentizando los clics del agente mientras se inyecta */
+                container.style.pointerEvents = "none";
+                container.style.opacity = "0.5";
                 toast("Procesando Jira...");
+                
                 try {
                     const p = t.pasos;
                     const sum = document.getElementById("summary");
                     if (sum) { sum.value = t.label.replace(" - TÉCNICO DIRECTO", ""); di(sum); }
 
-                    await ejecutarSeleccion(document.querySelector("#react-select-customfield_16817-instance-input"), p.GRUPO || 0);
-                    await wait(400);
-                    await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16800 .atlas-select__input"), p.TIPO || 0);
-                    await wait(400);
-                    await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16801 .atlas-select__input"), p.SUBTIPO_L1 || 0);
-                    await wait(500);
+                    // Uso dinámico de los pasos mapeados en tu AV.json por medio de la función optimizada
+                    await ejecutarSeleccion(document.querySelector("#react-select-customfield_16817-instance-input"), p.PRIORIDAD || p.GRUPO || 0);
+                    await wait(300);
+                    
+                    if (!t.label.toUpperCase().includes("MASIVA")) {
+                        await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16800 .atlas-select__input"), p.GRUPO || p.TIPO || 0);
+                        await wait(300);
+                        await ejecutarSeleccion(document.querySelector("#insight-atlas-select-16801 .atlas-select__input"), p.TIPO || p.SUBTIPO_L1 || 0);
+                        await wait(400);
+                    }
 
                     const iL2 = document.querySelector("#insight-atlas-select-16802")?.querySelector("input");
-                    if (iL2) await ejecutarSeleccion(iL2, p.SUBTIPO_L2 || 0, 100, 300);
+                    if (iL2) await ejecutarSeleccion(iL2, p.SUBTIPO_L1 || p.SUBTIPO_L2 || 0, 100, 300);
 
                     const ic = x('//*[@id="customfield_16820"]'), is = x('//*[@id="customfield_16821"]');
                     if (ic && is && ic.value && !is.value) { is.value = ic.value; di(is); }
@@ -446,12 +436,18 @@ javascript:(async function(){
                     const ok = x('//*[@id="customfield_16833"]');
                     if (ok) { ok.value = "OK"; di(ok); }
 
-                    await wait(800);
-                    const ex = document.querySelector('#cd-1 input[id^="react-select"]');
-                    if (ex) await ejecutarSeleccion(ex, p.EXTRA_CIERRE || 0, 100, 200);
+                    await wait(400);
+                    const exInput = document.querySelector('#cd-1 input[id^="react-select"]');
+                    if (exInput) await ejecutarSeleccion(exInput, p.EXTRA_CIERRE || 0, 100, 200);
 
                     toast("Jira Automatizado ✔");
-                } catch (err) { toast("Error en la inyección."); }
+                } catch (err) { 
+                    toast("Error en la inyección."); 
+                } finally {
+                    /* Restauramos la interacción con el menú */
+                    container.style.pointerEvents = "auto";
+                    container.style.opacity = "1";
+                }
             };
             rootContent.appendChild(btn);
         });
@@ -460,6 +456,7 @@ javascript:(async function(){
         container.querySelector("#g-close-btn").onclick = () => container.remove();
         container.querySelector("#g-cierre-total").onclick = () => container.remove();
         
+        /* MANTENIDO COMPLETO: Botón nativo para copiar TT */
         container.querySelector("#g-copy-tt").onclick = () => {
             var el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
             if (!el) {
