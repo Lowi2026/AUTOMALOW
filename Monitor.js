@@ -322,4 +322,36 @@
         state.editIdx = null; state.tempItem = { dur: "0:00:00", f: "" };
         ui.querySelectorAll("input, textarea, select").forEach(i => {
             if(i.id === "mStatus") i.value = "NO";
-            else if(i.id !== "fMes" && i.id !== "fHecho" && i.id !== "expFilter" && i.id !== "fMesTeam")
+            else if(i.id !== "fMes" && i.id !== "fHecho" && i.id !== "expFilter" && i.id !== "fMesTeam") i.value = "";
+        });
+        ui.querySelector("#mAutoInfo").innerText = "Esperando...";
+        ui.querySelector("#mSelAgente").value = "";
+        ui.querySelector("#mCancel").style.display = "none";
+    };
+
+    ui.querySelectorAll(".t-btn").forEach(btn => btn.onclick = () => {
+        ui.querySelectorAll(".t-btn").forEach(b => b.classList.remove("active")); ui.querySelectorAll(".tab-pane").forEach(p => p.style.display = "none");
+        btn.classList.add("active"); ui.querySelector(`#${btn.dataset.tab}`).style.display = "block";
+        preview.style.display = "none"; 
+        if(btn.dataset.tab === "tab-list") renderList();
+        if(btn.dataset.tab === "tab-team") {
+            ui.querySelector("#fMesTeam").value = ui.querySelector("#fMes").value;
+            renderTeam();
+        }
+    });
+
+    ui.querySelector("#fMes").onchange = renderList;
+    ui.querySelector("#fHecho").onchange = renderList;
+    ui.querySelector("#fMesTeam").onchange = renderTeam;
+    ui.querySelector("#mClose").onclick = () => { ui.remove(); preview.remove(); window.monitPro = false; };
+    
+    meses.forEach(m => {
+        ui.querySelector("#fMes").append($("option", {value:m, textContent:m}));
+        ui.querySelector("#fMesTeam").append($("option", {value:m, textContent:m}));
+    });
+
+    let drag=false,ox,oy;
+    ui.querySelector("#mHeader").onmousedown = e => { drag=true; ox=e.clientX-ui.offsetLeft; oy=e.clientY-ui.offsetTop; };
+    document.onmousemove = e => { if(drag) { ui.style.left=(e.clientX-ox)+'px'; ui.style.top=(e.clientY-oy)+'px'; ui.style.right='auto'; }};
+    document.onmouseup = () => drag=false;
+})();
