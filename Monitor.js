@@ -2,7 +2,7 @@
     if(window.monitPro) return;
     window.monitPro = true;
 
-    /* Lista de agentes actualizada */
+    /* Lista de agentes actualizadas */
     const db = {
         "48037":{n:"Linda Lucia Pardo",c:"lpardor3"},
         "48088":{n:"Mateo Rodríguez Teque",c:"mrodr548"},
