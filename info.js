@@ -318,6 +318,7 @@
             
             .clear-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ef4444; cursor: pointer; transition: all 0.2s; }
             .clear-btn:hover { background: rgba(239, 68, 68, 0.2); color: #ff6b6b; }
+            .clear-btn.confirming { background: #ef4444; color: #ffffff; width: auto; padding: 0 12px; font-size: 11px; font-weight: bold; }
 
             .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
             .stat-card { background: rgba(28, 16, 38, 0.4); border: 1px solid rgba(185, 118, 247, 0.08); border-radius: 10px; padding: 10px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
@@ -470,32 +471,56 @@
         tabHist.onclick = () => { tabHist.classList.add("active"); viewHist.classList.add("active"); tabPl.classList.remove("active"); viewPl.classList.remove("active"); renderHistorialSincronizado(); };
         datePicker.onchange = () => renderHistorialSincronizado();
 
-        shadow.getElementById("hist-clear-btn").onclick = async () => {
+        /* ========================================================================= */
+        /* ============ CONFIRMACIÓN EMBEDIDA EN INTERFAZ Y BORRADO ================ */
+        /* ========================================================================= */
+        const clearBtn = shadow.getElementById("hist-clear-btn");
+        let isConfirmingClear = false;
+
+        clearBtn.onclick = async () => {
             const fechaSeleccionada = datePicker.value;
-            
-            if (confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR permanentemente todo tu historial del día ${fechaSeleccionada} tanto aquí como en Supabase? Esta acción no se puede deshacer.`)) {
-                try {
-                    // 1. Borrado físico en la base de datos de Supabase
-                    const { error } = await supabaseClient
-                        .from('logs_soporte')
-                        .delete()
-                        .eq('agente_id', AGENTE_ID_UNICO)
-                        .eq('fecha_str', fechaSeleccionada);
 
-                    if (error) throw error;
+            // Primer clic: Cambia visualmente el estado del botón dentro de la interfaz
+            if (!isConfirmingClear) {
+                isConfirmingClear = true;
+                clearBtn.classList.add("confirming");
+                clearBtn.innerHTML = "¿Borrar historial del día?";
+                
+                // Si el usuario no confirma en 4 segundos, volvemos al estado inicial
+                setTimeout(() => {
+                    if (isConfirmingClear) {
+                        isConfirmingClear = false;
+                        clearBtn.classList.remove("confirming");
+                        clearBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
+                    }
+                }, 4000);
+                return;
+            }
 
-                    toast("Historial borrado en la nube 🔥");
+            // Segundo clic (Ejecución del borrado)
+            isConfirmingClear = false;
+            clearBtn.classList.remove("confirming");
+            clearBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
 
-                    // 2. Limpieza de la interfaz local y puesta a cero
-                    shadow.getElementById("stat-total-count").textContent = "0";
-                    shadow.getElementById("stat-fibra-count").textContent = "0";
-                    shadow.getElementById("stat-tv-count").textContent = "0";
-                    shadow.getElementById("hist-logs-container").innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">Historial vaciado en la base de datos.</p>`;
+            try {
+                const { error } = await supabaseClient
+                    .from('logs_soporte')
+                    .delete()
+                    .eq('agente_id', AGENTE_ID_UNICO)
+                    .eq('fecha_str', fechaSeleccionada);
 
-                } catch (err) {
-                    console.error("Error al borrar en Supabase:", err);
-                    alert("❌ No se pudo borrar el historial de la nube. Revisa la conexión o los permisos de Supabase.");
-                }
+                if (error) throw error;
+
+                toast("Historial borrado con éxito");
+
+                shadow.getElementById("stat-total-count").textContent = "0";
+                shadow.getElementById("stat-fibra-count").textContent = "0";
+                shadow.getElementById("stat-tv-count").textContent = "0";
+                shadow.getElementById("hist-logs-container").innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">Historial vaciado.</p>`;
+
+            } catch (err) {
+                console.error(err);
+                toast("Error al vaciar historial");
             }
         };
 
@@ -578,12 +603,28 @@
         };
 
         /* ========================================================================= */
-        /* ======================== CONSTRUTOR DE ESTRUCTURA ======================= */
+        /* ======================== CONSTRUCTOR DE ESTRUCTURA ====================== */
         /* ========================================================================= */
         shadow.querySelectorAll(".template-row").forEach(btn => {
             btn.onclick = async () => {
                 const cache = window._cachedTemplates[btn.getAttribute("data-id")];
                 if (!cache) return;
+
+                const todoElTextoPagina = document.body.innerText || "";
+
+                const buscarIdInteligente = (etiquetas) => {
+                    for (const etiqueta of etiquetas) {
+                        if (todoElTextoPagina.includes(etiqueta)) {
+                            const partes = todoElTextoPagina.split(etiqueta);
+                            if (partes.length > 1) {
+                                const linea = partes[1].split("\n")[0].trim();
+                                const coincidencia = linea.match(/^[:\s]*([A-Z0-9_-]+)/i);
+                                if (coincidencia && coincidencia[1]) return coincidencia[1].trim();
+                            }
+                        }
+                    }
+                    return "154233116";
+                };
 
                 const spanTitular = document.querySelector('div[style*="width: 80%"] span[style*="font-size: 30px;"]');
                 const clienteNombre = spanTitular ? spanTitular.textContent.split('|')[0].trim() : "Sara Pascual Torres";
@@ -595,16 +636,13 @@
                     }
                 });
 
-                let clienteID = "154233116";
+                let clienteID = buscarIdInteligente(["AMDOCS ID:", "ID Cliente:", "ID:"]);
+
                 let clienteDireccion = "CL REI MARTI 46 EN1 BARCELONA 08014";
                 let clienteMovil = "654179063";
                 
                 document.querySelectorAll('#content-main div, .aui-page-panel-content div, td').forEach(el => {
                     const txt = el.textContent;
-                    if (txt.includes("ID:") || txt.includes("Identificador:")) {
-                        const m = txt.match(/(?:ID|Identificador):\s*(\d+)/i);
-                        if(m) clienteID = m[1].trim();
-                    }
                     if (txt.includes("Dirección:") || txt.includes("Direccion:")) {
                         clienteDireccion = txt.replace(/Direcci[óo]n:\s*/i, "").trim();
                     }
@@ -679,7 +717,7 @@ Fecha: ${fechaEspanol}`;
                         fecha_str: new Date().toISOString().split('T')[0],
                         hora_str: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
                     }]);
-                } catch(err) { console.error("Error al registrar en la nube:", err); }
+                } catch(err) { console.error(err); }
             };
         });
 
