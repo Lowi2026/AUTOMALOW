@@ -279,7 +279,6 @@
     /* ================= NO ENABLER: FLUJO MAESTRO PRINCIPAL =================== */
     /* ========================================================================= */
     (async function ejecutarMaestroPrincipal() {
-        // --- VALIDACIÓN DE SERVICIOS ACTIFS (TU FILTRO ORIGINAL) ---
         const bt = document.body.innerText;
         const iP = bt.indexOf("Internet principal");
         const iA = bt.indexOf("Internet adicional");
@@ -416,6 +415,7 @@
             .stat-card h4 { font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; }
             .stat-card p { font-size: 18px; font-weight: 700; margin-top: 2px; }
             .stat-card.total-box p { color: #b976f7; font-size: 22px; }
+            .stat-card.sub-stat p { font-weight: 700; }
             .stat-card.sub-stat p.val-fibra { color: #00f0ff; }
             .stat-card.sub-stat p.val-tv { color: #f59e0b; }
             
@@ -436,6 +436,25 @@
             .log-time { color: rgba(255,255,255,0.4); font-size: 10px; }
             .log-body { color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 2px; }
             
+            /* ========================================================================= */
+            /* ========================== ESTILOS BAÚL ================================= */
+            /* ========================================================================= */
+            .vault-container { display: flex; flex-direction: column; gap: 12px; }
+            .vault-input-box { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+            .vault-textarea { width: 100%; background: #130919; border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 8px; padding: 10px; color: #ffffff; font-size: 12px; outline: none; resize: none; min-height: 60px; font-family: inherit; }
+            .vault-textarea:focus { border-color: rgba(185, 118, 247, 0.5); }
+            .vault-add-btn { background: #7A22B4; color: #FFF; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s; }
+            .vault-add-btn:hover { background: #912FD4; }
+            .vault-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+            .vault-item { background: var(--bg-row); border: 1px solid rgba(185, 118, 247, 0.08); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+            .vault-text { font-size: 12px; color: rgba(255,255,255,0.85); line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
+            .vault-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; }
+            .vault-action-btn { background: transparent; border: none; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 4px; }
+            .vault-btn-copy { color: #b976f7; }
+            .vault-btn-copy:hover { background: rgba(185, 118, 247, 0.1); }
+            .vault-btn-delete { color: #ef4444; }
+            .vault-btn-delete:hover { background: rgba(239, 68, 68, 0.1); }
+
             .footer { padding: 14px; border-top: 1px solid rgba(185, 118, 247, 0.12); background: #130919; text-align: center; }
             .hide-btn { width: 100%; padding: 10px; font-size: 12px; color: #ffffff; background: #1c0f24; border: 1px solid rgba(185, 118, 247, 0.2); cursor: pointer; border-radius: 8px; font-weight: 600; }
         `;
@@ -522,6 +541,7 @@
             <div class="tabs-container">
                 <button class="tab-button active" id="tab-btn-pl">Plantillas</button>
                 <button class="tab-button" id="tab-btn-hist">Historial</button>
+                <button class="tab-button" id="tab-btn-vault">Baúl</button>
             </div>
             <div class="body-container" id="g-body-view">
                 <div class="tab-view active" id="view-templates">${plantillasHTML}</div>
@@ -541,10 +561,28 @@
                     </div>
                     <div class="log-list" id="hist-logs-container"></div>
                 </div>
+
+                <div class="tab-view" id="view-vault"></div>
             </div>
             <div class="footer"><button class="hide-btn" id="g-close-panel-b">👁 Ocultar Interfaz</button></div>
         `;
         shadow.appendChild(widget);
+
+        // Estructura interna dinámica del baúl (Con input de título y variables de modo de guardado)
+        const viewVaultContainer = shadow.getElementById("view-vault");
+        if (viewVaultContainer) {
+            viewVaultContainer.innerHTML = `
+                <div class="vault-container">
+                    <div class="vault-input-box">
+                        <input type="text" id="vault-title-input" placeholder="Título de la nota (opcional)..." 
+                            style="width: 100%; background: #130919; border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 8px; padding: 8px 10px; color: #ffffff; font-size: 12px; outline: none; font-family: inherit; margin-bottom: 4px;">
+                        <textarea class="vault-textarea" id="vault-input" placeholder="Escribe una nota rápida aquí..."></textarea>
+                        <button class="vault-add-btn" id="vault-save-btn" data-mode="create" data-edit-id=""><i class="fa-solid fa-plus"></i> Guardar Nota</button>
+                    </div>
+                    <div class="vault-list" id="vault-items-container"></div>
+                </div>
+            `;
+        }
 
         shadow.querySelectorAll(".accordion-trigger").forEach(t => {
             t.onclick = () => shadow.getElementById(t.getAttribute("data-trigger")).classList.toggle("open");
@@ -553,13 +591,26 @@
             t.onclick = () => shadow.getElementById(t.getAttribute("data-subtrigger")).classList.toggle("open");
         });
 
-        const tabPl = shadow.getElementById("tab-btn-pl"); const tabHist = shadow.getElementById("tab-btn-hist");
-        const viewPl = shadow.getElementById("view-templates"); const viewHist = shadow.getElementById("view-history");
+        const tabPl = shadow.getElementById("tab-btn-pl"); 
+        const tabHist = shadow.getElementById("tab-btn-hist");
+        const tabVault = shadow.getElementById("tab-btn-vault");
+        
+        const viewPl = shadow.getElementById("view-templates"); 
+        const viewHist = shadow.getElementById("view-history");
+        const viewVault = shadow.getElementById("view-vault");
+
         const datePicker = shadow.getElementById("hist-date-picker"); datePicker.value = new Date().toISOString().split('T')[0];
 
-        tabPl.onclick = () => { tabPl.classList.add("active"); viewPl.classList.add("active"); tabHist.classList.remove("active"); viewHist.classList.remove("active"); };
-        tabHist.onclick = () => { tabHist.classList.add("active"); viewHist.classList.add("active"); tabPl.classList.remove("active"); viewPl.classList.remove("active"); renderHistorialSincronizado(); };
+        tabPl.onclick = () => { resetTabs(); tabPl.classList.add("active"); viewPl.classList.add("active"); };
+        tabHist.onclick = () => { resetTabs(); tabHist.classList.add("active"); viewHist.classList.add("active"); renderHistorialSincronizado(); };
+        tabVault.onclick = () => { resetTabs(); tabVault.classList.add("active"); viewVault.classList.add("active"); renderNotasBaul(); };
+        
         datePicker.onchange = () => renderHistorialSincronizado();
+
+        function resetTabs() {
+            [tabPl, tabHist, tabVault].forEach(t => t.classList.remove("active"));
+            [viewPl, viewHist, viewVault].forEach(v => v.classList.remove("active"));
+        }
 
         const clearBtn = shadow.getElementById("hist-clear-btn");
         let isConfirmingClear = false;
@@ -585,14 +636,12 @@
             clearBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i>`;
 
             try {
-                // Limpieza en la Nube
                 await supabaseClient
                     .from('logs_soporte')
                     .delete()
                     .eq('agente_id', AGENTE_ID_UNICO)
                     .eq('fecha_str', fechaSeleccionada);
 
-                // Limpieza en LocalStorage (Filtra manteniendo solo los de otras fechas)
                 let localLogs = JSON.parse(localStorage.getItem("g_automation_logs")) || [];
                 localLogs = localLogs.filter(l => l.fechaStr !== fechaSeleccionada);
                 localStorage.setItem("g_automation_logs", JSON.stringify(localLogs));
@@ -684,6 +733,145 @@
         };
 
         /* ========================================================================= */
+        /* ==================== LÓGICA DE CONTROL DEL BAÚL ========================= */
+        /* ========================================================================= */
+        const vaultTitleInput = shadow.getElementById("vault-title-input");
+        const vaultInput = shadow.getElementById("vault-input");
+        const vaultSaveBtn = shadow.getElementById("vault-save-btn");
+        const vaultContainer = shadow.getElementById("vault-items-container");
+
+        vaultSaveBtn.onclick = async () => {
+            const contenidoNota = vaultInput.value.trim();
+            const tituloNota = vaultTitleInput.value.trim() || "Sin Título";
+            if (!contenidoNota) return;
+
+            const mode = vaultSaveBtn.getAttribute("data-mode");
+            vaultSaveBtn.disabled = true;
+            vaultSaveBtn.textContent = "Procesando...";
+
+            try {
+                if (mode === "edit") {
+                    const editId = vaultSaveBtn.getAttribute("data-edit-id");
+                    // Guardar modificaciones estructuradas en Supabase
+                    const { error } = await supabaseClient
+                        .from('g_agentes_notas')
+                        .update({ titulo: tituloNota, contenido: contenidoNota })
+                        .eq('id', editId);
+
+                    if (error) throw error;
+                    toast("Nota modificada con éxito");
+                } else {
+                    // Flujo ordinario de guardado de nuevas notas
+                    const { error } = await supabaseClient.from('g_agentes_notas').insert([{
+                        agente_nombre: AGENTE_ID_UNICO,
+                        titulo: tituloNota,
+                        contenido: contenidoNota
+                    }]);
+
+                    if (error) throw error;
+                    toast("Nota guardada en tu baúl");
+                }
+
+                // Resetear el editor superior al finalizar la inserción/actualización
+                vaultInput.value = "";
+                vaultTitleInput.value = "";
+                vaultSaveBtn.setAttribute("data-mode", "create");
+                vaultSaveBtn.setAttribute("data-edit-id", "");
+                vaultSaveBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Guardar Nota`;
+                vaultSaveBtn.style.background = "#7A22B4";
+
+                await renderNotasBaul();
+            } catch (err) {
+                console.error(err);
+                toast("Error al procesar la nota");
+            } finally {
+                vaultSaveBtn.disabled = false;
+                if (vaultSaveBtn.getAttribute("data-mode") === "create") {
+                    vaultSaveBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Guardar Nota`;
+                }
+            }
+        };
+
+        async function renderNotasBaul() {
+            vaultContainer.innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.5;padding:10px;">Cargando tus notas...</p>`;
+            try {
+                const { data: notas, error } = await supabaseClient
+                    .from('g_agentes_notas')
+                    .select('*')
+                    .eq('agente_nombre', AGENTE_ID_UNICO)
+                    .order('id', { ascending: false });
+
+                if (error) throw error;
+
+                if (!notas || notas.length === 0) {
+                    vaultContainer.innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">El baúl está vacío.</p>`;
+                    return;
+                }
+
+                vaultContainer.innerHTML = "";
+                notas.forEach(nota => {
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = "vault-item";
+                    
+                    itemDiv.innerHTML = `
+                        <div style="font-size: 13px; font-weight: 700; color: #b976f7; margin-bottom: 4px; border-bottom: 1px solid rgba(185, 118, 247, 0.1); padding-bottom: 2px;">${nota.titulo || "Sin Título"}</div>
+                        <div class="vault-text">${nota.contenido}</div>
+                        <div class="vault-actions">
+                            <button class="vault-action-btn vault-btn-edit-item" style="color: #f59e0b;"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
+                            <button class="vault-action-btn vault-btn-copy" data-text="${nota.contenido.replace(/"/g, '&quot;')}"><i class="fa-regular fa-copy"></i> Copiar</button>
+                            <button class="vault-action-btn vault-btn-delete" data-id="${nota.id}"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                        </div>
+                    `;
+
+                    itemDiv.querySelector(".vault-btn-copy").onclick = () => {
+                        navigator.clipboard.writeText(nota.contenido).then(() => {
+                            toast("Nota copiada al portapapeles");
+                        });
+                    };
+
+                    // Accionador de Carga: Envía la nota al cuadro superior para reescribirla
+                    itemDiv.querySelector(".vault-btn-edit-item").onclick = () => {
+                        vaultTitleInput.value = nota.titulo || "";
+                        vaultInput.value = nota.contenido;
+                        vaultSaveBtn.setAttribute("data-mode", "edit");
+                        vaultSaveBtn.setAttribute("data-edit-id", nota.id);
+                        vaultSaveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Actualizar Cambios`;
+                        vaultSaveBtn.style.background = "#d97706";
+                        vaultTitleInput.focus();
+                        toast("Nota cargada en el editor");
+                    };
+
+                    itemDiv.querySelector(".vault-btn-delete").onclick = async () => {
+                        if (!confirm("¿Deseas eliminar esta nota permanentemente?")) return;
+                        try {
+                            await supabaseClient.from('g_agentes_notas').delete().eq('id', nota.id);
+                            toast("Nota eliminada");
+                            
+                            if (vaultSaveBtn.getAttribute("data-edit-id") == nota.id) {
+                                vaultInput.value = "";
+                                vaultTitleInput.value = "";
+                                vaultSaveBtn.setAttribute("data-mode", "create");
+                                vaultSaveBtn.setAttribute("data-edit-id", "");
+                                vaultSaveBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Guardar Nota`;
+                                vaultSaveBtn.style.background = "#7A22B4";
+                            }
+                            
+                            renderNotasBaul();
+                        } catch (err) {
+                            console.error(err);
+                            toast("No se pudo eliminar");
+                        }
+                    };
+
+                    vaultContainer.appendChild(itemDiv);
+                });
+            } catch (err) {
+                console.error(err);
+                vaultContainer.innerHTML = `<p style="color:#ef4444;font-size:11px;text-align:center;padding:10px;">❌ Error al cargar notas.</p>`;
+            }
+        }
+
+        /* ========================================================================= */
         /* ============ CONSTRUCTOR INTELIGENTE CON REEMPLAZOS DINÁMICOS ============ */
         /* ========================================================================= */
         shadow.querySelectorAll(".template-row").forEach(btn => {
@@ -711,18 +899,17 @@
                 }
                 if (c[1] === "DINAMICO_CORTES_RESUELTO") c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado and separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
                 if (c[1] === "DINAMICO_CORTES_TECNICO") {
-                    c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes en Schaman, reinicio de fábrica sin mejora";
+                    c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes in Schaman, reinicio de fábrica sin mejora";
                     c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
                 }
                 if (c[1] === "DINAMICO_CORTES_NV2") c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistententes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistententes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
                 if (c[1] === "DINAMICO_FUERA_RESUELTO") {
                     c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
-                    c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
+                    c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas and se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
                 }
                 if (c[1] === "DINAMICO_FUERA_NO") c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
                 if (c[3] === "DINAMICO_FUERA_RESUELTO_SOL") c[3] = tech === "HFC" ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
 
-                // Extracciones exactas de datos usando las funciones blindadas de la sección 3
                 const clienteExtraido = getVal(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"]);
                 const dniExtraido = extraerDocumentoIdentidad();
                 const idExtraido = getVal(["AMDOCS ID:", "ID Cliente:", "ID:"]);
@@ -762,10 +949,8 @@ Fecha: ${fechaEspanol}`;
                 btn.classList.add("copied-state");
                 setTimeout(() => btn.classList.remove("copied-state"), 1200);
 
-                // --- 1. GUARDADO DOBLE: HISTORIAL LOCAL (TU FUNCIÓN) ---
                 saveToHistory(clienteExtraido, dniExtraido, cache.grupo, cache.clase, cache.clave);
 
-                // --- 2. GUARDADO DOBLE: HISTORIAL NUBE (SUPABASE) ---
                 try {
                     await supabaseClient.from('logs_soporte').insert([{
                         agente_id: AGENTE_ID_UNICO,
