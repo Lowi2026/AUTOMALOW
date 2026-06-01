@@ -1,6 +1,6 @@
 (() => {
     /* ========================================================================= */
-    /* ================= 1. INYECTAR FONT AWESOME Y CONFIGS SCRIPTS ==================== */
+    /* ================= 1. INYECTAR FONT AWESOME Y CONFIGS ==================== */
     /* ========================================================================= */
     if (!document.querySelector('link[data-fa]')) {
         const fa = document.createElement("link");
@@ -449,11 +449,12 @@
             .vault-item { background: var(--bg-row); border: 1px solid rgba(185, 118, 247, 0.08); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; position: relative; }
             .vault-text { font-size: 12px; color: rgba(255,255,255,0.85); line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
             .vault-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; }
-            .vault-action-btn { background: transparent; border: none; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 4px; }
+            .vault-action-btn { background: transparent; border: none; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 4px; transition: all 0.2s; }
             .vault-btn-copy { color: #b976f7; }
             .vault-btn-copy:hover { background: rgba(185, 118, 247, 0.1); }
             .vault-btn-delete { color: #ef4444; }
             .vault-btn-delete:hover { background: rgba(239, 68, 68, 0.1); }
+            .vault-btn-delete.confirming { background: #ef4444; color: #ffffff !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; }
 
             .footer { padding: 14px; border-top: 1px solid rgba(185, 118, 247, 0.12); background: #130919; text-align: center; }
             .hide-btn { width: 100%; padding: 10px; font-size: 12px; color: #ffffff; background: #1c0f24; border: 1px solid rgba(185, 118, 247, 0.2); cursor: pointer; border-radius: 8px; font-weight: 600; }
@@ -752,7 +753,6 @@
             try {
                 if (mode === "edit") {
                     const editId = vaultSaveBtn.getAttribute("data-edit-id");
-                    // Guardar modificaciones estructuradas en Supabase
                     const { error } = await supabaseClient
                         .from('g_agentes_notas')
                         .update({ titulo: tituloNota, contenido: contenidoNota })
@@ -761,7 +761,6 @@
                     if (error) throw error;
                     toast("Nota modificada con éxito");
                 } else {
-                    // Flujo ordinario de guardado de nuevas notas
                     const { error } = await supabaseClient.from('g_agentes_notas').insert([{
                         agente_nombre: AGENTE_ID_UNICO,
                         titulo: tituloNota,
@@ -772,7 +771,6 @@
                     toast("Nota guardada en tu baúl");
                 }
 
-                // Resetear el editor superior al finalizar la inserción/actualización
                 vaultInput.value = "";
                 vaultTitleInput.value = "";
                 vaultSaveBtn.setAttribute("data-mode", "create");
@@ -819,7 +817,7 @@
                         <div class="vault-actions">
                             <button class="vault-action-btn vault-btn-edit-item" style="color: #f59e0b;"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
                             <button class="vault-action-btn vault-btn-copy" data-text="${nota.contenido.replace(/"/g, '&quot;')}"><i class="fa-regular fa-copy"></i> Copiar</button>
-                            <button class="vault-action-btn vault-btn-delete" data-id="${nota.id}"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                            <button class="vault-action-btn vault-btn-delete" data-confirmed="false"><i class="fa-solid fa-trash"></i> Eliminar</button>
                         </div>
                     `;
 
@@ -829,7 +827,6 @@
                         });
                     };
 
-                    // Accionador de Carga: Envía la nota al cuadro superior para reescribirla
                     itemDiv.querySelector(".vault-btn-edit-item").onclick = () => {
                         vaultTitleInput.value = nota.titulo || "";
                         vaultInput.value = nota.contenido;
@@ -841,8 +838,30 @@
                         toast("Nota cargada en el editor");
                     };
 
-                    itemDiv.querySelector(".vault-btn-delete").onclick = async () => {
-                        if (!confirm("¿Deseas eliminar esta nota permanentemente?")) return;
+                    // Sistema Integrado de Confirmación para eliminar notas (Estilo Historial)
+                    const deleteBtn = itemDiv.querySelector(".vault-btn-delete");
+                    let timeoutConfirm = null;
+
+                    deleteBtn.onclick = async () => {
+                        const isConfirmed = deleteBtn.getAttribute("data-confirmed") === "true";
+
+                        if (!isConfirmed) {
+                            // Primer clic: Activar estado de confirmación
+                            deleteBtn.setAttribute("data-confirmed", "true");
+                            deleteBtn.classList.add("confirming");
+                            deleteBtn.innerHTML = "¿Borrar?";
+                            
+                            // Temporizador automático de 4 segundos para cancelar si no se pulsa de nuevo
+                            timeoutConfirm = setTimeout(() => {
+                                deleteBtn.setAttribute("data-confirmed", "false");
+                                deleteBtn.classList.remove("confirming");
+                                deleteBtn.innerHTML = `<i class="fa-solid fa-trash"></i> Eliminar`;
+                            }, 4000);
+                            return;
+                        }
+
+                        // Segundo clic: Ejecutar eliminación real en Supabase
+                        clearTimeout(timeoutConfirm);
                         try {
                             await supabaseClient.from('g_agentes_notas').delete().eq('id', nota.id);
                             toast("Nota eliminada");
@@ -897,7 +916,7 @@
                         c[2] = tieneOnt ? "posible daño en tramo óptico" : "posible daño en fibra";
                     }
                 }
-                if (c[1] === "DINAMICO_CORTES_RESUELTO") c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado and separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
+                if (c[1] === "DINAMICO_CORTES_RESUELTO") c[1] = tech === "HFC" ? "Se revisa en thot hay cortes in los últimos 7 días se hace reinicio de fábrica, ajuste de cableado and separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
                 if (c[1] === "DINAMICO_CORTES_TECNICO") {
                     c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes in Schaman, reinicio de fábrica sin mejora";
                     c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
