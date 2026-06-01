@@ -1,6 +1,6 @@
 (() => {
     /* ========================================================================= */
-    /* ================= 1. INYECTAR FONT AWESOME Y CONFIGS ==================== */
+    /* ================= 1. INYECTAR FONT AWESOME Y CONFIGS SCRIPTS ==================== */
     /* ========================================================================= */
     if (!document.querySelector('link[data-fa]')) {
         const fa = document.createElement("link");
