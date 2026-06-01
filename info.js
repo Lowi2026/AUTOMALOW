@@ -66,18 +66,74 @@
         if (tp && ta && tp.value) { ta.value = tp.value; di(ta); }
     }
 
-    /* LÓGICA AUXILIAR DE DETECCIÓN ESTRUCTURAL */
-    function detectarTecnologiaScript1(texto) {
-        if (!texto) return "HFC";
-        const t = texto.toLowerCase();
-        if (t.includes("ftth") || t.includes("fibra óptica") || t.includes("schaman")) return "FTTH";
-        return "HFC";
+    /* ========================================================================= */
+    /* ============ 3. FUNCIONES DE EXTRACCIÓN TUYAS ORIGINALES ================ */
+    /* ========================================================================= */
+    function getVal(etiquetas) {
+        const todoElTexto = document.body.innerText || "";
+        for (const etiqueta of etiquetas) {
+            if (todoElTexto.includes(etiqueta)) {
+                const partes = todoElTexto.split(etiqueta);
+                if (partes.length > 1) {
+                    return partes[1].split("\n")[0].trim().replace(/^[:\s-]+/, "");
+                }
+            }
+        }
+        return "N/A";
     }
 
-    function detectarONT(texto) {
-        if (!texto) return false;
-        return texto.toLowerCase().includes("ont externo") || texto.toLowerCase().includes("tiene ont");
-    }
+    const extraerDocumentoIdentidad = () => {
+        let doc = getVal(["DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"]);
+        if (doc === "N/A") {
+            const txt = document.body.innerText;
+            const match = txt.match(/(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i);
+            if (match) doc = match[1];
+        }
+        return doc !== "N/A" ? doc.toUpperCase().replace(/[\s-]/g, "") : "N/A";
+    };
+
+    const extraerMoviles = () => {
+        const t = document.body.innerText, found = [], regex = /(?:^|\D)([67]\d{2}\s?\d{3}\s?\d{3})(?:\D|$)/g;
+        let m; while ((m = regex.exec(t)) !== null) {
+            let n = m[1].replace(/\s+/g, ''); if (!found.includes(n)) found.push(n);
+        }
+        return found.length ? found.join(" | ") : "N/A";
+    };
+
+    const extraerDireccion = (t) => {
+        let s = ["Dirección de installation:", "Direccion:", "Dirección de instalación:"], e = ["Tipo de huella:", "Tarifa:", "Internet principal"];
+        for (let x of s) {
+            let i = t.indexOf(x); if (i > -1) {
+                let r = t.slice(i + x.length);
+                for (let y of e) { let p = r.indexOf(y); if (p > -1) r = r.slice(0, p); }
+                return r.trim();
+            }
+        }
+        return "N/A";
+    };
+
+    const detectarTecnologiaScript1 = (bloqueTexto) => {
+        const clean = bloqueTexto.toUpperCase();
+        if (clean.includes("NEBAL")) return "NEBAL";
+        if (clean.includes("NEBAF")) return "NEBAF";
+        if (clean.includes("HFC")) return "HFC";
+        return "FTTH";
+    };
+
+    const detectarONT = (bloqueTexto) => {
+        const clean = bloqueTexto.toUpperCase();
+        return clean.includes("ONT") && (clean.includes("ALARM") || clean.includes("LOS RED") || clean.includes("EXTERNA"));
+    };
+
+    const saveToHistory = (clienteNombre, dni, nombreGrupo, tipoClase, plantillaNombre) => {
+        let currentLogs = JSON.parse(localStorage.getItem("g_automation_logs")) || [];
+        currentLogs.unshift({
+            timestamp: Date.now(), fechaStr: new Date().toISOString().split('T')[0], 
+            horaStr: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
+            cliente: clienteNombre, dni: dni, subCat: nombreGrupo || "General", clase: tipoClase || "fibra", plantilla: plantillaNombre
+        });
+        localStorage.setItem("g_automation_logs", JSON.stringify(currentLogs));
+    };
 
     /* ========================================================================= */
     /* ========================== BLOQUE ENABLER.ES ============================ */
@@ -223,6 +279,23 @@
     /* ================= NO ENABLER: FLUJO MAESTRO PRINCIPAL =================== */
     /* ========================================================================= */
     (async function ejecutarMaestroPrincipal() {
+        // --- VALIDACIÓN DE SERVICIOS ACTIFS (TU FILTRO ORIGINAL) ---
+        const bt = document.body.innerText;
+        const iP = bt.indexOf("Internet principal");
+        const iA = bt.indexOf("Internet adicional");
+        const serviciosActivos = [
+            { t: "Principal", texto: iP > -1 ? bt.slice(iP, iA > -1 ? iA : undefined) : "" },
+            { t: "Adicional", texto: iA > -1 ? bt.slice(iA) : "" }
+        ].filter(s => s.texto.trim());
+
+        if (!serviciosActivos.length) {
+            alert("⚠️ No se localizó información del servicio de Internet en la pantalla de Lowi.");
+            return;
+        }
+
+        window._cachedTemplates = {};
+        let plantillasHTML = `<div>`;
+
         if (!window.supabase) {
             const sb = document.createElement("script");
             sb.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
@@ -259,29 +332,19 @@
             plantillas = await fetch(`${REPO}PL.json?v=${Date.now()}`).then(r => r.ok ? r.json() : null);
         } catch (e) { console.error("Error cargando PL.json:", e); }
 
-        /* LÓGICA DE CAPTURA DE INTERNET PRINCIPAL / ADICIONAL EXTRACCIÓN SCRIPT 1 */
-        const bt = document.body.innerText;
-        const iP = bt.indexOf("Internet principal");
-        const iA = bt.indexOf("Internet adicional");
-        const serviciosActivos = [
-            { t: "Principal", texto: iP > -1 ? bt.slice(iP, iA > -1 ? iA : undefined) : "" },
-            { t: "Adicional", texto: iA > -1 ? bt.slice(iA) : "" }
-        ].filter(s => s.texto.trim());
-
-        if (!serviciosActivos.length) {
-            // Un fallback por si estás testeando en una vista sin esas cadenas exactas
-            serviciosActivos.push({ t: "Principal", texto: bt });
-        }
-
         const host = document.createElement("div"); 
         host.id = "g-automation-root"; 
         document.body.appendChild(host);
         const shadow = host.attachShadow({ mode: "open" });
 
+        const shadowLink = document.createElement("link");
+        shadowLink.rel = "stylesheet";
+        shadowLink.href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css";
+        shadow.appendChild(shadowLink);
+
         const style = document.createElement("style");
         style.textContent = `
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
             :host {
                 --bg-main: #130919;
                 --bg-card: #1c0f24;
@@ -312,9 +375,9 @@
             .tab-view { display: none; }
             .tab-view.active { display: block; }
             
-            .accordion-item { background-color: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 16px; margin-bottom: 12px; overflow: hidden; transition: all 0.2s ease; }
+            .accordion-item { background-color: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 16px; margin-bottom: 12px; overflow: hidden; }
             .accordion-trigger { width: 100%; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
-            .accordion-content { display: none; padding: 0 14px 14px 14px; }
+            .accordion-content { display: none; padding: 0 12px 12px 12px; }
             .accordion-content.open { display: block; }
             
             .icon-circle-main { width: 32px; height: 32px; background: rgba(122, 34, 180, 0.2); border: 1px solid rgba(185, 118, 247, 0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; color: #b976f7; flex-shrink: 0; font-size: 14px; }
@@ -324,16 +387,17 @@
             .sub-accordion-content { display: none; padding: 4px 10px 12px 10px; }
             .sub-accordion-content.open { display: block; }
             
-            .sub-cat-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0; font-size: 12px; }
-            .sub-cat-circle.fibra { color: #00d0ff; background: rgba(0, 150, 255, 0.15); border: 1px solid rgba(0, 150, 255, 0.3); }
-            .sub-cat-circle.tv { color: #f59e0b; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); }
+            .sub-cat-circle { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0; font-size: 12px; }
+            .sub-cat-circle.fibra { color: #00d0ff !important; background: rgba(0, 150, 255, 0.15); border: 1px solid rgba(0, 150, 255, 0.3); }
+            .sub-cat-circle.tv { color: #f59e0b !important; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); }
+            .sub-cat-circle i { color: inherit !important; display: inline-block; }
 
-            .template-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: none; border: 1px solid rgba(255, 255, 255, 0.02); border-radius: 10px; color: rgba(255, 255, 255, 0.85); font-size: 12px; cursor: pointer; margin-bottom: 8px; text-align: left; transition: all 0.2s ease; }
-            .template-row:hover { border-color: rgba(185, 118, 247, 0.3); color: #ffffff; background-color: rgba(185, 118, 247, 0.05); }
-            .template-text { flex: 1; font-weight: 500; line-height: 1.4; word-break: break-word; }
-            .copy-action-btn { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: #b976f7; padding: 4px 8px; background: transparent; border: none; transition: color 0.2s; flex-shrink: 0; }
+            .template-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #23142d; border: 1px solid rgba(185, 118, 247, 0.1); border-radius: 12px; color: #ffffff; font-size: 13px; cursor: pointer; margin-bottom: 8px; text-align: left; transition: all 0.2s ease; font-weight: 500; }
+            .template-row:hover { border-color: rgba(185, 118, 247, 0.4); background-color: rgba(185, 118, 247, 0.1); }
+            .template-text { flex: 1; font-weight: 600; line-height: 1.4; word-break: break-word; }
+            .copy-action-btn { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #b976f7; padding: 4px 8px; background: transparent; border: none; flex-shrink: 0; text-transform: uppercase; }
             
-            .template-row.copied-state { border: 1px solid #ffffff !important; box-shadow: 0 0 12px rgba(255, 255, 255, 0.2); color: #ffffff !important; }
+            .template-row.copied-state { border: 1px solid #ffffff !important; box-shadow: 0 0 12px rgba(255, 255, 255, 0.2); }
             .template-row.copied-state .copy-action-btn { color: #10b981 !important; }
             
             .calendar-box { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 14px; padding: 12px; margin-bottom: 14px; }
@@ -342,7 +406,7 @@
             .calendar-input { flex: 1; background: #130919; border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 8px; padding: 8px 12px; color: #ffffff; font-size: 13px; outline: none; cursor: pointer; font-family: inherit; }
             .calendar-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
             
-            .clear-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ef4444; cursor: pointer; transition: all 0.2s; }
+            .clear-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ef4444; cursor: pointer; }
             .clear-btn:hover { background: rgba(239, 68, 68, 0.2); color: #ff6b6b; }
             .clear-btn.confirming { background: #ef4444; color: #ffffff; width: auto; padding: 0 12px; font-size: 11px; font-weight: bold; }
 
@@ -357,7 +421,6 @@
             
             .history-group-wrapper { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
             .history-group-trigger { width: 100%; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
-            .history-group-trigger:hover { background: rgba(185, 118, 247, 0.03); }
             
             .history-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; display: inline-block; }
             .history-dot.fibra { background-color: #00d0ff; box-shadow: 0 0 8px #00d0ff; }
@@ -386,26 +449,22 @@
             setTimeout(() => n.remove(), 2000);
         };
 
-        window._cachedTemplates = {};
-        let plantillasHTML = `<div>`;
-        
-        /* GENERADOR ESTRUCTURAL DE LAS PESTAÑAS BASADO EN SERVICIOS ACTIVOS (MÚLTIPLES INTERNETS) */
         if (plantillas) {
             serviciosActivos.forEach((serv, sIdx) => {
                 Object.keys(plantillas).forEach((categoria, catIdx) => {
                     const idUnicoBloque = `cat-${sIdx}-${catIdx}`;
                     const catLower = categoria.toLowerCase();
                     const esTv = catLower.includes("tv") || catLower.includes("tele");
-                    const iconHeader = esTv ? `<i class="fas fa-tv"></i>` : `<i class="fas fa-wifi"></i>`;
+                    const iconHeader = esTv ? `<i class="fa-solid fa-tv"></i>` : `<i class="fa-solid fa-wifi"></i>`;
                     
                     plantillasHTML += `
-                        <div class="accordion-item" style="margin-bottom:12px;">
+                        <div class="accordion-item">
                             <button class="accordion-trigger" data-trigger="${idUnicoBloque}">
                                 <div style="display:flex; align-items:center;">
                                     <div class="icon-circle-main">${iconHeader}</div>
                                     <span style="font-weight:600; font-size:14px;">${categoria} ${serviciosActivos.length > 1 ? `(${serv.t})` : ''}</span>
                                 </div>
-                                <i class="fas fa-chevron-down" style="font-size:11px;opacity:0.5;"></i>
+                                <i class="fa-solid fa-chevron-down" style="font-size:11px;opacity:0.5;"></i>
                             </button>
                             <div class="accordion-content" id="${idUnicoBloque}">
                     `;
@@ -413,7 +472,7 @@
                     Object.keys(plantillas[categoria]).forEach((nombreGrupo, grpIdx) => {
                         const subId = `sub_${sIdx}_${catIdx}_${grpIdx}`;
                         const subCatClass = esTv ? "tv" : "fibra";
-                        const subCatIcon = esTv ? `<i class="fas fa-tv"></i>` : `<i class="fas fa-bolt"></i>`;
+                        const subCatIcon = esTv ? `<i class="fa-solid fa-tv"></i>` : `<i class="fa-solid fa-bolt"></i>`;
 
                         plantillasHTML += `
                             <div class="sub-accordion">
@@ -422,7 +481,7 @@
                                         <div class="sub-cat-circle ${subCatClass}">${subCatIcon}</div>
                                         <span>${nombreGrupo}</span>
                                     </div>
-                                    <i class="fas fa-chevron-down" style="font-size:11px;opacity:0.4;"></i>
+                                    <i class="fa-solid fa-chevron-down" style="font-size:11px;opacity:0.4;"></i>
                                 </button>
                                 <div class="sub-accordion-content" id="${subId}">
                         `;
@@ -440,7 +499,7 @@
                             plantillasHTML += `
                                 <button class="template-row" data-id="${uniqueId}">
                                     <span class="template-text">${clavePlantilla}</span>
-                                    <span class="copy-action-btn"><i class="far fa-copy"></i> Copiar</span>
+                                    <span class="copy-action-btn"><i class="fa-regular fa-copy"></i> Copiar</span>
                                 </button>
                             `;
                         });
@@ -472,7 +531,7 @@
                         <label>Filtro y Limpieza</label>
                         <div class="filter-action-row">
                             <input type="date" class="calendar-input" id="hist-date-picker">
-                            <button class="clear-btn" id="hist-clear-btn" title="Limpiar Historial"><i class="fas fa-trash-alt"></i></button>
+                            <button class="clear-btn" id="hist-clear-btn" title="Limpiar Historial"><i class="fa-solid fa-trash-can"></i></button>
                         </div>
                     </div>
                     <div class="stats-grid">
@@ -510,12 +569,12 @@
             if (!isConfirmingClear) {
                 isConfirmingClear = true;
                 clearBtn.classList.add("confirming");
-                clearBtn.innerHTML = "¿Borrar historial del día?";
+                clearBtn.innerHTML = "¿Borrar?";
                 setTimeout(() => {
                     if (isConfirmingClear) {
                         isConfirmingClear = false;
                         clearBtn.classList.remove("confirming");
-                        clearBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
+                        clearBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i>`;
                     }
                 }, 4000);
                 return;
@@ -523,16 +582,21 @@
 
             isConfirmingClear = false;
             clearBtn.classList.remove("confirming");
-            clearBtn.innerHTML = `<i class="fas fa-trash-alt"></i>`;
+            clearBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i>`;
 
             try {
-                const { error } = await supabaseClient
+                // Limpieza en la Nube
+                await supabaseClient
                     .from('logs_soporte')
                     .delete()
                     .eq('agente_id', AGENTE_ID_UNICO)
                     .eq('fecha_str', fechaSeleccionada);
 
-                if (error) throw error;
+                // Limpieza en LocalStorage (Filtra manteniendo solo los de otras fechas)
+                let localLogs = JSON.parse(localStorage.getItem("g_automation_logs")) || [];
+                localLogs = localLogs.filter(l => l.fechaStr !== fechaSeleccionada);
+                localStorage.setItem("g_automation_logs", JSON.stringify(localLogs));
+
                 toast("Historial borrado con éxito");
                 shadow.getElementById("stat-total-count").textContent = "0";
                 shadow.getElementById("stat-fibra-count").textContent = "0";
@@ -598,7 +662,7 @@
                             <div class="log-item ${claseClasificacion}">
                                 <div class="log-header">
                                     <span>👤 ${log.cliente || 'N/A'} (${log.dni || 'N/A'})</span>
-                                    <span class="log-time"><i class="far fa-clock"></i> ${log.hora_str}</span>
+                                    <span class="log-time"><i class="fa-regular fa-clock"></i> ${log.hora_str}</span>
                                 </div>
                                 <div class="log-body">${log.plantilla}</div>
                             </div>
@@ -630,15 +694,11 @@
                 const bloqueTexto = cache.servicio.texto;
                 const tech = detectarTecnologiaScript1(bloqueTexto);
                 
-                // Extraer variables base de datos desde el JSON original
                 let c = ["", "", "", ""];
                 if (plantillas && plantillas[cache.categoriaRaiz]?.[cache.grupo]?.[cache.clave]) {
                     c = [...plantillas[cache.categoriaRaiz][cache.grupo][cache.clave]];
                 }
 
-                /* ========================================================================= */
-                /* ======== REINTEGRACIÓN COMPLETA DE TRADUCCIÓNES DINÁMICAS (SCRIPT 1) ======= */
-                /* ========================================================================= */
                 if (c[1] === "DINAMICO_INCOMUNICADO") {
                     if (tech === "HFC") {
                         c[1] = "router con luces intermitentes, sin acceso remoto al cpe, se valida cableado sin daños";
@@ -649,71 +709,35 @@
                         c[2] = tieneOnt ? "posible daño en tramo óptico" : "posible daño en fibra";
                     }
                 }
-                if (c[1] === "DINAMICO_CORTES_RESUELTO") c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado y separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
+                if (c[1] === "DINAMICO_CORTES_RESUELTO") c[1] = tech === "HFC" ? "Se revisa en thot hay cortes en los últimos 7 días se hace reinicio de fábrica, ajuste de cableado and separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
                 if (c[1] === "DINAMICO_CORTES_TECNICO") {
                     c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes en Schaman, reinicio de fábrica sin mejora";
                     c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
                 }
                 if (c[1] === "DINAMICO_CORTES_NV2") c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistententes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistententes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
                 if (c[1] === "DINAMICO_FUERA_RESUELTO") {
-                    c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps and QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
+                    c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
                     c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
                 }
                 if (c[1] === "DINAMICO_FUERA_NO") c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
                 if (c[3] === "DINAMICO_FUERA_RESUELTO_SOL") c[3] = tech === "HFC" ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
 
-                /* EXTRACCIÓN DE DATOS DE CLIENTE DE PANTALLA */
-                const todoElTextoPagina = document.body.innerText || "";
-                
-                const buscarIdInteligente = (etiquetas) => {
-                    for (const etiqueta of etiquetas) {
-                        if (todoElTextoPagina.includes(etiqueta)) {
-                            const partes = todoElTextoPagina.split(etiqueta);
-                            if (partes.length > 1) {
-                                const linea = partes[1].split("\n")[0].trim();
-                                const coincidencia = linea.match(/^[:\s]*([A-Z0-9_-]+)/i);
-                                if (coincidencia && coincidencia[1]) return coincidencia[1].trim();
-                            }
-                        }
-                    }
-                    return "164246956";
-                };
+                // Extracciones exactas de datos usando las funciones blindadas de la sección 3
+                const clienteExtraido = getVal(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"]);
+                const dniExtraido = extraerDocumentoIdentidad();
+                const idExtraido = getVal(["AMDOCS ID:", "ID Cliente:", "ID:"]);
+                const direccionExtraida = extraerDireccion(bloqueTexto);
+                const movilesExtraidos = extraerMoviles();
 
-                const spanTitular = document.querySelector('div[style*="width: 80%"] span[style*="font-size: 30px;"]');
-                const clienteNombre = spanTitular ? spanTitular.textContent.split('|')[0].trim() : "EMILIO FRANCISCO DE TORRES DE LA GUERRA";
-
-                let clienteDni = "08934861M"; 
-                document.querySelectorAll('#content-main div').forEach(el => {
-                    if (el.textContent.includes("DNI")) {
-                        clienteDni = el.textContent.replace("DNI:", "").trim();
-                    }
-                });
-
-                let clienteID = buscarIdInteligente(["AMDOCS ID:", "ID Cliente:", "ID:"]);
-                let clienteDireccion = "CL REI MARTI 46 EN1 BARCELONA 08014";
-                let clienteMovil = "654179063";
-                
-                document.querySelectorAll('#content-main div, .aui-page-panel-content div, td').forEach(el => {
-                    const txt = el.textContent;
-                    if (txt.includes("Dirección:") || txt.includes("Direccion:")) {
-                        clienteDireccion = txt.replace(/Direcci[óo]n:\s*/i, "").trim();
-                    }
-                    if (txt.includes("Móvil:") || txt.includes("Movil:")) {
-                        const m = txt.match(/(?:Móvil|Movil):\s*(\d+)/i);
-                        if(m) clienteMovil = m[1].trim();
-                    }
-                });
-
-                const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "1Gbps"])[1];
-                const opcionesFecha = { day: 'numeric', month: 'long', year: 'numeric' };
-                const fechaEspanol = new Date().toLocaleDateString('es-ES', opcionesFecha);
+                const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
+                const fechaEspanol = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
 
                 const textoFinalEstructurado = 
-`Nombre: ${clienteNombre.toUpperCase()}
-DNI/NIE: ${clienteDni.toUpperCase()}
-ID: ${clienteID}
-Dirección: ${clienteDireccion.toUpperCase()}
-Móvil: ${clienteMovil}
+`Nombre: ${clienteExtraido}
+DNI/NIE: ${dniExtraido}
+ID: ${idExtraido}
+Dirección: ${direccionExtraida}
+Móvil: ${movilesExtraidos}
 • Qué dice el cliente que le sucede: ${c[0] || "N/A"}
 • Pruebas realizadas: ${c[1] || "N/A"}
 • Diagnóstico: ${c[2] || "N/A"}
@@ -733,23 +757,27 @@ Fecha: ${fechaEspanol}`;
                     textareaAux.remove();
                 }
                 
-                toast(`Copiado Estructurado Completo`);
+                toast(`Copiado: ${cache.clave}`);
 
                 btn.classList.add("copied-state");
                 setTimeout(() => btn.classList.remove("copied-state"), 1200);
 
+                // --- 1. GUARDADO DOBLE: HISTORIAL LOCAL (TU FUNCIÓN) ---
+                saveToHistory(clienteExtraido, dniExtraido, cache.grupo, cache.clase, cache.clave);
+
+                // --- 2. GUARDADO DOBLE: HISTORIAL NUBE (SUPABASE) ---
                 try {
                     await supabaseClient.from('logs_soporte').insert([{
                         agente_id: AGENTE_ID_UNICO,
-                        cliente: clienteNombre,
-                        dni: clienteDni,
+                        cliente: clienteExtraido,
+                        dni: dniExtraido,
                         sub_cat: cache.grupo,
                         clase: cache.clase,
                         plantilla: cache.clave,
                         fecha_str: new Date().toISOString().split('T')[0],
                         hora_str: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
                     }]);
-                } catch(err) { console.error(err); }
+                } catch(err) { console.error("Error guardando en nube:", err); }
             };
         });
 
