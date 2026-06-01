@@ -470,12 +470,32 @@
         tabHist.onclick = () => { tabHist.classList.add("active"); viewHist.classList.add("active"); tabPl.classList.remove("active"); viewPl.classList.remove("active"); renderHistorialSincronizado(); };
         datePicker.onchange = () => renderHistorialSincronizado();
 
-        shadow.getElementById("hist-clear-btn").onclick = () => {
-            if(confirm("¿Seguro que deseas limpiar visualmente los contadores locales?")) {
-                shadow.getElementById("stat-total-count").textContent = "0";
-                shadow.getElementById("stat-fibra-count").textContent = "0";
-                shadow.getElementById("stat-tv-count").textContent = "0";
-                shadow.getElementById("hist-logs-container").innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">Historial vaciado.</p>`;
+        shadow.getElementById("hist-clear-btn").onclick = async () => {
+            const fechaSeleccionada = datePicker.value;
+            
+            if (confirm(`⚠️ ¿Estás seguro de que deseas ELIMINAR permanentemente todo tu historial del día ${fechaSeleccionada} tanto aquí como en Supabase? Esta acción no se puede deshacer.`)) {
+                try {
+                    // 1. Borrado físico en la base de datos de Supabase
+                    const { error } = await supabaseClient
+                        .from('logs_soporte')
+                        .delete()
+                        .eq('agente_id', AGENTE_ID_UNICO)
+                        .eq('fecha_str', fechaSeleccionada);
+
+                    if (error) throw error;
+
+                    toast("Historial borrado en la nube 🔥");
+
+                    // 2. Limpieza de la interfaz local y puesta a cero
+                    shadow.getElementById("stat-total-count").textContent = "0";
+                    shadow.getElementById("stat-fibra-count").textContent = "0";
+                    shadow.getElementById("stat-tv-count").textContent = "0";
+                    shadow.getElementById("hist-logs-container").innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">Historial vaciado en la base de datos.</p>`;
+
+                } catch (err) {
+                    console.error("Error al borrar en Supabase:", err);
+                    alert("❌ No se pudo borrar el historial de la nube. Revisa la conexión o los permisos de Supabase.");
+                }
             }
         };
 
