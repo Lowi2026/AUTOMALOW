@@ -1,0 +1,224 @@
+(async function() {
+    // === 1. FUNCIONES AUXILIARES Y UTILERÍAS ===
+    const $ = e => document.getElementById(e);
+    const qa = (s, c = document) => Array.from(c.querySelectorAll(s));
+    
+    // Disparar eventos nativos para que la página procese los cambios
+    const ev = (el, t) => el && el.dispatchEvent(new Event(t, { bubbles: true }));
+    
+    // Asignar valor a un input y disparar eventos
+    const setVal = (id, v) => {
+        const el = $(id);
+        if (!el) return;
+        el.value = v;
+        ev(el, "input");
+        ev(el, "change");
+    };
+
+    // Seleccionar una opción de un select por su atributo value
+    const setSelByValue = (sel, val) => {
+        if (!sel) return;
+        const o = sel.querySelector(`option[value="${val}"]`);
+        if (o) {
+            sel.value = o.value;
+            ev(sel, "change");
+        }
+    };
+
+    // Obtener la fecha de hoy en formato AAAA-MM-DD
+    const today = (() => {
+        const d = new Date(),
+            m = ("0" + (d.getMonth() + 1)).slice(-2),
+            dd = ("0" + d.getDate()).slice(-2);
+        return `${d.getFullYear()}-${m}-${dd}`;
+    })();
+
+    // Ocultar y deshabilitar secciones opcionales del formulario
+    const hideOptional = () => {
+        ["#section_5268813", "#section_5268815"].forEach(sel => {
+            const sec = document.querySelector(sel);
+            if (sec) {
+                sec.style.display = "none";
+                qa("textarea,input,select,button", sec).forEach(el => el.disabled = true);
+            }
+        });
+    };
+
+    // Lista de comportamientos para los menús desplegables
+    const beh = [
+        "Comunicación empática",
+        "Entender las emociones y necesidades",
+        "Inspirar confianza",
+        "Investigación / Diagnóstico",
+        "Negociar e influenciar",
+        "Experticia",
+        "Orientación a resultados",
+        "Centrado en el cliente"
+    ];
+
+    // === 2. CONSTRUCCIÓN DE LA INTERFAZ GRÁFICA (MODAL) ===
+    const mkModal = (id, title, html, onMount) => {
+        const wrap = document.createElement("div");
+        wrap.id = id;
+        wrap.style.cssText = "position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:system-ui,Segoe UI,Arial,sans-serif;";
+        wrap.innerHTML = `
+            <div style="background:#fff;min-width:340px;max-width:720px;width:90%;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.2);overflow:hidden">
+                <div style="padding:12px 16px;border-bottom:1px solid #eee;font-weight:600">${title}</div>
+                <div style="padding:12px 16px;max-height:70vh;overflow:auto">${html}</div>
+                <div style="padding:12px 16px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end">
+                    <button data-act="cancel" style="padding:8px 12px;border:1px solid #ddd;background:#fff;border-radius:6px;cursor:pointer">Cancelar</button>
+                    <button data-act="ok" style="padding:8px 12px;border:0;background:#0078d4;color:#fff;border-radius:6px;cursor:pointer">Aplicar</button>
+                </div>
+            </div>`;
+        document.body.appendChild(wrap);
+
+        const api = {
+            el: wrap,
+            ok: wrap.querySelector('[data-act="ok"]'),
+            cancel: wrap.querySelector('[data-act="cancel"]'),
+            close: () => wrap.remove()
+        };
+        api.cancel.onclick = api.close;
+        if (onMount) onMount(api);
+        return api;
+    };
+
+    // === 3. PROMISES Y EXTRACCIÓN DE TEXTO ===
+    const waitFor = (cond, { timeout = 15000, interval = 120 } = {}) => 
+        new Promise((res, rej) => {
+            const t0 = Date.now();
+            (function tick() {
+                try {
+                    const v = cond();
+                    if (v) { res(v); return; }
+                } catch (e) {}
+                if (Date.now() - t0 >= timeout) { rej(new Error("Timeout")); return; }
+                setTimeout(tick, interval);
+            })();
+        });
+
+    const waitForSelectReady = async (id, pred) => {
+        const sel = await waitFor(() => $(id));
+        await waitFor(() => sel && sel.options && sel.options.length > 1);
+        if (pred) await waitFor(() => pred(sel));
+        return sel;
+    };
+
+    // Extraer texto intermedio entre marcadores
+    const between = (txt, start, nextArr) => {
+        if (!txt) return "";
+        const lc = txt.toLowerCase(),
+            s = lc.indexOf(start.toLowerCase());
+        if (s === -1) return "";
+        const startIdx = s + start.length;
+        let end = txt.length;
+        for (const n of nextArr) {
+            const i = lc.indexOf(n.toLowerCase(), startIdx);
+            if (i !== -1 && i < end) end = i;
+        }
+        return txt.slice(startIdx, end).trim();
+    };
+
+    // === 4. DETERMINACIÓN DE FLUJO SEGÚN URL ===
+    const url = new URL(location.href);
+    const isAutoObs = url.pathname.endsWith("/observation.pl") && 
+                      url.searchParams.get("frmTarget") === "OBSERVATION" && 
+                      url.searchParams.has("employee_ident");
+
+    if (isAutoObs) {
+        // --- FLUJO A: Inicialización Automática de Campos Iniciales ---
+        try {
+            const clientSel = await waitForSelectReady("client_ident", s => !!s.querySelector('option[value="2360"]'));
+            setSelByValue(clientSel, "2360");
+            
+            const typeSel = await waitForSelectReady("observation_type_ident", s => !!s.querySelector('option[value="101"]'));
+            setSelByValue(typeSel, "101");
+            
+            const formSel = await waitForSelectReady("observation_form_ident", s => !!s.querySelector('option[value="719850"]'));
+            setSelByValue(formSel, "719850");
+            
+            setVal("observation_date", today);
+            alert("✅ Datos iniciales cargados.");
+        } catch (e) {
+            alert("⚠️ Error al precargar campos: " + e);
+        }
+    } else {
+        // --- FLUJO B: Procesamiento del Texto MPR mediante Modal ---
+        const menu = beh.map((b, i) => `<option value="${i + 1}">${i + 1}. ${b}</option>`).join("");
+        
+        mkModal("mpr_modal", "Llenar Formulario MPR", `
+            <div style="display:flex;flex-direction:column;gap:10px">
+                <label style="font-weight:600">Pega el MPR completo</label>
+                <textarea id="mpr_text" style="width:100%;min-height:140px;padding:8px;border:1px solid #ddd;border-radius:6px"></textarea>
+                <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px">
+                    <div>
+                        <label style="font-weight:600;display:block">6) DETENER</label>
+                        <select id="sel_det" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px">
+                            <option value="">Elige…</option>
+                            ${menu}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight:600;display:block">7) COMENZAR</label>
+                        <select id="sel_com" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px">
+                            <option value="">Elige…</option>
+                            ${menu}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight:600;display:block">8) MANTENER</label>
+                        <select id="sel_man" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px">
+                            <option value="">Elige…</option>
+                            ${menu}
+                        </select>
+                    </div>
+                </div>
+            </div>`, 
+        api => {
+            api.ok.onclick = () => {
+                const txt = api.el.querySelector("#mpr_text").value || "",
+                    det = api.el.querySelector("#sel_det").value,
+                    com = api.el.querySelector("#sel_com").value,
+                    man = api.el.querySelector("#sel_man").value;
+
+                if (!(det && com && man)) return alert("Selecciona los 3 comportamientos.");
+
+                // Parsear porcentaje de FCR
+                const mf = txt.match(/FCR\s*[:=]\s*([0-9]+(?:[.,][0-9]+)?)\s*%/i);
+                const fcr = mf ? String(mf[1]).replace(",", ".") : "";
+                
+                // Parsear Plan de Trabajo
+                const plan = between(txt, "📝 Análisis y Plan de Trabajo", ["🎯 Compromisos"]) || 
+                             between(txt, "Plan de acción FCR", ["🎯 Compromisos"]);
+
+                hideOptional();
+
+                if (!$("CREATE")) {
+                    api.close();
+                    return alert("No se encontró el formulario.");
+                }
+
+                // Volcado de datos mapeados al formulario web
+                setVal("question_33414072", "FCR");
+                setVal("question_33414073", (fcr ? fcr : "70") + "%");
+                setVal("question_33414074", "N/A");
+                setVal("question_33414075", between(txt, "1️⃣ Compromiso del Agente", ["2️⃣", "3️⃣", "4️⃣"]));
+                setVal("question_33414076", between(txt, "2️⃣ Compromiso del KPI", ["3️⃣", "4️⃣"]));
+                setVal("question_33414091", between(txt, "3️⃣ Compromiso del Customer Expert", ["4️⃣"]));
+                setVal("question_33414092", between(txt, "4️⃣ Compromiso del Supervisor", []));
+                setVal("question_33414088", "Oportunidad de mejora en diagnóstico técnico.");
+                setVal("question_33414089", "Informe FCR");
+                setVal("question_33414090", plan);
+                setVal("question_33414093", "1");
+                
+                // Asignar los comportamientos seleccionados
+                setVal("question_33414077", beh[+det - 1]);
+                setVal("question_33414078", beh[+com - 1]);
+                setVal("question_33414079", beh[+man - 1]);
+
+                api.close();
+                alert("✅ Formulario MPR rellenado.");
+            };
+        });
+    }
+})();
