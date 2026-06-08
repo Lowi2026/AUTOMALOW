@@ -1,0 +1,41 @@
+(function() {
+    // 1. Mapeo de IDs de selectores y sus respectivos valores de opción
+    const respuestasSelect = {
+        "question_33414022": "208269449",
+        "question_33414025": "208269465",
+        "question_33414028": "208269481",
+        "question_33414031": "208269499",
+        "question_33414036": "208269515",
+        "question_33414039": "208269529",
+        "question_33414042": "208269533",
+        "question_33414043": "208269575"
+    };
+
+    // 2. Llenado automático de los campos de selección (Selects)
+    for (let id in respuestasSelect) {
+        let selectEl = document.querySelector(`select[name="${id}"]`);
+        if (selectEl) {
+            selectEl.value = respuestasSelect[id];
+            // Disparar evento change nativo para que la plataforma guarde el cambio
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+
+    // 3. Llenado del Campo de Texto 1 (Motivaciones)
+    const campoMotivacion = document.getElementById('question_33414049');
+    if (campoMotivacion) {
+        campoMotivacion.value = "Busca estabilidad laboral y un crecimiento económico que le permita mejorar su calidad de vida y apoyar a su entorno familiar. Le motiva fortalecer aún más su confianza profesional, sintiéndose reconocido por su buen trato al cliente y por sus resultados en los indicadores.";
+        campoMotivacion.dispatchEvent(new Event('input', { bubbles: true }));
+        campoMotivacion.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // 4. Llenado del Campo de Texto 2 (Proyección)
+    const campoProyeccion = document.getElementById('question_33414051');
+    if (campoProyeccion) {
+        campoProyeccion.value = "Quiere consolidarse como un agente integral que combine alto FCR, buen AHT y excelente NPS, siendo un referente de buenas prácticas en el equipo. A mediano plazo le interesa participar en apoyo a nuevos ingresos o en espacios de formación, compartiendo su forma de comunicarse con los clientes y su enfoque orientado a la experiencia.";
+        campoProyeccion.dispatchEvent(new Event('input', { bubbles: true }));
+        campoProyeccion.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    console.log("Formulario motivacional completado con éxito.");
+})();
