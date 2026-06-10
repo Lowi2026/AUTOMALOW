@@ -1,10 +1,14 @@
 (function(){
-    if(window.monitPro) return;
+    // Evitar que se duplique la interfaz si se pulsa el marcador varias veces
+    const viejo = document.getElementById("monitMain");
+    if(viejo) viejo.remove();
+    const viejaPrev = document.getElementById("mPreview");
+    if(viejaPrev) viejaPrev.remove();
+
     window.monitPro = true;
 
-    /* Lista de agentes actualizadas */
+    /* Lista de agentes de tu equipo */
     const db = {
-        "48037":{n:"Linda Lucia Pardo",c:"lpardor3"},
         "48088":{n:"Mateo Rodríguez Teque",c:"mrodr548"},
         "48232":{n:"Joel Giovanny Ramirez Leal",c:"jrami284"},
         "48231":{n:"Mariana Forero Valderrama",c:"mforerou"},
@@ -26,9 +30,12 @@
 
     const meses = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
     const storageKey = 'db_monit_v5';
+    
+    // Carga de datos persistente en LocalStorage
     let data = JSON.parse(localStorage.getItem(storageKey)) || [];
     let state = { editIdx: null, tempItem: { dur: "0:00:00", f: "" } };
 
+    // Auxiliar para creación ágil de elementos DOM
     const $ = (tag, props = {}, style = {}) => {
         const el = document.createElement(tag);
         Object.assign(el, props);
@@ -36,6 +43,7 @@
         return el;
     };
 
+    // Formateador de tiempo para la duración extraída del CRM
     const fmtT = s => {
         const sec = parseInt(s) || 0;
         const h = Math.floor(sec / 3600);
@@ -48,6 +56,7 @@
 
     const getFullTxt = (d) => `AGENTE: ${d.n}\nCITRIX: ${d.c}\nID TRANS: ${d.id}\nTIEMPO: ${d.dur}\nFECHA: ${d.f}\nID CLIENTE: ${d.idCli}\nDNI: ${d.dni}\nRESUMEN: ${d.ctx}\nFORTALEZA: ${d.fort}\nDEBILIDAD: ${d.debi}\nMEJORA: ${d.mejo}\nFEEDBACK: ${d.feed}\nESTADO: ${d.hecho}`;
 
+    // --- INTERFAZ GRÁFICA (PREVIEW LATERAL) ---
     const preview = $("div", {id: "mPreview"}, {
         position: "fixed", top: "20px", right: "510px", width: "320px", background: "#fdfdfd",
         color: "#222", borderRadius: "8px", zIndex: "999998", padding: "20px", fontSize: "12px",
@@ -56,6 +65,7 @@
     });
     document.body.appendChild(preview);
 
+    // --- INTERFAZ GRÁFICA (PANEL PRINCIPAL) ---
     const ui = $("div", {id: "monitMain"}, {
         position: "fixed", top: "20px", right: "20px", width: "480px", background: "#0f0f0f", 
         color: "#fff", borderRadius: "12px", zIndex: "999999", fontFamily: "Segoe UI, sans-serif", 
@@ -127,22 +137,37 @@
             </div>
             <div id="tab-stats" class="tab-pane" style="display:none">
                 <div style="background:#1a1a1a; padding:15px; border-radius:10px; display:flex; flex-direction:column; gap:12px">
-                    <label style="font-weight:bold; color:#3a7afe">EXPORTACIÓN FILTRADA</label>
-                    <select id="expFilter" style="background:#000; color:#fff; border:1px solid #333; padding:10px; border-radius:6px">
+                    
+                    <label style="font-weight:bold; color:#3a7afe; font-size:11px; letter-spacing:0.5px">📤 EXPORTAR DATOS ACTIVOS</label>
+                    <select id="expFilter" style="background:#000; color:#fff; border:1px solid #333; padding:8px; border-radius:6px; font-size:12px">
                         <option value="All">Todo el historial</option>
                         <option value="SI">Solo Exitosos (SI)</option>
                         <option value="NO">Solo No Exitosos (NO)</option>
                     </select>
-                    <button id="mCsv" style="padding:12px; background:#007bff; color:#fff; border:0; border-radius:8px; font-weight:bold; cursor:pointer">DESCARGAR CSV</button>
-                    <button id="mTxt" style="padding:12px; background:#17a2b8; color:#fff; border:0; border-radius:8px; font-weight:bold; cursor:pointer">DESCARGAR TXT COMPLETO</button>
-                    <hr style="border:0; border-top:1px solid #333">
-                    <button id="mClear" style="padding:8px; background:transparent; border:1px solid #dc3545; color:#dc3545; border-radius:8px; cursor:pointer">BORRAR TODO</button>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px">
+                        <button id="mCsv" style="padding:10px; background:#007bff; color:#fff; border:0; border-radius:6px; font-weight:bold; cursor:pointer; font-size:11px">DESCARGAR CSV</button>
+                        <button id="mTxt" style="padding:10px; background:#17a2b8; color:#fff; border:0; border-radius:6px; font-weight:bold; cursor:pointer; font-size:11px">DESCARGAR TXT</button>
+                    </div>
+                    
+                    <hr style="border:0; border-top:1px solid #333; margin:5px 0">
+                    
+                    <label style="font-weight:bold; color:#e0a800; font-size:11px; letter-spacing:0.5px">📥 IMPORTAR / FUSIONAR RESPALDO</label>
+                    <div style="display:flex; flex-direction:column; gap:8px; background:#111; padding:10px; border-radius:6px; border:1px solid #222">
+                        <button id="btnTriggerImport" style="padding:10px; background:#28a745; color:#fff; border:0; border-radius:6px; font-weight:bold; cursor:pointer; font-size:11px">📁 SELECCIONAR ARCHIVO (.csv o .txt)</button>
+                        <input id="mImportFile" type="file" accept=".csv,.txt" style="display:none">
+                        <span id="importInfo" style="font-size:10px; color:#aaa; text-align:center">Soporta CSV de Excel (Tabulador/Comas/Punto y coma) o TXT con saltos de línea internos.</span>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid #333; margin:5px 0">
+                    
+                    <button id="mClear" style="padding:8px; background:transparent; border:1px solid #dc3545; color:#dc3545; border-radius:8px; cursor:pointer; font-size:11px; font-weight:bold">⚠ BORRAR TODO EL LOCALSTORAGE</button>
                 </div>
             </div>
         </div>
     `;
     document.body.appendChild(ui);
 
+    // Poblar el menú desplegable de Agentes
     const selA = ui.querySelector("#mSelAgente");
     selA.append($("option", {value:"", textContent:"Selecciona un agente..."}));
     Object.keys(db).forEach(k => selA.append($("option", {value:k, textContent:db[k].n})));
@@ -151,6 +176,7 @@
     st.innerHTML = `.t-btn{flex:1;padding:12px;border:0;background:#151515;color:#666;cursor:pointer;font-weight:bold;font-size:10px;border-bottom:2px solid transparent}.t-btn.active{color:#3a7afe;background:#1a1a1a;border-bottom:2px solid #3a7afe} table.team{width:100%; border-collapse:collapse; font-size:11px} table.team th{text-align:left; color:#3a7afe; padding:8px; border-bottom:1px solid #333} table.team td{padding:8px; border-bottom:1px solid #222}`;
     document.head.appendChild(st);
 
+    // --- RENDERIZADO: TABLA DE EQUIPO ---
     const renderTeam = () => {
         const container = ui.querySelector("#mTeamTable");
         const fM = ui.querySelector("#fMesTeam").value;
@@ -189,6 +215,7 @@
         container.innerHTML = html;
     };
 
+    // --- RENDERIZADO: LISTA HISTÓRICA FILTRADA ---
     const renderList = () => {
         const log = ui.querySelector("#mLog"); log.innerHTML = "";
         const fM = ui.querySelector("#fMes").value;
@@ -213,11 +240,13 @@
             const idx = data.indexOf(d);
             const item = $("div", {}, { background: "#1a1a1a", padding: "10px", borderRadius: "8px", borderLeft: `4px solid ${d.hecho==='SI'?'#28a745':'#dc3545'}`, display: "flex", justifyContent: "space-between", alignItems: "center" });
             item.innerHTML = `<div><b style="font-size:12px">${d.n}</b><br><small style="color:#666">${d.f} | ${d.dur}</small></div>`;
+            
             const acts = $("div", {}, {display: "flex", gap: "4px"});
             const btnV = $("button", {textContent: "👁️", onclick: () => { preview.style.display = "block"; preview.innerText = getFullTxt(d); }}, {background: "#444", border: "0", cursor: "pointer", borderRadius: "4px", padding: "5px"});
             const btnC = $("button", {textContent: "📋", onclick: () => { navigator.clipboard.writeText(getFullTxt(d)); alert("Copiado"); }}, {background: "#333", border: "0", cursor: "pointer", borderRadius: "4px", padding: "5px"});
             const btnE = $("button", {textContent: "✎", onclick: () => { ui.querySelector('[data-tab="tab-edit"]').click(); edit(idx); }}, {background: "#333", border: "0", cursor: "pointer", borderRadius: "4px", padding: "5px"});
             const btnD = $("button", {textContent: "🗑️", onclick: () => { if(confirm("¿Eliminar?")) { data.splice(idx, 1); save(); renderList(); } }}, {background: "#dc3545", color: "#fff", border: "0", cursor: "pointer", borderRadius: "4px", padding: "5px"});
+            
             acts.append(btnV, btnC, btnE, btnD); item.append(acts); log.append(item);
         });
     };
@@ -235,6 +264,7 @@
         ui.querySelector("#mCancel").style.display = "block";
     };
 
+    // --- ACCIÓN: RASPADO AUTOMÁTICO (CRM SMART) ---
     ui.querySelector("#mExtract").onclick = () => {
         const row = document.querySelector('input.paraDescarga:checked')?.closest('tr') || document.querySelector('tr.odd, tr.even');
         if(!row) return alert("Tabla no detectada.");
@@ -264,6 +294,7 @@
         renderList(); 
     };
 
+    // --- ACCIÓN: GUARDAR / ACTUALIZAR ---
     ui.querySelector("#mSave").onclick = () => {
         const agK = ui.querySelector("#mSelAgente").value;
         if(!agK) return alert("Selecciona un agente primero.");
@@ -280,17 +311,11 @@
         }
 
         Object.assign(itm, { 
-            n: info.n, 
-            c: info.c, 
-            id: ui.querySelector("#mIdEdit").value, 
-            dni: ui.querySelector("#mDni").value, 
-            idCli: ui.querySelector("#mCli").value, 
-            ctx: ui.querySelector("#mCtx").value, 
-            feed: ui.querySelector("#mFeed").value, 
-            fort: ui.querySelector("#mFort").value, 
-            debi: ui.querySelector("#mDebi").value, 
-            mejo: ui.querySelector("#mMejo").value, 
-            hecho: ui.querySelector("#mStatus").value 
+            n: info.n, c: info.c, id: ui.querySelector("#mIdEdit").value, 
+            dni: ui.querySelector("#mDni").value, idCli: ui.querySelector("#mCli").value, 
+            ctx: ui.querySelector("#mCtx").value, feed: ui.querySelector("#mFeed").value, 
+            fort: ui.querySelector("#mFort").value, debi: ui.querySelector("#mDebi").value, 
+            mejo: ui.querySelector("#mMejo").value, hecho: ui.querySelector("#mStatus").value 
         });
 
         if(state.editIdx === null) data.push(itm);
@@ -299,11 +324,12 @@
         ui.querySelector("#mReset").click();
     };
 
+    // --- ACCIONES: EXPORTACIONES ---
     ui.querySelector("#mCsv").onclick = () => {
         const filter = ui.querySelector("#expFilter").value;
         const filtered = data.filter(d => filter === "All" || d.hecho === filter);
         let csv = "\ufeffNombre;Citrix;ID Trans;Tiempo;Fecha;ID Smart;DNI;Resumen;Fortaleza;Debilidad;Mejora;Feedback;Estado\n";
-        filtered.forEach(d => { csv += `"${d.n}";"${d.c}";"${d.id}";"${d.dur}";"${d.f}";"${d.idCli}";"${d.dni}";"${(d.ctx||'').replace(/"/g,'""')}";"${(d.fort||'').replace(/"/g,'""')}";"${(d.debi||'').replace(/"/g,'""')}";"${(d.mejo||'').replace(/"/g,'""')}";"${(d.feed||'').replace(/"/g,'""')}";"${d.hecho}"\n`; });
+        filtered.forEach(d => { csv += `"${(d.n||'').replace(/"/g,'""')}";"${(d.c||'').replace(/"/g,'""')}";"${(d.id||'').replace(/"/g,'""')}";"${(d.dur||'').replace(/"/g,'""')}";"${(d.f||'').replace(/"/g,'""')}";"${(d.idCli||'').replace(/"/g,'""')}";"${(d.dni||'').replace(/"/g,'""')}";"${(d.ctx||'').replace(/"/g,'""')}";"${(d.fort||'').replace(/"/g,'""')}";"${(d.debi||'').replace(/"/g,'""')}";"${(d.mejo||'').replace(/"/g,'""')}";"${(d.feed||'').replace(/"/g,'""')}";"${d.hecho}"\n`; });
         const a = Object.assign(document.createElement("a"), {href: URL.createObjectURL(new Blob([csv], {type:'text/csv'})), download: `Reporte_${filter}.csv`});
         a.click();
     };
@@ -316,8 +342,163 @@
         a.click();
     };
 
+    // --- PARSER AVANZADO DE CSV / EXCEL PARA LOGRAR SOPORTAR SALTOS DE LÍNEA ---
+    const parseCSVAvanzado = (texto) => {
+        let lineas = [];
+        let filaActual = [];
+        let valorActual = "";
+        let dentroComillas = false;
+        
+        // Detectar delimitador leyendo la primera línea analizable
+        let delimitador = ";"; 
+        if (texto.includes("\t") && !texto.includes(";")) delimitador = "\t";
+        else if (texto.includes(",") && !texto.includes(";")) delimitador = ",";
+
+        for (let i = 0; i < texto.length; i++) {
+            let c = texto[i];
+            let sig = texto[i + 1];
+
+            if (c === '"') {
+                if (dentroComillas && sig === '"') { // Comilla doble escapada
+                    valorActual += '"';
+                    i++;
+                } else { // Cambiar estado de lectura de comillas
+                    dentroComillas = !dentroComillas;
+                }
+            } else if (c === delimitador && !dentroComillas) {
+                filaActual.push(valorActual.trim());
+                valorActual = "";
+            } else if ((c === '\r' || c === '\n') && !dentroComillas) {
+                if (c === '\r' && sig === '\n') i++; 
+                filaActual.push(valorActual.trim());
+                if (filaActual.length > 1 || filaActual[0] !== "") {
+                    lineas.push(filaActual);
+                }
+                filaActual = [];
+                valorActual = "";
+            } else {
+                valorActual += c;
+            }
+        }
+        if (valorActual || filaActual.length > 0) {
+            filaActual.push(valorActual.trim());
+            lineas.push(filaActual);
+        }
+        return lineas;
+    };
+
+    // --- ACCIÓN: IMPORTADOR COMPATIBLE CON EXCEL Y TEXTO LARGO ---
+    ui.querySelector("#btnTriggerImport").onclick = () => ui.querySelector("#mImportFile").click();
+
+    ui.querySelector("#mImportFile").onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const contenido = evt.target.result;
+            let nuevosRegistros = [];
+            let importadosCont = 0;
+
+            try {
+                if (file.name.endsWith(".csv")) {
+                    const matrizFilas = parseCSVAvanzado(contenido);
+                    if (matrizFilas.length < 2) throw new Error("Archivo vacío.");
+
+                    // Validar si la primera fila es la cabecera
+                    let inicioIdx = matrizFilas[0][0].toLowerCase().includes("nombre") ? 1 : 0;
+
+                    for (let i = inicioIdx; i < matrizFilas.length; i++) {
+                        let columnas = matrizFilas[i];
+                        if (columnas.length >= 13) {
+                            nuevosRegistros.push({
+                                n: columnas[0], c: columnas[1], id: columnas[2], dur: columnas[3], f: columnas[4],
+                                idCli: columnas[5], dni: columnas[6], ctx: columnas[7], fort: columnas[8],
+                                debi: columnas[9], mejo: columnas[10], feed: columnas[11], hecho: columnas[12]
+                            });
+                        }
+                    }
+                } else if (file.name.endsWith(".txt")) {
+                    const bloques = contenido.split("==============================");
+                    bloques.forEach(bloque => {
+                        let lines = bloque.trim().split("\n");
+                        if (lines.length < 5) return;
+                        
+                        let obj = {};
+                        let ultimaKey = null;
+
+                        lines.forEach(line => {
+                            let idxSep = line.indexOf(":");
+                            // Validar cabeceras conocidas del TXT
+                            let esCabecera = false;
+                            let keysConocidas = ["AGENTE","CITRIX","ID TRANS","TIEMPO","FECHA","ID CLIENTE","DNI","RESUMEN","FORTALEZA","DEBILIDAD","MEJORA","FEEDBACK","ESTADO"];
+                            
+                            if (idxSep !== -1) {
+                                let testKey = line.substring(0, idxSep).trim();
+                                if (keysConocidas.includes(testKey)) esCabecera = true;
+                            }
+
+                            if (esCabecera) {
+                                let key = line.substring(0, idxSep).trim();
+                                let val = line.substring(idxSep + 1).trim();
+                                ultimaKey = key;
+                                
+                                if (key === "AGENTE") obj.n = val;
+                                else if (key === "CITRIX") obj.c = val;
+                                else if (key === "ID TRANS") obj.id = val;
+                                else if (key === "TIEMPO") obj.dur = val;
+                                else if (key === "FECHA") obj.f = val;
+                                else if (key === "ID CLIENTE") obj.idCli = val;
+                                else if (key === "DNI") obj.dni = val;
+                                else if (key === "RESUMEN") obj.ctx = val;
+                                else if (key === "FORTALEZA") obj.fort = val;
+                                else if (key === "DEBILIDAD") obj.debi = val;
+                                else if (key === "MEJORA") obj.mejo = val;
+                                else if (key === "FEEDBACK") obj.feed = val;
+                                else if (key === "ESTADO") obj.hecho = val;
+                            } else if (ultimaKey) {
+                                // Adjuntar líneas huérfanas al último campo de texto (ej. saltos de línea del resumen)
+                                let parrafo = "\n" + line.trim();
+                                if (ultimaKey === "RESUMEN") obj.ctx += parrafo;
+                                else if (ultimaKey === "FORTALEZA") obj.fort += parrafo;
+                                else if (ultimaKey === "DEBILIDAD") obj.debi += parrafo;
+                                else if (ultimaKey === "MEJORA") obj.mejo += parrafo;
+                                else if (ultimaKey === "FEEDBACK") obj.feed += parrafo;
+                            }
+                        });
+                        if (obj.id && obj.n) nuevosRegistros.push(obj);
+                    });
+                }
+
+                if (nuevosRegistros.length === 0) {
+                    alert("No se encontraron registros estructurados válidos.");
+                    return;
+                }
+
+                // Cruzar registros para no duplicar IDs de transacción
+                nuevosRegistros.forEach(nuevo => {
+                    let existe = data.some(existente => existente.id === nuevo.id);
+                    if (!existe) {
+                        data.push(nuevo);
+                        importadosCont++;
+                    }
+                });
+
+                save();
+                alert(`¡Proceso completado!\nSe agregaron ${importadosCont} monitoreos nuevos.`);
+                ui.querySelector("#mReset").click();
+                e.target.value = "";
+            } catch (err) {
+                alert("Error al procesar el archivo. Asegúrate de usar un formato nativo.");
+                console.error(err);
+            }
+        };
+        reader.readAsText(file);
+    };
+
     ui.querySelector("#mClear").onclick = () => { if(confirm("¿Borrar todo?")){ data = []; save(); ui.querySelector("#mReset").click(); renderList(); } };
 
+    // --- ACCIÓN: LIMPIAR FORMULARIO ---
     ui.querySelector("#mReset").onclick = () => {
         state.editIdx = null; state.tempItem = { dur: "0:00:00", f: "" };
         ui.querySelectorAll("input, textarea, select").forEach(i => {
@@ -329,6 +510,7 @@
         ui.querySelector("#mCancel").style.display = "none";
     };
 
+    // --- LOGICA DEL ENRUTADOR DE PESTAÑAS ---
     ui.querySelectorAll(".t-btn").forEach(btn => btn.onclick = () => {
         ui.querySelectorAll(".t-btn").forEach(b => b.classList.remove("active")); ui.querySelectorAll(".tab-pane").forEach(p => p.style.display = "none");
         btn.classList.add("active"); ui.querySelector(`#${btn.dataset.tab}`).style.display = "block";
