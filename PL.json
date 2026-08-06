@@ -10,222 +10,222 @@
     },
     "Llamada no valida": {
       "Transferencia improcedente": [
-        "Cliente informa motivo que no procede a soporte",
         "N/A",
         "N/A",
-        "Se informa que desde el area de soporte no atendemos su motivo de llamada."
+        "N/A",
+        "N/A"
       ],
       "No valida para soporte": [
-        "Cliente no tiene fallos de fibra",
         "N/A",
         "N/A",
-        "Se pasa protocolo de seguridad, se carga schaman y se transfiere al area encargada"
+        "N/A",
+        "N/A"
       ]
     },
     "Estado Averia": {
       "Info Averia Tecnica": [
-        "Consulta por estado de incidencia ",
-        "Se comprueba que el cliente esta a la espera de una visita tecnica, consulta por informacion acerca de la averia",
-        "Cliente a la espera de resolucion de la averia",
-        "Se le informa al cliente sobre el estado de la incidencia y se recuerda la activación del bono de 50GB "
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Avería Masiva": {
       "Solo Información": [
-        "No tengo wifi aún, ¿qué ha pasado con la incidencia?",
-        "Se acceso a Schaman, sigue averia presente, se valdia en Smart averia masiva en curso, se lee información y se le da al cliente",
-        "Solo quiere saber sobre la masiva",
-        "Se revisa averia masiva y se le da la información al cliente de lo que esta ocurriendo y se le pide espere"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Crear Ticket Asociado": [
-        "No tengo wifi",
-        "Se accede a Schaman, se valida averia masiva presente, se valdia en Smart averia masiva en curso, se le informa al cliente de tiempos aproxiamdos y bono de datos mientras se resuelve",
-        "Solo quiere saber sobre la masiva",
-        "Se revisa averia masiva y se le da la información al cliente de lo que esta ocurriendo y se le pide espere se crea ticket"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Incomunicado Total": {
       "Enviar Técnico Campo": [
-        "No tengo internet",
-        "DINAMICO_INCOMUNICADO",
-        "DINAMICO_INCOMUNICADO",
-        "se envía contrata para arreglo de acometida"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Incomunicado por IP": {
       "Resuelto": [
-        "No tengo internet",
-        "Ajuste de cableado, reinicio manual de fábrica, apertura de bandas, levanta servicio con ip correctamente",
-        "cpe saturado",
-        "Se deja resuelto"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "No levanta (Contrata)": [
-        "No tengo internet",
-        "cpe incomunicado por IP",
-        "pérdida de IP",
-        "Se envía contrata"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Sincronismo": {
       "Sincroniza no Navega": [
-        "Cliente sin internet  ",
-        "Se verifica que el router sincroniza correctamente, el router esta recientemente restaurado con dispositivos conectados pero aun no puede navegar, se realiza reinicio, se cambia nombre de red pero el fallo persiste ",
-        "Router sincroniza pero no navega ",
-        "Se escala/Soluciono/Envio tecnico"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Cortes de Servicio": {
       "Resuelto (CPE/Bandas)": [
-        "El internet va y viene",
-        "DINAMICO_CORTES_RESUELTO",
-        "Saturación temporal del cpe",
-        "Se hace reinicio de fabrica, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Técnico (Cambio CPE)": [
-        "El internet va y viene",
-        "DINAMICO_CORTES_TECNICO",
-        "Señal degradada tras saturación del cpe",
-        "Se envía contrata para revisión y posible cambio de cpe"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Escalar a NV2": [
-        "El internet va y viene",
-        "DINAMICO_CORTES_NV2",
-        "Posible fallo en red o saturación de cpe",
-        "Se escala a NV2 para revisión de red"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Lentitud": {
       "Resuelto (Optimizado)": [
-        "Me va muy lento el internet",
-        "Reinicio de fábrica, separación de bandas, test de velocidad correcto",
-        "Saturación del router",
-        "Se realizo reinicio de fábrica, se separan bandas y se comprueba con cliente que el internet ya no va lento"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Enviar Técnico": [
-        "Me va muy lento el internet",
-        "Reinicio de fábrica sin mejora, test bajo",
-        "Posible daño en cpe o nodo",
-        "Se envía contrata para revisión y posible cambio de cpe"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Escalar a NV2": [
-        "Me va muy lento el internet",
-        "Test persistente bajo",
-        "Posible fallo en red",
-        "Se escala a NV2"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Fuera de Umbrales": {
       "Resuelto": [
-        "El internet va y viene o va muy lento",
-        "DINAMICO_FUERA_RESUELTO",
-        "Saturación del router o parámetros degradados",
-        "DINAMICO_FUERA_RESUELTO_SOL"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "No mejora (Contrata)": [
-        "El internet va y viene o va muy lento",
-        "DINAMICO_FUERA_NO",
-        "posible daño en nodo o cpe",
-        "Se envía contrata para revisión y posible cambio de cpe o revisión de nodo"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Bandas WiFi": {
       "Separar Redes": [
-        "Necesito separar la red wifi",
-        "Se valida en Schaman bandas unificadas se separan y se configura nombre",
-        "Desea separar bandas para uso personal",
-        "Se separan bandas y se comprueba conexión correcta"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "No responde (Voxont)": [
-        "Necesito separar la red wifi",
-        "No se pudo acceder al router",
-        "Cpe no responde",
-        "Se envía contrata es voxont no hay acceso remoto"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Contraseña WiFi": {
       "Resuelto (Cambiada)": [
-        "Quiero cambiar la contraseña del WiFi",
-        "Se accede al router, se modifica clave",
-        "Requería cambio de clave",
-        "Se cambio la contraseña y se comprueba conexión correcta con nueva clave"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "No responde (Voxont)": [
-        "Quiero cambiar la contraseña del WiFi",
-        "No se pudo acceder al router",
-        "Cpe no responde",
-        "Se envía contrata es voxont no hay acceso remoto"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Técnico Incumplido": {
       "Cita en curso / Esperar": [
-        "Tengo cita con el técnico",
-        "Se valida cita programada en Smart, se verifica fecha y hora de cita se le informa que no ha pasado el tiempo de espera",
-        "Cita aún en tiempo de espera",
-        "Se informa al cliente que debe esperar dentro de la franja horaria indicada y se le pide paciencia"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Incumplimiento (Reportar)": [
-        "El técnico no vino a la cita",
-        "Se verifica en Smart que la cita ya pasó y se valida que el técnico no presentó la visita",
-        "Incumplimiento de visita técnica",
-        "Se disculpa con el cliente y se reporta técnico en base black list"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Proceso Migración": {
       "Ya esta cancelado en SMART": [
-        "Solicita la migracion de servicio",
-        "Se comprueba que el servicio ya esta cancelado en SMART, le indicaron contactarle nuevamente.",
-        "Cliente debe ser contactado nuevamente desde Migraciones N2",
-        "Se le informa a cliente que debe esperar contacto nuevamente del area, los cuales le informaran de la migracion."
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Solicita migrar": [
-        "Cliente indica que quiere cambiar de cable o servicio",
-        "Se comprueba el servicio, tiene la ficha activa, no se ha realizado proceso aun.",
-        "cliente debe ser conctactado desde Migraciones N2",
-        "Se le informa a cliente que debe esperar contacto del area, los cuales le informaran de si la migracion es posible o no."
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     }
   },
   "TV": {
     "Mando": {
       "Mando - Resuelto": [
-        "El mando no funciona",
-        "emparejamiento, cambio de pilas, mando responde",
-        "desconfiguración",
-        "Se deja resuelto"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Mando - No Funciona (Escalar)": [
-        "El mando no funciona",
-        "mando sin luces, no empareja",
-        "mando defectuoso",
-        "Se escala a NV2 para cambio"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Error 101": {
       "Error 101 - En reparto (Esperar)": [
-        "Me sale error 101",
-        "Se valido en logistica esta reparto aún el deco no han pasado 48 horas",
-        "No se activado el deco porque logistica no ha notificado aún",
-        "Se indica al cliente que espere a que logistica indique que ya se entrego el deco y notifique la entrega para que se active el servicio automaticamente"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Error 101 - Escalar a NV2 (MAC)": [
-        "Me sale error 101",
-        "Se verifico estado en logistica esta entregado y ya pasaron 48 horas, se revisa la mac y no es la misma",
-        "Mac diferente",
-        "Se escala a NV2 para revision de error 101"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     },
     "Canales": {
       "Canales - No ve algun canal": [
-        "No ve algún canal",
-        " Se verifica señal del deco y se explica al cliente cuál es el canal directamente",
-        "Cliente no localiza el canal",
-        "Se le indica el canal directo y se confirma que ya lo ve"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ],
       "Canales - No sale pack deportes": [
-        "No le salen los canales deportivos",
-        "Reinicio de fábrica al deco, se configura desde el inicio con el cliente y se revisa la lista de canales",
-        "El deco necesita reconfiguración completa",
-        "Reinicio de fábrica al deco, configuración inicial con el cliente y verificación de canales deportivos"
+        "N/A",
+        "N/A",
+        "N/A",
+        "N/A"
       ]
     }
   }
