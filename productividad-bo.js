@@ -1,925 +1,183 @@
 (function () {
     'use strict';
 
-    // ============================================================
-    // CONFIGURACIÓN
-    // ============================================================
+    /* ============================================================
+       PRODUCTIVIDAD BO / FRONT - MICROSOFT LISTS
+       ============================================================ */
 
-    const CONFIG = {
-        ancho: '500px',
-        altoTextarea: '190px',
-        duracionToast: 3500
-    };
+    const SCRIPT_NAME = 'Productividad BO / FRONT';
 
-    // ============================================================
-    // ELIMINAR INSTANCIA ANTERIOR
-    // ============================================================
+    /* ------------------------------------------------------------
+       UTILIDADES
+       ------------------------------------------------------------ */
 
-    const anterior = document.getElementById(
-        'bo-soporte-bookmarklet'
-    );
-
-    if (anterior) {
-        anterior.remove();
-    }
-
-    // ============================================================
-    // ESTILOS
-    // ============================================================
-
-    const estilo = document.createElement('style');
-
-    estilo.id = 'bo-soporte-estilos';
-
-    estilo.textContent = `
-        #bo-soporte-bookmarklet * {
-            box-sizing: border-box;
-        }
-
-        #bo-soporte-bookmarklet button {
-            font-family: Segoe UI, Arial, sans-serif;
-        }
-
-        #bo-soporte-plantilla::placeholder {
-            color: #777;
-            opacity: 1;
-        }
-
-        #bo-soporte-plantilla:focus {
-            border-color: #005E50 !important;
-            box-shadow: 0 0 0 2px rgba(0,94,80,.10) !important;
-        }
-
-        @keyframes boEntrada {
-            from {
-                opacity: 0;
-                transform: scale(.96) translateY(5px);
-            }
-
-            to {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        @keyframes boToastEntrada {
-            from {
-                opacity: 0;
-                transform: translateY(15px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        @keyframes boToastSalida {
-            from {
-                opacity: 1;
-                transform: translateY(0);
-            }
-
-            to {
-                opacity: 0;
-                transform: translateY(15px);
-            }
-        }
-    `;
-
-    document.head.appendChild(estilo);
-
-    // ============================================================
-    // UTILIDADES
-    // ============================================================
-
-    function escaparHTML(texto) {
-
-        return String(texto || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    function normalizarTexto(texto) {
-
-        return String(texto || '')
-            .replace(/\u00A0/g, ' ')
+    function limpiarTexto(texto) {
+        return (texto || '')
             .replace(/\r/g, '')
+            .replace(/\u00A0/g, ' ')
             .trim();
     }
 
-    // ============================================================
-    // TOAST
-    // ============================================================
+    function obtenerCampo(texto, patrones) {
+        for (const patron of patrones) {
+            const match = texto.match(patron);
 
-    function mostrarToast(mensaje, tipo = 'ok') {
-
-        const anterior =
-            document.getElementById('bo-soporte-toast');
-
-        if (anterior) {
-            anterior.remove();
-        }
-
-        const toast =
-            document.createElement('div');
-
-        toast.id =
-            'bo-soporte-toast';
-
-        let icono = '?';
-        let fondo = '#e5f7ef';
-        let color = '#16804b';
-
-        if (tipo === 'error') {
-            icono = '?';
-            fondo = '#ffe5e5';
-            color = '#c62828';
-        }
-
-        if (tipo === 'warning') {
-            icono = '?';
-            fondo = '#fff3cd';
-            color = '#9a6700';
-        }
-
-        toast.innerHTML = `
-            <div class="bo-toast-icon">${icono}</div>
-            <div class="bo-toast-text">
-                ${escaparHTML(mensaje)}
-            </div>
-        `;
-
-        Object.assign(toast.style, {
-            position: 'fixed',
-            right: '22px',
-            bottom: '22px',
-            zIndex: '2147483647',
-            width: '320px',
-            minHeight: '54px',
-            background: '#fff',
-            borderRadius: '12px',
-            boxShadow: '0 8px 30px rgba(0,0,0,.20)',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '12px 15px',
-            gap: '11px',
-            fontFamily: 'Segoe UI, Arial, sans-serif',
-            fontSize: '13px',
-            color: '#222',
-            border: '1px solid rgba(0,0,0,.08)',
-            animation: 'boToastEntrada .35s ease forwards'
-        });
-
-        const icon =
-            toast.querySelector('.bo-toast-icon');
-
-        Object.assign(icon.style, {
-            width: '28px',
-            height: '28px',
-            minWidth: '28px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: fondo,
-            color: color,
-            fontWeight: '700',
-            fontSize: '15px'
-        });
-
-        document.body.appendChild(toast);
-
-        setTimeout(() => {
-
-            toast.style.animation =
-                'boToastSalida .35s ease forwards';
-
-            setTimeout(() => {
-                toast.remove();
-            }, 350);
-
-        }, CONFIG.duracionToast);
-    }
-
-    // ============================================================
-    // OBTENER CAMPO
-    // ============================================================
-
-    function obtenerCampo(plantilla, nombre) {
-
-        const regex = new RegExp(
-            '^\\s*[•\\-]?\\s*' +
-            nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-            '\\s*:\\s*(.*)$',
-            'im'
-        );
-
-        const match =
-            plantilla.match(regex);
-
-        if (!match) {
-            return '';
-        }
-
-        return normalizarTexto(match[1]);
-    }
-
-    // ============================================================
-    // CAMPO MULTILÍNEA
-    // ============================================================
-
-    function extraerCampoMultilinea(
-        plantilla,
-        inicio,
-        finales
-    ) {
-
-        const texto =
-            normalizarTexto(plantilla);
-
-        const regexInicio =
-            new RegExp(
-                '^\\s*[•\\-]?\\s*' +
-                inicio.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-                '\\s*:\\s*',
-                'im'
-            );
-
-        const match =
-            regexInicio.exec(texto);
-
-        if (!match) {
-            return '';
-        }
-
-        let contenido =
-            texto.substring(
-                match.index + match[0].length
-            );
-
-        const posiciones = [];
-
-        finales.forEach(final => {
-
-            const regexFinal =
-                new RegExp(
-                    '\\n\\s*[•\\-]?\\s*' +
-                    final.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
-                    '\\s*:',
-                    'i'
-                );
-
-            const encontrado =
-                regexFinal.exec(contenido);
-
-            if (encontrado) {
-                posiciones.push(
-                    encontrado.index
-                );
+            if (match && match[1]) {
+                return limpiarTexto(match[1]);
             }
-        });
-
-        if (posiciones.length) {
-
-            contenido =
-                contenido.substring(
-                    0,
-                    Math.min(...posiciones)
-                );
         }
 
-        return normalizarTexto(contenido);
+        return '';
     }
 
-    // ============================================================
-    // DETECTAR TIPO DE PLANTILLA
-    // ============================================================
+    /* ------------------------------------------------------------
+       DETECTAR TIPO DE PLANTILLA
+       ------------------------------------------------------------ */
 
-    function detectarPlantilla(plantilla) {
+    function detectarPlantilla(texto) {
 
-        const texto =
-            plantilla.toUpperCase();
+        const textoMayus = texto.toUpperCase();
 
         if (
-            texto.includes(
-                'PLANTILLA FRONT SOPORTE'
-            )
+            textoMayus.includes('PLANTILLA FRONT SOPORTE') ||
+            textoMayus.includes('FRONT SOPORTE')
         ) {
-
             return 'FRONT';
-
         }
 
         if (
-            texto.includes(
-                'PLANTILLA BO SOPORTE'
-            )
+            textoMayus.includes('PLANTILLA BO SOPORTE') ||
+            textoMayus.includes('BO SOPORTE')
         ) {
-
             return 'BO';
-
         }
 
         return 'DESCONOCIDA';
     }
 
-    // ============================================================
-    // ANALIZAR PLANTILLA
-    // ============================================================
+    /* ------------------------------------------------------------
+       EXTRAER DATOS
+       ------------------------------------------------------------ */
 
-    function analizarPlantilla(plantilla) {
+    function analizarPlantilla(texto) {
 
-        plantilla =
-            plantilla.replace(/\r/g, '');
+        const plantilla = detectarPlantilla(texto);
 
-        const tipo =
-            detectarPlantilla(plantilla);
+        const idCliente = obtenerCampo(texto, [
+            /(?:^|\n)\s*[•\-\*]?\s*ID\s*:\s*(.+?)(?=\n|$)/i
+        ]);
 
-        const nombre =
-            obtenerCampo(
-                plantilla,
-                'Nombre'
-            );
+        const averia = obtenerCampo(texto, [
+            /(?:^|\n)\s*[•\-\*]?\s*Aver[ií]a\s*:\s*(.+?)(?=\n|$)/i
+        ]);
 
-        const dni =
-            obtenerCampo(
-                plantilla,
-                'DNI'
-            ) ||
-            obtenerCampo(
-                plantilla,
-                'DNI/NIE'
-            );
+        const nombre = obtenerCampo(texto, [
+            /(?:^|\n)\s*[•\-\*]?\s*Nombre\s*:\s*(.+?)(?=\n|$)/i
+        ]);
 
-        const id =
-            obtenerCampo(
-                plantilla,
-                'ID'
-            );
+        const dni = obtenerCampo(texto, [
+            /(?:^|\n)\s*[•\-\*]?\s*DNI(?:\/NIE)?\s*:\s*(.+?)(?=\n|$)/i
+        ]);
 
-        const direccion =
-            obtenerCampo(
-                plantilla,
-                'Dirección'
-            );
+        const direccion = obtenerCampo(texto, [
+            /(?:^|\n)\s*[•\-\*]?\s*Direcci[oó]n\s*:\s*(.+?)(?=\n|$)/i
+        ]);
 
-        const movil =
-            obtenerCampo(
-                plantilla,
-                '# Móvil'
-            ) ||
-            obtenerCampo(
-                plantilla,
-                'Móvil'
-            );
+        const movil = obtenerCampo(texto, [
+            /(?:^|\n)\s*[•\-\*]?\s*#?\s*M[oó]vil\s*:\s*(.+?)(?=\n|$)/i
+        ]);
 
-        // ========================================================
-        // AVERÍA
-        // ========================================================
+        /* --------------------------------------------------------
+           DETERMINAR NÚMERO DE CASO
 
-        let averia =
-            obtenerCampo(
-                plantilla,
-                'Avería'
-            );
+           Avería:
+               #545452  -> 545452
 
-        if (!averia) {
+           Avería:
+               545452   -> 545452
 
-            averia =
-                obtenerCampo(
-                    plantilla,
-                    'Averia'
-                );
-        }
-
-        averia =
-            averia.trim();
+           Avería:
+               NA       -> ID del cliente
+        -------------------------------------------------------- */
 
         let numeroCaso = '';
 
-        // Si existe avería real
-        if (
-            averia &&
-            !/^NA$/i.test(averia) &&
-            !/^N\/A$/i.test(averia)
-        ) {
+        if (averia) {
 
-            numeroCaso =
-                averia
-                    .replace(/^#/, '')
-                    .trim();
+            const averiaLimpia = averia
+                .replace(/^#+/, '')
+                .trim();
 
-        } else {
-
-            // Si Avería = NA
-            // usamos el ID del cliente
-
-            numeroCaso =
-                id;
+            if (
+                averiaLimpia &&
+                !/^NA$/i.test(averiaLimpia) &&
+                !/^N\/A$/i.test(averiaLimpia) &&
+                !/^NO\s*APLICA$/i.test(averiaLimpia)
+            ) {
+                numeroCaso = averiaLimpia;
+            }
         }
 
-        // ========================================================
-        // CAMPOS
-        // ========================================================
-
-        const diagnostico =
-            extraerCampoMultilinea(
-                plantilla,
-                'Qué dice el diagnostico que le sucede',
-                [
-                    'Pruebas realizadas desde el sistema',
-                    'Pruebas realizadas con el cliente',
-                    'Qué has averiguado con tu diagnóstico?',
-                    'Solución',
-                    'Avería',
-                    'CIERRE DE TICKET'
-                ]
-            );
-
-        const pruebasSistema =
-            extraerCampoMultilinea(
-                plantilla,
-                'Pruebas realizadas desde el sistema',
-                [
-                    'Pruebas realizadas con el cliente',
-                    'Qué has averiguado con tu diagnóstico?',
-                    'Solución',
-                    'Avería',
-                    'CIERRE DE TICKET'
-                ]
-            );
-
-        const pruebasCliente =
-            extraerCampoMultilinea(
-                plantilla,
-                'Pruebas realizadas con el cliente',
-                [
-                    'Qué has averiguado con tu diagnóstico?',
-                    'Solución',
-                    'Avería',
-                    'CIERRE DE TICKET'
-                ]
-            );
-
-        const averiguado =
-            extraerCampoMultilinea(
-                plantilla,
-                'Qué has averiguado con tu diagnóstico?',
-                [
-                    'Solución',
-                    'Avería',
-                    'CIERRE DE TICKET'
-                ]
-            );
-
-        const solucion =
-            extraerCampoMultilinea(
-                plantilla,
-                'Solución',
-                [
-                    'Avería',
-                    'CIERRE DE TICKET'
-                ]
-            );
-
-        const tecnologia =
-            obtenerCampo(
-                plantilla,
-                'Tecnología'
-            );
-
-        const velocidad =
-            obtenerCampo(
-                plantilla,
-                'Velocidad'
-            );
-
-        const fecha =
-            obtenerCampo(
-                plantilla,
-                'Fecha'
-            );
+        if (!numeroCaso && idCliente) {
+            numeroCaso = idCliente;
+        }
 
         return {
-            tipo,
+            plantilla,
+            idCliente,
+            averia,
+            numeroCaso,
             nombre,
             dni,
-            id,
             direccion,
-            movil,
-            numeroCaso,
-            averia,
-            diagnostico,
-            pruebasSistema,
-            pruebasCliente,
-            averiguado,
-            solucion,
-            tecnologia,
-            velocidad,
-            fecha
+            movil
         };
     }
 
-    // ============================================================
-    // GENERAR OBSERVACIONES
-    // ============================================================
+    /* ------------------------------------------------------------
+       CREAR INTERFAZ
+       ------------------------------------------------------------ */
 
-    function generarObservaciones(datos) {
+    function crearInterfaz() {
 
-        return `Nombre: ${datos.nombre || 'N/A'}
-DNI/NIE: ${datos.dni || 'N/A'}
-ID: ${datos.id || 'N/A'}
-Dirección: ${datos.direccion || 'N/A'}
-Móvil: ${datos.movil || 'N/A'}
-• Qué dice el cliente que le sucede: ${datos.diagnostico || 'N/A'}
-• Pruebas realizadas: ${datos.pruebasSistema || 'N/A'}
-• Diagnóstico: ${datos.averiguado || 'N/A'}
-• Solución: ${datos.solucion || 'N/A'}
-• Avería: ${datos.averia || 'NA'}
-Tecnología: ${datos.tecnologia || 'N/A'}
-Velocidad: ${datos.velocidad || 'N/A'}
-Fecha: ${datos.fecha || 'N/A'}`;
-    }
-
-    // ============================================================
-    // ESTABLECER VALOR REACT
-    // ============================================================
-
-    function establecerValor(
-        elemento,
-        valor
-    ) {
-
-        if (!elemento) {
-            return false;
-        }
-
-        const prototype =
-            elemento instanceof HTMLTextAreaElement
-                ? HTMLTextAreaElement.prototype
-                : HTMLInputElement.prototype;
-
-        const descriptor =
-            Object.getOwnPropertyDescriptor(
-                prototype,
-                'value'
-            );
-
-        if (
-            descriptor &&
-            descriptor.set
-        ) {
-
-            descriptor.set.call(
-                elemento,
-                valor
-            );
-
-        } else {
-
-            elemento.value =
-                valor;
-        }
-
-        elemento.dispatchEvent(
-            new Event(
-                'input',
-                { bubbles: true }
-            )
-        );
-
-        elemento.dispatchEvent(
-            new Event(
-                'change',
-                { bubbles: true }
-            )
-        );
-
-        elemento.dispatchEvent(
-            new Event(
-                'blur',
-                { bubbles: true }
-            )
-        );
-
-        return true;
-    }
-
-    // ============================================================
-    // BUSCAR INPUT
-    // ============================================================
-
-    function obtenerInputNumeroCaso() {
-
-        let input =
-            document.querySelector(
-                '#TextField1'
-            );
-
-        if (input) {
-            return input;
-        }
-
-        input =
-            document.querySelector(
-                'input[aria-label*="Número de caso"]'
-            );
-
-        return input;
-    }
-
-    // ============================================================
-    // BUSCAR OBSERVACIONES
-    // ============================================================
-
-    function obtenerTextareaObservaciones() {
-
-        let textarea =
-            document.querySelector(
-                '#TextField8'
-            );
-
-        if (textarea) {
-            return textarea;
-        }
-
-        textarea =
-            document.querySelector(
-                'textarea[aria-label*="Observaciones"]'
-            );
-
-        return textarea;
-    }
-
-    // ============================================================
-    // RELLENAR FORMULARIO
-    // ============================================================
-
-    function rellenarFormulario(
-        plantilla
-    ) {
-
-        const datos =
-            analizarPlantilla(
-                plantilla
-            );
-
-        // --------------------------------------------------------
-        // VALIDACIÓN ID
-        // --------------------------------------------------------
-
-        if (!datos.id) {
-
-            mostrarToast(
-                'No se encontró el ID del cliente.',
-                'error'
-            );
-
+        if (document.getElementById('productividad-bo-overlay')) {
             return;
         }
 
-        // --------------------------------------------------------
-        // VALIDACIÓN NÚMERO DE CASO
-        // --------------------------------------------------------
+        const overlay = document.createElement('div');
 
-        if (!datos.numeroCaso) {
+        overlay.id = 'productividad-bo-overlay';
 
-            mostrarToast(
-                'No se pudo determinar el número de caso.',
-                'error'
-            );
+        overlay.innerHTML = `
+            <div id="productividad-bo-modal">
 
-            return;
-        }
+                <div id="productividad-bo-header">
+                    <div>
+                        <div id="productividad-bo-title">
+                            Cargar plantilla
+                        </div>
 
-        const inputCaso =
-            obtenerInputNumeroCaso();
+                        <div id="productividad-bo-subtitle">
+                            BO / FRONT SOPORTE
+                        </div>
+                    </div>
 
-        const textarea =
-            obtenerTextareaObservaciones();
+                    <button id="productividad-bo-close"
+                            type="button"
+                            title="Cerrar">
+                        ×
+                    </button>
+                </div>
 
-        if (!inputCaso) {
+                <div id="productividad-bo-template-label">
+                    Plantilla
+                </div>
 
-            mostrarToast(
-                'No se encontró el campo Número de caso.',
-                'error'
-            );
+                <textarea
+                    id="productividad-bo-textarea"
+                    placeholder="Pega aquí la plantilla completa...
 
-            return;
-        }
-
-        if (!textarea) {
-
-            mostrarToast(
-                'No se encontró el campo Observaciones.',
-                'error'
-            );
-
-            return;
-        }
-
-        // --------------------------------------------------------
-        // RELLENAR CASO
-        // --------------------------------------------------------
-
-        establecerValor(
-            inputCaso,
-            datos.numeroCaso
-        );
-
-        // --------------------------------------------------------
-        // RELLENAR OBSERVACIONES
-        // --------------------------------------------------------
-
-        establecerValor(
-            textarea,
-            generarObservaciones(datos)
-        );
-
-        // --------------------------------------------------------
-        // TIPología NO SE TOCA
-        // --------------------------------------------------------
-
-        cerrarVentana();
-
-        // --------------------------------------------------------
-        // MENSAJE
-        // --------------------------------------------------------
-
-        let mensaje =
-            'Formulario rellenado correctamente.';
-
-        if (datos.tipo === 'BO') {
-
-            mensaje +=
-                ' Plantilla BO detectada.';
-
-        } else if (datos.tipo === 'FRONT') {
-
-            mensaje +=
-                ' Plantilla FRONT detectada.';
-        }
-
-        mensaje +=
-            ` Número de caso: ${datos.numeroCaso}`;
-
-        mostrarToast(
-            mensaje
-        );
-    }
-
-    // ============================================================
-    // OVERLAY
-    // ============================================================
-
-    const overlay =
-        document.createElement('div');
-
-    overlay.id =
-        'bo-soporte-bookmarklet';
-
-    Object.assign(
-        overlay.style,
-        {
-            position: 'fixed',
-            inset: '0',
-            zIndex: '2147483646',
-            background: 'rgba(0,0,0,.18)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            fontFamily:
-                'Segoe UI, Arial, sans-serif'
-        }
-    );
-
-    // ============================================================
-    // VENTANA
-    // ============================================================
-
-    const ventana =
-        document.createElement('div');
-
-    Object.assign(
-        ventana.style,
-        {
-            width: CONFIG.ancho,
-            maxWidth:
-                'calc(100vw - 40px)',
-            background:
-                '#ffffff',
-            borderRadius:
-                '10px',
-            boxShadow:
-                '0 15px 45px rgba(0,0,0,.22)',
-            overflow:
-                'hidden',
-            animation:
-                'boEntrada .25s ease'
-        }
-    );
-
-    // ============================================================
-    // CABECERA
-    // ============================================================
-
-    const cabecera =
-        document.createElement('div');
-
-    Object.assign(
-        cabecera.style,
-        {
-            padding:
-                '13px 16px 10px',
-            background:
-                'linear-gradient(135deg,#005E50,#087f6d)',
-            color:
-                '#fff'
-        }
-    );
-
-    const titulo =
-        document.createElement('div');
-
-    titulo.textContent =
-        'Cargar plantilla de soporte';
-
-    Object.assign(
-        titulo.style,
-        {
-            fontSize:
-                '17px',
-            fontWeight:
-                '700'
-        }
-    );
-
-    cabecera.appendChild(
-        titulo
-    );
-
-    // ============================================================
-    // DESCRIPCIÓN
-    // ============================================================
-
-    const subtitulo =
-        document.createElement('div');
-
-    subtitulo.textContent =
-        'BO SOPORTE o FRONT SOPORTE';
-
-    Object.assign(
-        subtitulo.style,
-        {
-            marginTop:
-                '3px',
-            fontSize:
-                '11px',
-            opacity:
-                '.82'
-        }
-    );
-
-    cabecera.appendChild(
-        subtitulo
-    );
-
-    // ============================================================
-    // CUERPO
-    // ============================================================
-
-    const cuerpo =
-        document.createElement('div');
-
-    Object.assign(
-        cuerpo.style,
-        {
-            padding:
-                '12px 16px'
-        }
-    );
-
-    // ============================================================
-    // TEXTAREA
-    // ============================================================
-
-    const textarea =
-        document.createElement('textarea');
-
-    textarea.id =
-        'bo-soporte-plantilla';
-
-    /*
-     * EJEMPLO QUE APARECERÁ CUANDO ESTÉ VACÍO
-     */
-
-    textarea.placeholder =
-`PLANTILLA BO SOPORTE
+PLANTILLA BO SOPORTE
 
 • Nombre: ...
 • DNI: ...
@@ -931,246 +189,1119 @@ Fecha: ${datos.fecha || 'N/A'}`;
 • Pruebas realizadas con el cliente: ...
 • Qué has averiguado con tu diagnóstico?: ...
 • Solución: ...
-• Avería: NA`;
+• Avería: NA
+"
+                ></textarea>
 
-    Object.assign(
-        textarea.style,
-        {
-            width:
-                '100%',
-            height:
-                CONFIG.altoTextarea,
-            resize:
-                'vertical',
-            padding:
-                '10px',
-            border:
-                '1px solid #b8b8b8',
-            borderRadius:
-                '4px',
-            outline:
-                'none',
-            fontFamily:
-                'Consolas, "Courier New", monospace',
-            fontSize:
-                '12px',
-            lineHeight:
-                '1.48',
-            color:
-                '#222',
-            background:
-                '#fff'
-        }
-    );
+                <div id="productividad-bo-info">
+                    <span id="productividad-bo-detected">
+                        Esperando plantilla...
+                    </span>
+                </div>
 
-    cuerpo.appendChild(
-        textarea
-    );
+                <div id="productividad-bo-actions">
 
-    // ============================================================
-    // PIE
-    // ============================================================
+                    <button
+                        type="button"
+                        id="productividad-bo-cancel">
+                        Cancelar
+                    </button>
 
-    const pie =
-        document.createElement('div');
+                    <button
+                        type="button"
+                        id="productividad-bo-fill">
+                        Rellenar formulario
+                    </button>
 
-    Object.assign(
-        pie.style,
-        {
-            padding:
-                '9px 16px 12px',
-            display:
-                'flex',
-            justifyContent:
-                'flex-end',
-            gap:
-                '8px',
-            borderTop:
-                '1px solid #eee',
-            background:
-                '#fafafa'
-        }
-    );
+                </div>
 
-    // ============================================================
-    // CANCELAR
-    // ============================================================
+            </div>
+        `;
 
-    const cancelar =
-        document.createElement('button');
+        document.body.appendChild(overlay);
 
-    cancelar.textContent =
-        'Cancelar';
+        aplicarEstilos();
 
-    Object.assign(
-        cancelar.style,
-        {
-            padding:
-                '8px 14px',
-            border:
-                '1px solid #aaa',
-            borderRadius:
-                '5px',
-            background:
-                '#fff',
-            color:
-                '#333',
-            cursor:
-                'pointer',
-            fontSize:
-                '12px'
-        }
-    );
-
-    cancelar.onclick =
-        cerrarVentana;
-
-    // ============================================================
-    // RELLENAR
-    // ============================================================
-
-    const rellenar =
-        document.createElement('button');
-
-    rellenar.textContent =
-        'Rellenar formulario';
-
-    Object.assign(
-        rellenar.style,
-        {
-            padding:
-                '8px 15px',
-            border:
-                '1px solid #005E50',
-            borderRadius:
-                '5px',
-            background:
-                '#005E50',
-            color:
-                '#fff',
-            cursor:
-                'pointer',
-            fontSize:
-                '12px',
-            fontWeight:
-                '600'
-        }
-    );
-
-    rellenar.onclick =
-        function () {
-
-            const plantilla =
-                textarea.value.trim();
-
-            if (!plantilla) {
-
-                mostrarToast(
-                    'Pega primero la plantilla.',
-                    'warning'
-                );
-
-                textarea.focus();
-
-                return;
-            }
-
-            rellenar.disabled =
-                true;
-
-            rellenar.textContent =
-                'Rellenando...';
-
-            setTimeout(() => {
-
-                rellenarFormulario(
-                    plantilla
-                );
-
-            }, 100);
-        };
-
-    pie.appendChild(
-        cancelar
-    );
-
-    pie.appendChild(
-        rellenar
-    );
-
-    // ============================================================
-    // ARMAR
-    // ============================================================
-
-    ventana.appendChild(
-        cabecera
-    );
-
-    ventana.appendChild(
-        cuerpo
-    );
-
-    ventana.appendChild(
-        pie
-    );
-
-    overlay.appendChild(
-        ventana
-    );
-
-    document.body.appendChild(
-        overlay
-    );
-
-    // ============================================================
-    // CERRAR
-    // ============================================================
-
-    function cerrarVentana() {
-
-        overlay.style.opacity =
-            '0';
-
-        overlay.style.transition =
-            'opacity .25s ease';
-
-        setTimeout(() => {
-
-            overlay.remove();
-
-        }, 250);
+        configurarEventos();
     }
 
-    // ============================================================
-    // ESCAPE
-    // ============================================================
+    /* ------------------------------------------------------------
+       ESTILOS
+       ------------------------------------------------------------ */
 
-    document.addEventListener(
-        'keydown',
-        function escape(event) {
+    function aplicarEstilos() {
 
-            if (
-                event.key === 'Escape'
-            ) {
+        const style = document.createElement('style');
 
-                cerrarVentana();
+        style.id = 'productividad-bo-style';
 
-                document.removeEventListener(
-                    'keydown',
-                    escape
-                );
+        style.textContent = `
+
+            #productividad-bo-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 2147483646;
+
+                display: flex;
+                align-items: center;
+                justify-content: center;
+
+                background: rgba(0,0,0,0.18);
+
+                animation:
+                    productividadOverlayIn
+                    .18s
+                    ease-out;
             }
+
+            #productividad-bo-modal {
+
+                width: 620px;
+                max-width: calc(100vw - 40px);
+
+                background: #ffffff;
+
+                border-radius: 12px;
+
+                box-shadow:
+                    0 18px 50px rgba(0,0,0,.25);
+
+                overflow: hidden;
+
+                font-family:
+                    "Segoe UI",
+                    Arial,
+                    sans-serif;
+
+                color: #242424;
+            }
+
+            #productividad-bo-header {
+
+                display: flex;
+
+                align-items: center;
+                justify-content: space-between;
+
+                padding:
+                    14px
+                    18px
+                    10px
+                    18px;
+
+                border-bottom:
+                    1px solid #eeeeee;
+            }
+
+            #productividad-bo-title {
+
+                font-size: 18px;
+
+                font-weight: 600;
+
+                line-height: 1.2;
+            }
+
+            #productividad-bo-subtitle {
+
+                margin-top: 3px;
+
+                font-size: 12px;
+
+                color: #777777;
+
+                letter-spacing: .3px;
+            }
+
+            #productividad-bo-close {
+
+                border: none;
+
+                background: transparent;
+
+                width: 32px;
+                height: 32px;
+
+                border-radius: 6px;
+
+                font-size: 24px;
+
+                color: #666;
+
+                cursor: pointer;
+
+                line-height: 28px;
+            }
+
+            #productividad-bo-close:hover {
+
+                background: #f3f3f3;
+
+                color: #111;
+            }
+
+            #productividad-bo-template-label {
+
+                padding:
+                    13px
+                    18px
+                    6px
+                    18px;
+
+                font-size: 12px;
+
+                font-weight: 600;
+
+                color: #555;
+            }
+
+            #productividad-bo-textarea {
+
+                display: block;
+
+                width: calc(100% - 36px);
+
+                height: 300px;
+
+                margin:
+                    0
+                    18px;
+
+                box-sizing: border-box;
+
+                resize: vertical;
+
+                border:
+                    1px solid #d1d1d1;
+
+                border-radius: 7px;
+
+                padding: 12px;
+
+                outline: none;
+
+                font-family:
+                    Consolas,
+                    "Courier New",
+                    monospace;
+
+                font-size: 12px;
+
+                line-height: 1.5;
+
+                color: #333;
+
+                background: #fff;
+            }
+
+            #productividad-bo-textarea:focus {
+
+                border-color: #0078d4;
+
+                box-shadow:
+                    0 0 0 1px #0078d4;
+            }
+
+            #productividad-bo-info {
+
+                min-height: 25px;
+
+                padding:
+                    8px
+                    18px
+                    4px
+                    18px;
+
+                font-size: 12px;
+            }
+
+            #productividad-bo-detected {
+
+                display: inline-block;
+
+                padding:
+                    4px
+                    8px;
+
+                border-radius: 5px;
+
+                background: #f3f3f3;
+
+                color: #666;
+            }
+
+            #productividad-bo-actions {
+
+                display: flex;
+
+                justify-content: flex-end;
+
+                gap: 8px;
+
+                padding:
+                    12px
+                    18px
+                    16px
+                    18px;
+            }
+
+            #productividad-bo-actions button {
+
+                height: 34px;
+
+                padding:
+                    0
+                    15px;
+
+                border-radius: 6px;
+
+                border:
+                    1px solid #d1d1d1;
+
+                background: #fff;
+
+                cursor: pointer;
+
+                font-size: 13px;
+
+                font-family:
+                    "Segoe UI",
+                    Arial,
+                    sans-serif;
+            }
+
+            #productividad-bo-cancel:hover {
+
+                background: #f5f5f5;
+            }
+
+            #productividad-bo-fill {
+
+                border-color: #0078d4 !important;
+
+                background: #0078d4 !important;
+
+                color: white;
+
+                font-weight: 600;
+            }
+
+            #productividad-bo-fill:hover {
+
+                background: #106ebe !important;
+            }
+
+            #productividad-bo-fill:disabled {
+
+                opacity: .55;
+
+                cursor: default;
+            }
+
+            @keyframes productividadOverlayIn {
+
+                from {
+                    opacity: 0;
+                }
+
+                to {
+                    opacity: 1;
+                }
+            }
+
+            @media(max-width:700px) {
+
+                #productividad-bo-modal {
+
+                    width:
+                        calc(100vw - 24px);
+                }
+
+                #productividad-bo-textarea {
+
+                    height: 250px;
+                }
+            }
+        `;
+
+        document.head.appendChild(style);
+    }
+
+    /* ------------------------------------------------------------
+       EVENTOS DE INTERFAZ
+       ------------------------------------------------------------ */
+
+    function configurarEventos() {
+
+        const overlay =
+            document.getElementById(
+                'productividad-bo-overlay'
+            );
+
+        const textarea =
+            document.getElementById(
+                'productividad-bo-textarea'
+            );
+
+        const fillButton =
+            document.getElementById(
+                'productividad-bo-fill'
+            );
+
+        const closeButton =
+            document.getElementById(
+                'productividad-bo-close'
+            );
+
+        const cancelButton =
+            document.getElementById(
+                'productividad-bo-cancel'
+            );
+
+        const detected =
+            document.getElementById(
+                'productividad-bo-detected'
+            );
+
+        textarea.addEventListener(
+            'input',
+            function () {
+
+                const texto = textarea.value.trim();
+
+                if (!texto) {
+
+                    detected.textContent =
+                        'Esperando plantilla...';
+
+                    detected.style.background =
+                        '#f3f3f3';
+
+                    detected.style.color =
+                        '#666';
+
+                    return;
+                }
+
+                const datos =
+                    analizarPlantilla(texto);
+
+                let tipoTexto =
+                    datos.plantilla === 'BO'
+                        ? 'BO SOPORTE'
+                        : datos.plantilla === 'FRONT'
+                            ? 'FRONT SOPORTE'
+                            : 'Plantilla no identificada';
+
+                if (datos.numeroCaso) {
+
+                    detected.textContent =
+                        tipoTexto +
+                        ' · Caso: ' +
+                        datos.numeroCaso;
+
+                    detected.style.background =
+                        '#e8f3ff';
+
+                    detected.style.color =
+                        '#005a9e';
+
+                } else {
+
+                    detected.textContent =
+                        tipoTexto +
+                        ' · No se encontró ID/Avería';
+
+                    detected.style.background =
+                        '#fff4ce';
+
+                    detected.style.color =
+                        '#7a5c00';
+                }
+            }
+        );
+
+        fillButton.addEventListener(
+            'click',
+            function () {
+
+                const texto =
+                    textarea.value.trim();
+
+                if (!texto) {
+
+                    mostrarToast(
+                        'Pega primero la plantilla.',
+                        'warning'
+                    );
+
+                    return;
+                }
+
+                const datos =
+                    analizarPlantilla(texto);
+
+                if (!datos.numeroCaso) {
+
+                    mostrarToast(
+                        'No se encontró ID ni número de avería.',
+                        'error'
+                    );
+
+                    return;
+                }
+
+                fillButton.disabled = true;
+
+                const resultado =
+                    rellenarFormulario(
+                        datos,
+                        texto
+                    );
+
+                if (resultado) {
+
+                    cerrarModal();
+
+                    mostrarToast(
+                        'Formulario rellenado · Caso: ' +
+                        datos.numeroCaso +
+                        ' · Tipología manual',
+                        'success'
+                    );
+
+                } else {
+
+                    fillButton.disabled = false;
+
+                    mostrarToast(
+                        'No se encontró el formulario de Microsoft Lists.',
+                        'error'
+                    );
+                }
+            }
+        );
+
+        closeButton.addEventListener(
+            'click',
+            cerrarModal
+        );
+
+        cancelButton.addEventListener(
+            'click',
+            cerrarModal
+        );
+
+        overlay.addEventListener(
+            'click',
+            function (e) {
+
+                if (e.target === overlay) {
+                    cerrarModal();
+                }
+            }
+        );
+
+        document.addEventListener(
+            'keydown',
+            function productividadEscape(e) {
+
+                if (
+                    e.key === 'Escape' &&
+                    document.getElementById(
+                        'productividad-bo-overlay'
+                    )
+                ) {
+                    cerrarModal();
+
+                    document.removeEventListener(
+                        'keydown',
+                        productividadEscape
+                    );
+                }
+            }
+        );
+
+        setTimeout(() => {
+            textarea.focus();
+        }, 100);
+    }
+
+    /* ------------------------------------------------------------
+       RELLENAR INPUT DE MICROSOFT LISTS
+       ------------------------------------------------------------ */
+
+    function establecerValorInput(input, valor) {
+
+        if (!input) {
+            return false;
         }
-    );
 
-    // ============================================================
-    // FOCUS
-    // ============================================================
+        const descriptor =
+            Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                'value'
+            );
 
-    setTimeout(() => {
+        if (
+            descriptor &&
+            descriptor.set
+        ) {
+            descriptor.set.call(
+                input,
+                valor
+            );
+        } else {
+            input.value = valor;
+        }
 
-        textarea.focus();
+        input.dispatchEvent(
+            new Event(
+                'input',
+                {
+                    bubbles: true
+                }
+            )
+        );
 
-    }, 250);
+        input.dispatchEvent(
+            new Event(
+                'change',
+                {
+                    bubbles: true
+                }
+            )
+        );
+
+        input.dispatchEvent(
+            new Event(
+                'blur',
+                {
+                    bubbles: true
+                }
+            )
+        );
+
+        return true;
+    }
+
+    /* ------------------------------------------------------------
+       BUSCAR INPUT DE NÚMERO DE CASO
+       ------------------------------------------------------------ */
+
+    function obtenerInputCaso() {
+
+        let input =
+            document.getElementById(
+                'TextField1'
+            );
+
+        if (input) {
+            return input;
+        }
+
+        input =
+            document.querySelector(
+                'input[aria-label*="Número de caso"]'
+            );
+
+        if (input) {
+            return input;
+        }
+
+        input =
+            document.querySelector(
+                'input[placeholder*="Introducir un valor"]'
+            );
+
+        return input || null;
+    }
+
+    /* ------------------------------------------------------------
+       BUSCAR OBSERVACIONES
+       ------------------------------------------------------------ */
+
+    function obtenerInputObservaciones() {
+
+        let textarea =
+            document.getElementById(
+                'TextField8'
+            );
+
+        if (textarea) {
+            return textarea;
+        }
+
+        textarea =
+            document.querySelector(
+                'textarea[aria-label*="Observaciones"]'
+            );
+
+        return textarea || null;
+    }
+
+    /* ------------------------------------------------------------
+       RELLENAR OBSERVACIONES
+       ------------------------------------------------------------ */
+
+    function establecerValorTextarea(
+        textarea,
+        valor
+    ) {
+
+        if (!textarea) {
+            return false;
+        }
+
+        const descriptor =
+            Object.getOwnPropertyDescriptor(
+                HTMLTextAreaElement.prototype,
+                'value'
+            );
+
+        if (
+            descriptor &&
+            descriptor.set
+        ) {
+            descriptor.set.call(
+                textarea,
+                valor
+            );
+        } else {
+            textarea.value = valor;
+        }
+
+        textarea.dispatchEvent(
+            new Event(
+                'input',
+                {
+                    bubbles: true
+                }
+            )
+        );
+
+        textarea.dispatchEvent(
+            new Event(
+                'change',
+                {
+                    bubbles: true
+                }
+            )
+        );
+
+        return true;
+    }
+
+    /* ------------------------------------------------------------
+       RELLENAR FORMULARIO
+       ------------------------------------------------------------ */
+
+    function rellenarFormulario(
+        datos,
+        plantilla
+    ) {
+
+        const inputCaso =
+            obtenerInputCaso();
+
+        if (!inputCaso) {
+            return false;
+        }
+
+        /*
+         * IMPORTANTE:
+         *
+         * Guardamos el número para poder recuperarlo
+         * si Microsoft Lists lo borra al seleccionar
+         * posteriormente la Tipología.
+         */
+
+        window.__PRODUCTIVIDAD_BO_CASO =
+            datos.numeroCaso;
+
+        /* Número de caso */
+
+        establecerValorInput(
+            inputCaso,
+            datos.numeroCaso
+        );
+
+        /* --------------------------------------------------------
+           OBSERVACIONES
+
+           Se conserva la plantilla completa.
+        -------------------------------------------------------- */
+
+        const observaciones =
+            obtenerInputObservaciones();
+
+        if (observaciones) {
+
+            establecerValorTextarea(
+                observaciones,
+                plantilla
+            );
+        }
+
+        /* --------------------------------------------------------
+           PROTEGER EL NÚMERO DE CASO
+
+           Microsoft Lists puede limpiar TextField1 cuando
+           el usuario selecciona la Tipología.
+
+           Vigilamos el input y lo restauramos.
+        -------------------------------------------------------- */
+
+        protegerNumeroCaso(
+            datos.numeroCaso
+        );
+
+        return true;
+    }
+
+    /* ------------------------------------------------------------
+       PROTEGER NÚMERO DE CASO
+       ------------------------------------------------------------ */
+
+    function protegerNumeroCaso(
+        numeroCaso
+    ) {
+
+        if (
+            window.__PRODUCTIVIDAD_BO_OBSERVER
+        ) {
+            return;
+        }
+
+        const input =
+            obtenerInputCaso();
+
+        if (!input) {
+            return;
+        }
+
+        window.__PRODUCTIVIDAD_BO_CASO =
+            numeroCaso;
+
+        /* MutationObserver */
+
+        const observer =
+            new MutationObserver(
+                function () {
+
+                    const actual =
+                        input.value.trim();
+
+                    if (
+                        window.__PRODUCTIVIDAD_BO_CASO &&
+                        actual !==
+                        window.__PRODUCTIVIDAD_BO_CASO
+                    ) {
+
+                        /*
+                         * Solo restauramos si el usuario
+                         * dejó el campo vacío.
+                         *
+                         * No sobrescribimos manualmente
+                         * otro número que el usuario haya
+                         * escrito.
+                         */
+
+                        if (!actual) {
+
+                            establecerValorInput(
+                                input,
+                                window.__PRODUCTIVIDAD_BO_CASO
+                            );
+                        }
+                    }
+                }
+            );
+
+        observer.observe(
+            input,
+            {
+                attributes: true,
+                attributeFilter: [
+                    'value'
+                ]
+            }
+        );
+
+        /* También comprobamos periódicamente */
+
+        const interval =
+            setInterval(
+                function () {
+
+                    if (
+                        !document.body.contains(input)
+                    ) {
+
+                        clearInterval(interval);
+
+                        observer.disconnect();
+
+                        return;
+                    }
+
+                    if (
+                        window.__PRODUCTIVIDAD_BO_CASO &&
+                        !input.value.trim()
+                    ) {
+
+                        establecerValorInput(
+                            input,
+                            window.__PRODUCTIVIDAD_BO_CASO
+                        );
+                    }
+
+                },
+                250
+            );
+
+        window.__PRODUCTIVIDAD_BO_OBSERVER =
+            observer;
+
+        window.__PRODUCTIVIDAD_BO_INTERVAL =
+            interval;
+    }
+
+    /* ------------------------------------------------------------
+       CERRAR MODAL
+       ------------------------------------------------------------ */
+
+    function cerrarModal() {
+
+        const overlay =
+            document.getElementById(
+                'productividad-bo-overlay'
+            );
+
+        if (!overlay) {
+            return;
+        }
+
+        overlay.style.transition =
+            'opacity .18s ease';
+
+        overlay.style.opacity = '0';
+
+        setTimeout(
+            function () {
+
+                if (overlay.parentNode) {
+                    overlay.parentNode.removeChild(
+                        overlay
+                    );
+                }
+
+            },
+            180
+        );
+    }
+
+    /* ------------------------------------------------------------
+       TOAST
+       ------------------------------------------------------------ */
+
+    function mostrarToast(
+        mensaje,
+        tipo
+    ) {
+
+        const anterior =
+            document.getElementById(
+                'productividad-bo-toast'
+            );
+
+        if (anterior) {
+            anterior.remove();
+        }
+
+        const toast =
+            document.createElement('div');
+
+        toast.id =
+            'productividad-bo-toast';
+
+        let icono = '?';
+
+        if (tipo === 'error') {
+            icono = '!';
+        }
+
+        if (tipo === 'warning') {
+            icono = '!';
+        }
+
+        toast.innerHTML = `
+            <div class="productividad-bo-toast-icon">
+                ${icono}
+            </div>
+
+            <div class="productividad-bo-toast-text">
+                ${mensaje}
+            </div>
+        `;
+
+        document.body.appendChild(toast);
+
+        const style =
+            document.createElement('style');
+
+        style.textContent = `
+
+            #productividad-bo-toast {
+
+                position: fixed;
+
+                right: 22px;
+                bottom: 22px;
+
+                z-index: 2147483647;
+
+                display: flex;
+
+                align-items: center;
+
+                gap: 10px;
+
+                max-width: 380px;
+
+                padding:
+                    11px
+                    15px;
+
+                background: #ffffff;
+
+                border:
+                    1px solid #e1e1e1;
+
+                border-radius: 8px;
+
+                box-shadow:
+                    0 8px 30px rgba(0,0,0,.18);
+
+                font-family:
+                    "Segoe UI",
+                    Arial,
+                    sans-serif;
+
+                font-size: 13px;
+
+                color: #333;
+
+                animation:
+                    productividadToastIn
+                    .3s
+                    ease-out
+                    forwards;
+            }
+
+            .productividad-bo-toast-icon {
+
+                width: 22px;
+                height: 22px;
+
+                border-radius: 50%;
+
+                display: flex;
+
+                align-items: center;
+                justify-content: center;
+
+                background: #107c10;
+
+                color: #fff;
+
+                font-size: 13px;
+
+                font-weight: bold;
+
+                flex-shrink: 0;
+            }
+
+            .productividad-bo-toast-text {
+
+                line-height: 1.4;
+            }
+
+            @keyframes productividadToastIn {
+
+                from {
+
+                    opacity: 0;
+
+                    transform:
+                        translateY(15px);
+                }
+
+                to {
+
+                    opacity: 1;
+
+                    transform:
+                        translateY(0);
+                }
+            }
+
+            @keyframes productividadToastOut {
+
+                from {
+
+                    opacity: 1;
+
+                    transform:
+                        translateY(0);
+                }
+
+                to {
+
+                    opacity: 0;
+
+                    transform:
+                        translateY(15px);
+                }
+            }
+        `;
+
+        document.head.appendChild(style);
+
+        setTimeout(
+            function () {
+
+                toast.style.animation =
+                    'productividadToastOut .35s ease forwards';
+
+                setTimeout(
+                    function () {
+
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(
+                                toast
+                            );
+                        }
+
+                        if (style.parentNode) {
+                            style.parentNode.removeChild(
+                                style
+                            );
+                        }
+
+                    },
+                    350
+                );
+
+            },
+            3500
+        );
+    }
+
+    /* ------------------------------------------------------------
+       INICIAR
+       ------------------------------------------------------------ */
+
+    crearInterfaz();
 
 })();
