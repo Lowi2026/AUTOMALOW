@@ -948,6 +948,7 @@ Móvil: ${movilesExtraidos}
 • Pruebas realizadas: ${c[1] || "N/A"}
 • Diagnóstico: ${c[2] || "N/A"}
 • Solución: ${c[3] || "N/A"}
+• Avería: #AVERIA / NA
 Tecnología: ${tech}
 Velocidad: ${vel}
 Fecha: ${fechaEspanol}`;
