@@ -18,12 +18,38 @@
             .trim();
     }
 
-    function obtenerCampo(texto, patrones) {
-        for (const patron of patrones) {
-            const match = texto.match(patron);
+    /*
+     * Elimina tildes para poder comparar textos de forma
+     * independiente de acentos.
+     *
+     * Ejemplos:
+     *
+     * Avería     -> Averia
+     * Dirección  -> Direccion
+     * Móvil      -> Movil
+     */
 
-            if (match && match[1]) {
-                return limpiarTexto(match[1]);
+    function quitarTildes(texto) {
+        return (texto || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function obtenerCampo(texto, patrones) {
+
+        for (const patron of patrones) {
+
+            const match =
+                texto.match(patron);
+
+            if (
+                match &&
+                match[1]
+            ) {
+
+                return limpiarTexto(
+                    match[1]
+                );
             }
         }
 
@@ -36,19 +62,30 @@
 
     function detectarPlantilla(texto) {
 
-        const textoMayus = texto.toUpperCase();
+        const textoMayus =
+            quitarTildes(texto).toUpperCase();
 
         if (
-            textoMayus.includes('PLANTILLA FRONT SOPORTE') ||
-            textoMayus.includes('FRONT SOPORTE')
+            textoMayus.includes(
+                'PLANTILLA FRONT SOPORTE'
+            ) ||
+            textoMayus.includes(
+                'FRONT SOPORTE'
+            )
         ) {
+
             return 'FRONT';
         }
 
         if (
-            textoMayus.includes('PLANTILLA BO SOPORTE') ||
-            textoMayus.includes('BO SOPORTE')
+            textoMayus.includes(
+                'PLANTILLA BO SOPORTE'
+            ) ||
+            textoMayus.includes(
+                'BO SOPORTE'
+            )
         ) {
+
             return 'BO';
         }
 
@@ -61,76 +98,195 @@
 
     function analizarPlantilla(texto) {
 
-        const plantilla = detectarPlantilla(texto);
+        const plantilla =
+            detectarPlantilla(texto);
 
-        const idCliente = obtenerCampo(texto, [
-            /(?:^|\n)\s*[•\-\*]?\s*ID\s*:\s*(.+?)(?=\n|$)/i
-        ]);
+        /* --------------------------------------------------------
+           ID CLIENTE
+        -------------------------------------------------------- */
 
-        const averia = obtenerCampo(texto, [
-            /(?:^|\n)\s*[•\-\*]?\s*Aver[ií]a\s*:\s*(.+?)(?=\n|$)/i
-        ]);
+        const idCliente =
+            obtenerCampo(
+                texto,
+                [
+                    /(?:^|\n)\s*[•\-\*]?\s*ID\s*:\s*(.+?)(?=\n|$)/i
+                ]
+            );
 
-        const nombre = obtenerCampo(texto, [
-            /(?:^|\n)\s*[•\-\*]?\s*Nombre\s*:\s*(.+?)(?=\n|$)/i
-        ]);
+        /* --------------------------------------------------------
+           TEXTO SIN TILDES
 
-        const dni = obtenerCampo(texto, [
-            /(?:^|\n)\s*[•\-\*]?\s*DNI(?:\/NIE)?\s*:\s*(.+?)(?=\n|$)/i
-        ]);
+           Se utiliza para que "Avería" y "Averia" sean
+           tratados exactamente igual.
+        -------------------------------------------------------- */
 
-        const direccion = obtenerCampo(texto, [
-            /(?:^|\n)\s*[•\-\*]?\s*Direcci[oó]n\s*:\s*(.+?)(?=\n|$)/i
-        ]);
+        const textoSinTildes =
+            quitarTildes(texto);
 
-        const movil = obtenerCampo(texto, [
-            /(?:^|\n)\s*[•\-\*]?\s*#?\s*M[oó]vil\s*:\s*(.+?)(?=\n|$)/i
-        ]);
+        /* --------------------------------------------------------
+           AVERÍA / AVERIA
+
+           Se detectan todas estas variantes:
+
+           Avería: 54545
+           Averia: 54545
+           Avería : 54545
+           Averia : 54545
+           Avería 54545
+           Averia 54545
+           Averia - 54545
+           Averia #54545
+           Avería: #54545
+
+           El ":" es opcional.
+
+           El "-" también puede utilizarse como separador.
+        -------------------------------------------------------- */
+
+        const averia =
+            obtenerCampo(
+                textoSinTildes,
+                [
+                    /(?:^|\n)\s*[•\-\*]?\s*AVERIA\s*(?::|-)?\s*(.+?)(?=\n|$)/i
+                ]
+            );
+
+        /* --------------------------------------------------------
+           NOMBRE
+        -------------------------------------------------------- */
+
+        const nombre =
+            obtenerCampo(
+                texto,
+                [
+                    /(?:^|\n)\s*[•\-\*]?\s*Nombre\s*:\s*(.+?)(?=\n|$)/i
+                ]
+            );
+
+        /* --------------------------------------------------------
+           DNI
+        -------------------------------------------------------- */
+
+        const dni =
+            obtenerCampo(
+                texto,
+                [
+                    /(?:^|\n)\s*[•\-\*]?\s*DNI(?:\/NIE)?\s*:\s*(.+?)(?=\n|$)/i
+                ]
+            );
+
+        /* --------------------------------------------------------
+           DIRECCIÓN
+        -------------------------------------------------------- */
+
+        const direccion =
+            obtenerCampo(
+                texto,
+                [
+                    /(?:^|\n)\s*[•\-\*]?\s*Direcci[oó]n\s*:\s*(.+?)(?=\n|$)/i
+                ]
+            );
+
+        /* --------------------------------------------------------
+           MÓVIL
+        -------------------------------------------------------- */
+
+        const movil =
+            obtenerCampo(
+                texto,
+                [
+                    /(?:^|\n)\s*[•\-\*]?\s*#?\s*M[oó]vil\s*:\s*(.+?)(?=\n|$)/i
+                ]
+            );
 
         /* --------------------------------------------------------
            DETERMINAR NÚMERO DE CASO
 
-           Avería:
-               #545452  -> 545452
+           Prioridad:
 
-           Avería:
-               545452   -> 545452
+           1. Número indicado en Avería
+           2. ID del cliente
 
-           Avería:
-               NA       -> ID del cliente
+           Ejemplos:
+
+           Avería: 545452
+           -> 545452
+
+           Averia 545452
+           -> 545452
+
+           Averia: #545452
+           -> 545452
+
+           Averia: NA
+           -> ID del cliente
+
+           Averia N/A
+           -> ID del cliente
+
+           Averia NO APLICA
+           -> ID del cliente
         -------------------------------------------------------- */
 
         let numeroCaso = '';
 
         if (averia) {
 
-            const averiaLimpia = averia
-                .replace(/^#+/, '')
-                .trim();
+            const averiaLimpia =
+                averia
+                    .replace(/^#+/, '')
+                    .trim();
 
             if (
                 averiaLimpia &&
-                !/^NA$/i.test(averiaLimpia) &&
-                !/^N\/A$/i.test(averiaLimpia) &&
-                !/^NO\s*APLICA$/i.test(averiaLimpia)
+                !/^NA$/i.test(
+                    averiaLimpia
+                ) &&
+                !/^N\/A$/i.test(
+                    averiaLimpia
+                ) &&
+                !/^NO\s*APLICA$/i.test(
+                    averiaLimpia
+                )
             ) {
-                numeroCaso = averiaLimpia;
+
+                numeroCaso =
+                    averiaLimpia;
             }
         }
 
-        if (!numeroCaso && idCliente) {
-            numeroCaso = idCliente;
+        /* --------------------------------------------------------
+           SI NO HAY NÚMERO DE AVERÍA,
+           UTILIZAR ID DEL CLIENTE
+        -------------------------------------------------------- */
+
+        if (
+            !numeroCaso &&
+            idCliente
+        ) {
+
+            numeroCaso =
+                idCliente;
         }
 
         return {
+
             plantilla,
+
             idCliente,
+
             averia,
+
             numeroCaso,
+
             nombre,
+
             dni,
+
             direccion,
+
             movil
+
         };
     }
 
@@ -140,19 +296,30 @@
 
     function crearInterfaz() {
 
-        if (document.getElementById('productividad-bo-overlay')) {
+        if (
+            document.getElementById(
+                'productividad-bo-overlay'
+            )
+        ) {
+
             return;
         }
 
-        const overlay = document.createElement('div');
+        const overlay =
+            document.createElement(
+                'div'
+            );
 
-        overlay.id = 'productividad-bo-overlay';
+        overlay.id =
+            'productividad-bo-overlay';
 
         overlay.innerHTML = `
             <div id="productividad-bo-modal">
 
                 <div id="productividad-bo-header">
+
                     <div>
+
                         <div id="productividad-bo-title">
                             Cargar plantilla
                         </div>
@@ -160,13 +327,18 @@
                         <div id="productividad-bo-subtitle">
                             BO / FRONT SOPORTE
                         </div>
+
                     </div>
 
-                    <button id="productividad-bo-close"
-                            type="button"
-                            title="Cerrar">
+                    <button
+                        id="productividad-bo-close"
+                        type="button"
+                        title="Cerrar">
+
                         ×
+
                     </button>
+
                 </div>
 
                 <div id="productividad-bo-template-label">
@@ -194,9 +366,11 @@ PLANTILLA BO SOPORTE
                 ></textarea>
 
                 <div id="productividad-bo-info">
+
                     <span id="productividad-bo-detected">
                         Esperando plantilla...
                     </span>
+
                 </div>
 
                 <div id="productividad-bo-actions">
@@ -204,13 +378,17 @@ PLANTILLA BO SOPORTE
                     <button
                         type="button"
                         id="productividad-bo-cancel">
+
                         Cancelar
+
                     </button>
 
                     <button
                         type="button"
                         id="productividad-bo-fill">
+
                         Rellenar formulario
+
                     </button>
 
                 </div>
@@ -218,7 +396,9 @@ PLANTILLA BO SOPORTE
             </div>
         `;
 
-        document.body.appendChild(overlay);
+        document.body.appendChild(
+            overlay
+        );
 
         aplicarEstilos();
 
@@ -231,22 +411,32 @@ PLANTILLA BO SOPORTE
 
     function aplicarEstilos() {
 
-        const style = document.createElement('style');
+        const style =
+            document.createElement(
+                'style'
+            );
 
-        style.id = 'productividad-bo-style';
+        style.id =
+            'productividad-bo-style';
 
         style.textContent = `
 
             #productividad-bo-overlay {
+
                 position: fixed;
+
                 inset: 0;
+
                 z-index: 2147483646;
 
                 display: flex;
+
                 align-items: center;
+
                 justify-content: center;
 
-                background: rgba(0,0,0,0.18);
+                background:
+                    rgba(0,0,0,0.18);
 
                 animation:
                     productividadOverlayIn
@@ -257,14 +447,17 @@ PLANTILLA BO SOPORTE
             #productividad-bo-modal {
 
                 width: 620px;
-                max-width: calc(100vw - 40px);
+
+                max-width:
+                    calc(100vw - 40px);
 
                 background: #ffffff;
 
                 border-radius: 12px;
 
                 box-shadow:
-                    0 18px 50px rgba(0,0,0,.25);
+                    0 18px 50px
+                    rgba(0,0,0,.25);
 
                 overflow: hidden;
 
@@ -281,7 +474,9 @@ PLANTILLA BO SOPORTE
                 display: flex;
 
                 align-items: center;
-                justify-content: space-between;
+
+                justify-content:
+                    space-between;
 
                 padding:
                     14px
@@ -317,9 +512,11 @@ PLANTILLA BO SOPORTE
 
                 border: none;
 
-                background: transparent;
+                background:
+                    transparent;
 
                 width: 32px;
+
                 height: 32px;
 
                 border-radius: 6px;
@@ -359,7 +556,8 @@ PLANTILLA BO SOPORTE
 
                 display: block;
 
-                width: calc(100% - 36px);
+                width:
+                    calc(100% - 36px);
 
                 height: 300px;
 
@@ -396,10 +594,12 @@ PLANTILLA BO SOPORTE
 
             #productividad-bo-textarea:focus {
 
-                border-color: #0078d4;
+                border-color:
+                    #0078d4;
 
                 box-shadow:
-                    0 0 0 1px #0078d4;
+                    0 0 0 1px
+                    #0078d4;
             }
 
             #productividad-bo-info {
@@ -434,7 +634,8 @@ PLANTILLA BO SOPORTE
 
                 display: flex;
 
-                justify-content: flex-end;
+                justify-content:
+                    flex-end;
 
                 gap: 8px;
 
@@ -477,9 +678,11 @@ PLANTILLA BO SOPORTE
 
             #productividad-bo-fill {
 
-                border-color: #0078d4 !important;
+                border-color:
+                    #0078d4 !important;
 
-                background: #0078d4 !important;
+                background:
+                    #0078d4 !important;
 
                 color: white;
 
@@ -488,7 +691,8 @@ PLANTILLA BO SOPORTE
 
             #productividad-bo-fill:hover {
 
-                background: #106ebe !important;
+                background:
+                    #106ebe !important;
             }
 
             #productividad-bo-fill:disabled {
@@ -501,10 +705,12 @@ PLANTILLA BO SOPORTE
             @keyframes productividadOverlayIn {
 
                 from {
+
                     opacity: 0;
                 }
 
                 to {
+
                     opacity: 1;
                 }
             }
@@ -524,7 +730,9 @@ PLANTILLA BO SOPORTE
             }
         `;
 
-        document.head.appendChild(style);
+        document.head.appendChild(
+            style
+        );
     }
 
     /* ------------------------------------------------------------
@@ -567,7 +775,8 @@ PLANTILLA BO SOPORTE
             'input',
             function () {
 
-                const texto = textarea.value.trim();
+                const texto =
+                    textarea.value.trim();
 
                 if (!texto) {
 
@@ -584,7 +793,9 @@ PLANTILLA BO SOPORTE
                 }
 
                 const datos =
-                    analizarPlantilla(texto);
+                    analizarPlantilla(
+                        texto
+                    );
 
                 let tipoTexto =
                     datos.plantilla === 'BO'
@@ -593,7 +804,9 @@ PLANTILLA BO SOPORTE
                             ? 'FRONT SOPORTE'
                             : 'Plantilla no identificada';
 
-                if (datos.numeroCaso) {
+                if (
+                    datos.numeroCaso
+                ) {
 
                     detected.textContent =
                         tipoTexto +
@@ -639,9 +852,13 @@ PLANTILLA BO SOPORTE
                 }
 
                 const datos =
-                    analizarPlantilla(texto);
+                    analizarPlantilla(
+                        texto
+                    );
 
-                if (!datos.numeroCaso) {
+                if (
+                    !datos.numeroCaso
+                ) {
 
                     mostrarToast(
                         'No se encontró ID ni número de avería.',
@@ -651,7 +868,8 @@ PLANTILLA BO SOPORTE
                     return;
                 }
 
-                fillButton.disabled = true;
+                fillButton.disabled =
+                    true;
 
                 const resultado =
                     rellenarFormulario(
@@ -672,7 +890,8 @@ PLANTILLA BO SOPORTE
 
                 } else {
 
-                    fillButton.disabled = false;
+                    fillButton.disabled =
+                        false;
 
                     mostrarToast(
                         'No se encontró el formulario de Microsoft Lists.',
@@ -696,7 +915,10 @@ PLANTILLA BO SOPORTE
             'click',
             function (e) {
 
-                if (e.target === overlay) {
+                if (
+                    e.target === overlay
+                ) {
+
                     cerrarModal();
                 }
             }
@@ -712,6 +934,7 @@ PLANTILLA BO SOPORTE
                         'productividad-bo-overlay'
                     )
                 ) {
+
                     cerrarModal();
 
                     document.removeEventListener(
@@ -722,16 +945,24 @@ PLANTILLA BO SOPORTE
             }
         );
 
-        setTimeout(() => {
-            textarea.focus();
-        }, 100);
+        setTimeout(
+            () => {
+
+                textarea.focus();
+
+            },
+            100
+        );
     }
 
     /* ------------------------------------------------------------
        RELLENAR INPUT DE MICROSOFT LISTS
        ------------------------------------------------------------ */
 
-    function establecerValorInput(input, valor) {
+    function establecerValorInput(
+        input,
+        valor
+    ) {
 
         if (!input) {
             return false;
@@ -747,12 +978,16 @@ PLANTILLA BO SOPORTE
             descriptor &&
             descriptor.set
         ) {
+
             descriptor.set.call(
                 input,
                 valor
             );
+
         } else {
-            input.value = valor;
+
+            input.value =
+                valor;
         }
 
         input.dispatchEvent(
@@ -863,12 +1098,16 @@ PLANTILLA BO SOPORTE
             descriptor &&
             descriptor.set
         ) {
+
             descriptor.set.call(
                 textarea,
                 valor
             );
+
         } else {
-            textarea.value = valor;
+
+            textarea.value =
+                valor;
         }
 
         textarea.dispatchEvent(
@@ -909,8 +1148,6 @@ PLANTILLA BO SOPORTE
         }
 
         /*
-         * IMPORTANTE:
-         *
          * Guardamos el número para poder recuperarlo
          * si Microsoft Lists lo borra al seleccionar
          * posteriormente la Tipología.
@@ -944,12 +1181,10 @@ PLANTILLA BO SOPORTE
         }
 
         /* --------------------------------------------------------
-           PROTEGER EL NÚMERO DE CASO
+           PROTEGER NÚMERO DE CASO
 
            Microsoft Lists puede limpiar TextField1 cuando
            el usuario selecciona la Tipología.
-
-           Vigilamos el input y lo restauramos.
         -------------------------------------------------------- */
 
         protegerNumeroCaso(
@@ -970,6 +1205,7 @@ PLANTILLA BO SOPORTE
         if (
             window.__PRODUCTIVIDAD_BO_OBSERVER
         ) {
+
             return;
         }
 
@@ -983,7 +1219,9 @@ PLANTILLA BO SOPORTE
         window.__PRODUCTIVIDAD_BO_CASO =
             numeroCaso;
 
-        /* MutationObserver */
+        /* --------------------------------------------------------
+           MUTATION OBSERVER
+        -------------------------------------------------------- */
 
         const observer =
             new MutationObserver(
@@ -1022,23 +1260,30 @@ PLANTILLA BO SOPORTE
             input,
             {
                 attributes: true,
+
                 attributeFilter: [
                     'value'
                 ]
             }
         );
 
-        /* También comprobamos periódicamente */
+        /* --------------------------------------------------------
+           COMPROBACIÓN PERIÓDICA
+        -------------------------------------------------------- */
 
         const interval =
             setInterval(
                 function () {
 
                     if (
-                        !document.body.contains(input)
+                        !document.body.contains(
+                            input
+                        )
                     ) {
 
-                        clearInterval(interval);
+                        clearInterval(
+                            interval
+                        );
 
                         observer.disconnect();
 
@@ -1085,12 +1330,16 @@ PLANTILLA BO SOPORTE
         overlay.style.transition =
             'opacity .18s ease';
 
-        overlay.style.opacity = '0';
+        overlay.style.opacity =
+            '0';
 
         setTimeout(
             function () {
 
-                if (overlay.parentNode) {
+                if (
+                    overlay.parentNode
+                ) {
+
                     overlay.parentNode.removeChild(
                         overlay
                     );
@@ -1120,18 +1369,26 @@ PLANTILLA BO SOPORTE
         }
 
         const toast =
-            document.createElement('div');
+            document.createElement(
+                'div'
+            );
 
         toast.id =
             'productividad-bo-toast';
 
         let icono = '?';
 
-        if (tipo === 'error') {
+        if (
+            tipo === 'error'
+        ) {
+
             icono = '!';
         }
 
-        if (tipo === 'warning') {
+        if (
+            tipo === 'warning'
+        ) {
+
             icono = '!';
         }
 
@@ -1145,10 +1402,14 @@ PLANTILLA BO SOPORTE
             </div>
         `;
 
-        document.body.appendChild(toast);
+        document.body.appendChild(
+            toast
+        );
 
         const style =
-            document.createElement('style');
+            document.createElement(
+                'style'
+            );
 
         style.textContent = `
 
@@ -1181,7 +1442,8 @@ PLANTILLA BO SOPORTE
                 border-radius: 8px;
 
                 box-shadow:
-                    0 8px 30px rgba(0,0,0,.18);
+                    0 8px 30px
+                    rgba(0,0,0,.18);
 
                 font-family:
                     "Segoe UI",
@@ -1202,6 +1464,7 @@ PLANTILLA BO SOPORTE
             .productividad-bo-toast-icon {
 
                 width: 22px;
+
                 height: 22px;
 
                 border-radius: 50%;
@@ -1209,6 +1472,7 @@ PLANTILLA BO SOPORTE
                 display: flex;
 
                 align-items: center;
+
                 justify-content: center;
 
                 background: #107c10;
@@ -1266,7 +1530,9 @@ PLANTILLA BO SOPORTE
             }
         `;
 
-        document.head.appendChild(style);
+        document.head.appendChild(
+            style
+        );
 
         setTimeout(
             function () {
@@ -1277,13 +1543,19 @@ PLANTILLA BO SOPORTE
                 setTimeout(
                     function () {
 
-                        if (toast.parentNode) {
+                        if (
+                            toast.parentNode
+                        ) {
+
                             toast.parentNode.removeChild(
                                 toast
                             );
                         }
 
-                        if (style.parentNode) {
+                        if (
+                            style.parentNode
+                        ) {
+
                             style.parentNode.removeChild(
                                 style
                             );
