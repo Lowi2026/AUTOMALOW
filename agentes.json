@@ -751,12 +751,22 @@
   },
   "4648749": {
     "cedula": "1022430820",
-    "nombre": "Brayan Andrés\n Tasama Rodríguez",
+    "nombre": "Brayan Andrés Tasama Rodríguez",
     "tel": "3006520602",
     "loc": "Kennedy",
     "barrio": "Castilla",
     "dir": "CL 8 A # 72 A - 32",
     "correo": "tasama885@gmail.com",
+    "hora": "08:00"
+  },
+   "5437186": {
+    "cedula": "1193495167",
+    "nombre": "Hans Klaus Steffen Martinez",
+    "tel": "3024069230",
+    "loc": "Suba",
+    "barrio": "Suba Centro",
+    "dir": "KR TV 88 # 145A - 64",
+    "correo": "hansklaus@live.com",
     "hora": "08:00"
   },
   "6058179": {
