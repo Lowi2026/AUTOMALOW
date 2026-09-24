@@ -162,24 +162,151 @@ javascript:(async function(){
             }, 150)
         })
     }
-    function extraerPrimerEstado(ot){
-        var tabla=obtenerTablaTrazabilidad();if(!tabla)throw new Error("No se encontró la tabla de estados.");var filas=tabla.querySelectorAll("tr");for(var i=0;i<filas.length;i++){
-            var celdas=filas[i].querySelectorAll("td");if(celdas.length<4)continue;var valores=[];for(var j=0;j<celdas.length;j++)valores.push(celdas[j].innerText.trim());var indiceFecha=-1, indiceHora=-1;for(var k=0;k<valores.length;k++){
-                if(/^\d{1,2}[\/-]\d{1,2}[\/-]\d{4}$/.test(valores[k])){
-                    indiceFecha=k;break
+    function extraerPrimerEstado(ot) {
+        const tabla = obtenerTablaTrazabilidad();
+        if (!tabla) throw new Error("No se encontró la tabla de estados.");
+
+        const filas = tabla.querySelectorAll("tr");
+
+        for (let i = 0; i < filas.length; i++) {
+            const celdas = filas[i].querySelectorAll("td");
+            if (celdas.length < 4) continue;
+
+            const valores = Array.from(celdas).map(celda => celda.innerText.trim());
+            let indiceFecha = -1;
+
+            for (let k = 0; k < valores.length; k++) {
+                if (/^\\d{1,2}[\\/-]\\d{1,2}[\\/-]\\d{4}$/.test(valores[k])) {
+                    indiceFecha = k;
+                    break;
                 }
             }
-            if(indiceFecha>=0&&valores[indiceFecha+1]&&/^\d{1,2}:\d{2}:\d{2}$/.test(valores[indiceFecha+1]))indiceHora=indiceFecha+1;if(indiceFecha>=2&&indiceHora>=0){
-                var estadoLogistico=valores[indiceFecha-2], descripcion=valores[indiceFecha-1];if(valores.length>=5&&valores[0]===""){
-                    estadoLogistico=valores[1];descripcion=valores[2]
+
+            const indiceHora =
+                indiceFecha >= 0 &&
+                valores[indiceFecha + 1] &&
+                /^\\d{1,2}:\\d{2}:\\d{2}$/.test(valores[indiceFecha + 1])
+                    ? indiceFecha + 1
+                    : -1;
+
+            if (indiceFecha >= 2 && indiceHora >= 0) {
+                let estadoLogistico = valores[indiceFecha - 2];
+                let descripcion = valores[indiceFecha - 1];
+
+                if (valores.length >= 5 && valores[0] === "") {
+                    estadoLogistico = valores[1];
+                    descripcion = valores[2];
                 }
-                return{
-                    numeroOrden:ot, estadoLogistico:estadoLogistico, descripcion:descripcion, fechaEstado:valores[indiceFecha], horaEstado:valores[indiceHora]
-                }
+
+                return {
+                    numeroOrden: ot,
+                    estadoLogistico,
+                    descripcion,
+                    fechaEstado: valores[indiceFecha],
+                    horaEstado: valores[indiceHora]
+                };
             }
         }
-        throw new Error("No fue posible identificar el estado logístico.")
+
+        throw new Error("No fue posible identificar el estado logístico.");
     }
+
+    function extraerTodosEstados(ot) {
+        const tabla = obtenerTablaTrazabilidad();
+        if (!tabla) throw new Error("No se encontró la tabla de estados.");
+
+        const filas = tabla.querySelectorAll("tr");
+        const estados = [];
+
+        for (let i = 0; i < filas.length; i++) {
+            const celdas = filas[i].querySelectorAll("td");
+            if (celdas.length < 4) continue;
+
+            const valores = Array.from(celdas).map(celda => celda.innerText.trim());
+            let indiceFecha = -1;
+
+            for (let k = 0; k < valores.length; k++) {
+                if (/^\\d{1,2}[\\/-]\\d{1,2}[\\/-]\\d{4}$/.test(valores[k])) {
+                    indiceFecha = k;
+                    break;
+                }
+            }
+
+            const indiceHora =
+                indiceFecha >= 0 &&
+                valores[indiceFecha + 1] &&
+                /^\\d{1,2}:\\d{2}:\\d{2}$/.test(valores[indiceFecha + 1])
+                    ? indiceFecha + 1
+                    : -1;
+
+            if (indiceFecha >= 2 && indiceHora >= 0) {
+                let estadoLogistico = valores[indiceFecha - 2];
+                let descripcion = valores[indiceFecha - 1];
+
+                if (valores.length >= 5 && valores[0] === "") {
+                    estadoLogistico = valores[1];
+                    descripcion = valores[2];
+                }
+
+                estados.push({
+                    numeroOrden: ot,
+                    estadoLogistico,
+                    descripcion,
+                    fechaEstado: valores[indiceFecha],
+                    horaEstado: valores[indiceHora]
+                });
+            }
+        }
+
+        return estados;
+    }
+
+    function generarTXT(datos) {
+        let contenido = "VALIDACION TRAZABILIDAD:\n\n";
+
+        for (const grupo of datos) {
+            contenido += "NUMERO DE OT: " + grupo.numeroOrden + "\n\n";
+            contenido += "SITUACION".padEnd(15);
+            contenido += "DESCRIPCIÓN".padEnd(30);
+            contenido += "FECHA DE ESTADO".padEnd(20);
+            contenido += "HORA DE ESTADO\n";
+            contenido += "-".repeat(85) + "\n";
+
+            for (const estado of grupo.estados) {
+                contenido += String(estado.estadoLogistico || "").padEnd(15);
+                contenido += String(estado.descripcion || "").padEnd(30);
+                contenido += String(estado.fechaEstado || "").padEnd(20);
+                contenido += String(estado.horaEstado || "") + "\n";
+            }
+
+            contenido += "\n";
+        }
+
+        const blob = new Blob([contenido], {
+            type: "text/plain;charset=utf-8"
+        });
+
+        const url = URL.createObjectURL(blob);
+        const enlace = document.createElement("a");
+        const fecha = new Date();
+
+        enlace.href = url;
+        enlace.download =
+            "Trazabilidad_Completa_" +
+            String(fecha.getDate()).padStart(2, "0") +
+            "-" +
+            String(fecha.getMonth() + 1).padStart(2, "0") +
+            "-" +
+            fecha.getFullYear() +
+            ".txt";
+
+        document.body.appendChild(enlace);
+        enlace.click();
+        document.body.removeChild(enlace);
+
+        setTimeout(() => URL.revokeObjectURL(url), 500);
+    }
+
     function volverAConsulta(){
         var inputActual=document.querySelector(SELECTOR_INPUT);if(inputActual)return Promise.resolve(inputActual);window.history.back();return esperarElemento(SELECTOR_INPUT, 10000)
     }
@@ -206,7 +333,10 @@ javascript:(async function(){
         }
         if(!celdaOT)celdaOT=document.querySelector("#container-vodafonetrazabilidad---Home--idProductsTable-rows-"+resultado.fila.numero+"-col1");if(!celdaOT)throw new Error("No se encontró la celda de la OT.");hacerClick(celdaOT);actualizarContadorProceso(indice, OTS.length, resultados.length, errores.length, ot, "Abriendo detalle...");var processor=await esperarElemento(SELECTOR_PROCESSOR, 10000);hacerClick(processor);await new Promise(function(resolve){
             setTimeout(resolve, 200)
-        });actualizarContadorProceso(indice, OTS.length, resultados.length, errores.length, ot, "Consultando trazabilidad...");await esperarTablaTrazabilidad(10000);return extraerPrimerEstado(ot)
+        });actualizarContadorProceso(indice, OTS.length, resultados.length, errores.length, ot, "Consultando trazabilidad...");await esperarTablaTrazabilidad(10000);
+        const primerEstado = extraerPrimerEstado(ot);
+        primerEstado.estados = extraerTodosEstados(ot);
+        return primerEstado
     }
     OTS=await solicitarOTs();if(OTS.length===0)return;crearContadorProceso(OTS.length);console.clear();console.log("TRAZABILIDAD MASIVA");console.log("OTs detectadas: "+OTS.length);for(var i=0;i<OTS.length;i++){
         var ot=OTS[i];try{
@@ -239,7 +369,8 @@ javascript:(async function(){
         }
     }
     finalizarContadorProceso();console.log("PROCESO FINALIZADO");console.log("OTs recibidas: "+OTS.length);console.log("OTs procesadas: "+resultados.length);console.log("OTs con error: "+errores.length);console.log("CONTROL FINAL: "+(resultados.length+errores.length)+" / "+OTS.length);if(resultados.length>0){
-        console.table(resultados);generarXLS(resultados)
+        console.table(resultados);generarXLS(resultados);
+            generarTXT(resultados)
     }
     if(errores.length>0){
         console.log("ERRORES");console.table(errores)
