@@ -223,8 +223,15 @@ javascript: (async () => {
         "&#10003; Correctas: <b>" + STATE.resultados.length + "</b>";
       STATE.progreso.querySelector("#tpErr").innerHTML =
         "&#9888; Errores: <b>" + STATE.errores.length + "</b>";
-      STATE.progreso.querySelector("#tpBad").textContent =
-        "OT ERRONEA: " + (errorOT || "-");
+      const erroresOT = [
+        ...new Set(
+          STATE.errores.map((error) => error.ot || errorOT).filter(Boolean)
+        )
+      ];
+      STATE.progreso.querySelector("#tpBad").textContent = erroresOT.length
+        ? (erroresOT.length === 1 ? "OT ERRONEA: " : "OTS ERRONEAS: ") +
+          erroresOT.join(", ")
+        : "OT ERRONEA: -";
       STATE.progreso.querySelector("#tpCurrent").textContent =
         "OT actual: " + (ot || "-");
       STATE.progreso.querySelector("#tpState").textContent = state;
