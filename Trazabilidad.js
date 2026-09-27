@@ -220,9 +220,9 @@ javascript: (async () => {
         "Progreso: " + done + " / " + total + " (" + pct + "%)";
       STATE.progreso.querySelector("#tpBar").style.width = pct + "%";
       STATE.progreso.querySelector("#tpOk").innerHTML =
-        "? Correctas: <b>" + STATE.resultados.length + "</b>";
+        "&#10003; Correctas: <b>" + STATE.resultados.length + "</b>";
       STATE.progreso.querySelector("#tpErr").innerHTML =
-        "? Errores: <b>" + STATE.errores.length + "</b>";
+        "&#9888; Errores: <b>" + STATE.errores.length + "</b>";
       STATE.progreso.querySelector("#tpBad").textContent =
         "OT ERRONEA: " + (errorOT || "-");
       STATE.progreso.querySelector("#tpCurrent").textContent =
@@ -241,6 +241,9 @@ javascript: (async () => {
       actions.style.cssText = "display:flex;gap:8px;margin-top:14px";
       actions.innerHTML =
         '<button id="tpNew" style="flex:1;border:0;background:#38bdf8;color:#082f49;border-radius:9px;padding:9px;cursor:pointer;font-weight:800">? Nuevo proceso</button><button id="tpCloseProgress" style="flex:1;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;border-radius:9px;padding:9px;cursor:pointer;font-weight:700">? Cerrar</button>';
+      actions.innerHTML = actions.innerHTML
+        .replace("? Nuevo proceso", "&#8635; Nuevo proceso")
+        .replace("? Cerrar", "&#10005; Cerrar");
       STATE.progreso.appendChild(actions);
       actions.querySelector("#tpNew").onclick = () => {
         STATE.progreso.remove();
@@ -268,6 +271,9 @@ javascript: (async () => {
           "width:620px;max-width:100%;background:#fff;border-radius:20px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.3)";
         box.innerHTML =
           '<div style="font-size:12px;font-weight:800;letter-spacing:1.2px;color:#64748b">TRAZABILIDAD</div><h2 style="margin:7px 0;color:#0f172a">Carga de trazabilidad</h2><p style="margin:0 0 16px;color:#64748b;font-size:13px;line-height:1.5">Pega las Órdenes que quieres procesar, una por línea o directamente desde Excel.</p><textarea id="tpInput" spellcheck="false" placeholder="607992341\n607987603\n607987909" style="width:100%;height:180px;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical;font:13px Consolas,monospace;outline:none"></textarea><div id="tpDetect" style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#f8fafc;color:#64748b;font-size:12px">OTs detectadas: 0</div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px"><button id="tpBack" style="border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:10px 17px;cursor:pointer">? Volver</button><button id="tpClose" style="border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:10px 17px;cursor:pointer">Cancelar</button><button id="tpStart" style="border:0;background:#0f172a;color:#fff;border-radius:10px;padding:10px 19px;cursor:pointer;font-weight:700">Iniciar proceso ?</button></div>';
+        box.innerHTML = box.innerHTML
+          .replace("? Volver", "&#8592; Volver")
+          .replace("Iniciar proceso ?", "Iniciar proceso &#9654;");
         const input = box.querySelector("#tpInput"),
           detect = box.querySelector("#tpDetect"),
           refresh = () => {
@@ -378,6 +384,9 @@ javascript: (async () => {
         "background:#fff;padding:28px;border-radius:22px;width:820px;max-width:100%;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.25)";
       box.innerHTML =
         '<div style="font-size:12px;font-weight:800;letter-spacing:1.2px;color:#64748b">TRAZABILIDAD · TXT</div><h2 style="margin:7px 0 6px;color:#0f172a;font-size:24px">Carga de trazabilidad</h2><p style="margin:0 0 18px;color:#64748b;font-size:13px;line-height:1.5">Pega desde Excel las columnas <b>ID Cliente</b> y <b>Orden</b>. Cada fila representa un registro.</p><div style="border:1px solid #e2e8f0;border-radius:15px;overflow:hidden;background:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;background:#f8fafc;border-bottom:1px solid #e2e8f0"><div style="padding:11px 14px;font-size:12px;font-weight:800;color:#334155">ID CLIENTE</div><div style="padding:11px 14px;font-size:12px;font-weight:800;color:#334155;border-left:1px solid #e2e8f0">ORDEN</div></div><div id="tmRows" style="max-height:300px;overflow-y:auto"></div></div><textarea id="tmPaste" spellcheck="false" placeholder="Pega aquí desde Excel...\n\n156701578\t608449982\n162796318\t608385516" style="display:block;width:100%;height:110px;box-sizing:border-box;margin-top:12px;padding:12px 14px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical;outline:none;background:#fff;color:#0f172a;font:13px Consolas,monospace;line-height:1.5"></textarea><div id="tmPreview" style="margin-top:12px;padding:11px 13px;border-radius:11px;background:#f8fafc;color:#64748b;font-size:12px">0 registros detectados · Pega los datos de Excel en la tabla</div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px"><button id="tmBack" style="border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:11px;padding:11px 17px;cursor:pointer;font-weight:600">? Volver</button><button id="tmCancel" style="border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:11px;padding:11px 17px;cursor:pointer;font-weight:600">Cancelar</button><button id="tmProcess" style="border:0;background:#0f172a;color:#fff;border-radius:11px;padding:11px 19px;cursor:pointer;font-weight:700">Procesar TXT ?</button></div>';
+      box.innerHTML = box.innerHTML
+        .replace("? Volver", "&#8592; Volver")
+        .replace("Procesar TXT ?", "Procesar TXT &#9654;");
       const paste = box.querySelector("#tmPaste"),
         rowsEl = box.querySelector("#tmRows"),
         preview = box.querySelector("#tmPreview"),
