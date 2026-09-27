@@ -73,7 +73,7 @@ javascript: (async () => {
       if (!clip?.trim()) return alert("❌ El portapapeles está vacío.");
       const partes = clip
         .split(
-          /^\s*-{3,}\s*$(?=\s*(?:ID\s*:|AVERIA\s*:|NUMERO\s+DE\s+OT\s*:))/gim
+          /^\s*-{3,}\s*$(?=\s*(?:ID\s+CLIENTE\s*:|ID\s*:|AVERIA\s*:|NUMERO\s+DE\s+OT\s*:))/gim
         )
         .map((x) => x.trim())
         .filter(
@@ -108,10 +108,15 @@ javascript: (async () => {
     if (!caso) throw Error("No se encontró AVERIA, NUMERO DE OT ni ID.");
     const eq =
         (p.match(/(?:^|\n)\s*EQUIPO\s*:\s*(.+)/i) || [])[1]?.trim() || "",
-      tip =
-        eq.toLowerCase() === "sagemcom deco tv lowi entry zapper"
-          ? "Autoi TV"
-          : "Autoi Net";
+      equipoNormalizado = eq
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase(),
+      tip = /(?:autoi\s*tv|deco\s*tv|sagemcom\s+deco\s+tv)/.test(
+        equipoNormalizado
+      )
+        ? "Autoi TV"
+        : "Autoi Net";
     console.log(
       `📋 ${caso.tipo}: ${caso.id} | 📦 ${eq || "Sin equipo"} | 🎯 ${tip}`
     );
