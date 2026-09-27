@@ -1102,7 +1102,7 @@ javascript: (async () => {
           error: error.message,
           fecha: new Date().toLocaleTimeString()
         });
-        log("ERROR EXPORTANDO TXTs", error.message);
+        log("ERROR EXPORTANDO TXT", error.message);
       }
     }
     if (STATE.errores.length) {
