@@ -859,9 +859,10 @@ javascript: (async () => {
       const c = [...fila.querySelectorAll("td")].map((x) =>
         (x.innerText || "").replace(/\s+/g, " ").trim()
       );
-      if (c.length >= 6) {
-        if (!equipo && c[3]) equipo = c[3];
-        if (!serie && c[5]) serie = c[5];
+      if (c.length >= 6 && c[5] && c[5] !== "-") {
+        equipo = c[3] || equipo;
+        serie = c[5];
+        break;
       }
     }
     return {
