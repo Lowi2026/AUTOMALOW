@@ -317,15 +317,18 @@ javascript: (async () => {
       box.style.cssText =
         "background:#fff;padding:30px;border-radius:22px;width:520px;max-width:100%;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.25)";
       box.innerHTML =
-        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:15px"><div><div style="font-size:12px;font-weight:800;letter-spacing:1.2px;color:#64748b">TRAZABILIDAD</div><h2 style="margin:8px 0;color:#0f172a;font-size:25px">¿Qué quieres generar?</h2></div><button id="tmClose" title="Cerrar" style="border:0;background:#f1f5f9;color:#475569;width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:19px;line-height:34px;font-weight:700">×</button></div><p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.5">Selecciona el formato de salida para iniciar el proceso de trazabilidad.</p><div id="tmModes" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"></div>';
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:15px"><div><div style="font-size:12px;font-weight:800;letter-spacing:1.2px;color:#64748b">TRAZABILIDAD</div><h2 style="margin:8px 0;color:#0f172a;font-size:25px">¿Qué quieres generar?</h2></div><button id="tmClose" title="Cerrar" style="border:0;background:#f1f5f9;color:#475569;width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:19px;line-height:34px;font-weight:700">×</button></div><p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.5">Selecciona el formato de salida para iniciar el proceso de trazabilidad.</p><div id="tmModes" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>';
       const modes = box.querySelector("#tmModes"),
         xls = document.createElement("button"),
-        txt = document.createElement("button");
+        txt = document.createElement("button"),
+        both = document.createElement("button");
       xls.innerHTML =
         "<div aria-hidden='true' style='font-size:28px;line-height:1'>&#128202;</div><div style='margin-top:8px;font-size:15px;font-weight:700'>Trazabilidad XLS</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>Procesamiento estándar</div>";
       txt.innerHTML =
         "<div aria-hidden='true' style='font-size:28px;line-height:1'>&#128196;</div><div style='margin-top:8px;font-size:15px;font-weight:700'>Trazabilidad TXT</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>ID cliente + OT + equipo</div>";
-      [xls, txt].forEach((b) => {
+      both.innerHTML =
+        "<div aria-hidden='true' style='font-size:28px;line-height:1'>&#128202; &#128196;</div><div style='margin-top:8px;font-size:15px;font-weight:700'>TXT + EXCEL</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>Dos formatos en una extracción</div>";
+      [xls, txt, both].forEach((b) => {
         b.style.cssText =
           "border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;border-radius:16px;padding:18px 14px;cursor:pointer;text-align:center;transition:.2s;font-family:inherit";
         b.onmouseenter = () => {
@@ -351,6 +354,10 @@ javascript: (async () => {
       txt.onclick = () => {
         overlay.remove();
         resolve("txt");
+      };
+      both.onclick = () => {
+        overlay.remove();
+        resolve("both");
       };
       overlay.onclick = (e) => {
         if (e.target === overlay) {
@@ -795,6 +802,23 @@ javascript: (async () => {
       serie: serie || "NO ENCONTRADA"
     };
   };
+  const extraerDatosTXT = async (ot, idCliente) => {
+    const estados = extraerTodosEstados(ot),
+      tracking = extraerTracking();
+    await abrirDetalleLineas();
+    await wait(500);
+    const eq = extraerEquipoSerie(),
+      movilLogistica = extraerMovilLogistica();
+    return {
+      idCliente,
+      ot,
+      tracking,
+      movilLogistica,
+      equipo: eq.equipo,
+      serie: eq.serie,
+      estados
+    };
+  };
   const exportTXT = (data) => {
     let out = "";
     data.forEach((d, i) => {
@@ -916,7 +940,9 @@ javascript: (async () => {
       progress.create(STATE.ots.length);
       console.clear();
       log(
-        "TRAZABILIDAD MASIVA TXT",
+        modo === "both"
+          ? "TRAZABILIDAD MASIVA TXT + EXCEL"
+          : "TRAZABILIDAD MASIVA TXT",
         "Registros detectados:",
         datos.pares.length
       );
@@ -925,24 +951,20 @@ javascript: (async () => {
         const par = datos.pares[i],
           ot = par.ot,
           id = par.idCliente;
-        progress.update(i, datos.pares.length, ot, "Procesando TXT...");
+        progress.update(
+          i,
+          datos.pares.length,
+          ot,
+          modo === "both" ? "Procesando TXT + EXCEL..." : "Procesando TXT..."
+        );
         try {
-          await processOT(ot, i);
-          const estados = extraerTodosEstados(ot),
-            tracking = extraerTracking();
-          await abrirDetalleLineas();
-          await wait(500);
-          const eq = extraerEquipoSerie(),
-            movilLogistica = extraerMovilLogistica();
-          STATE.resultados.push({
-            idCliente: id,
-            ot,
-            tracking,
-            movilLogistica,
-            equipo: eq.equipo,
-            serie: eq.serie,
-            estados
-          });
+          const resultadoXLS = await processOT(ot, i),
+            resultadoTXT = await extraerDatosTXT(ot, id);
+          STATE.resultados.push(
+            modo === "both"
+              ? { ...resultadoXLS, ...resultadoTXT }
+              : resultadoTXT
+          );
           progress.update(
             i + 1,
             datos.pares.length,
@@ -996,10 +1018,32 @@ javascript: (async () => {
         console.table(STATE.resultados);
         exportXLS(STATE.resultados);
       }
-    } else {
+    } else if (modo === "txt") {
       if (STATE.resultados.length) {
         console.table(STATE.resultados);
         exportTXT(STATE.resultados);
+      }
+    } else if (modo === "both" && STATE.resultados.length) {
+      console.table(STATE.resultados);
+      try {
+        exportXLS(STATE.resultados);
+      } catch (error) {
+        STATE.errores.push({
+          tipo: "EXPORTACION XLS",
+          error: error.message,
+          fecha: new Date().toLocaleTimeString()
+        });
+        log("ERROR EXPORTANDO XLS", error.message);
+      }
+      try {
+        exportTXT(STATE.resultados);
+      } catch (error) {
+        STATE.errores.push({
+          tipo: "EXPORTACION TXT",
+          error: error.message,
+          fecha: new Date().toLocaleTimeString()
+        });
+        log("ERROR EXPORTANDO TXT", error.message);
       }
     }
     if (STATE.errores.length) {
