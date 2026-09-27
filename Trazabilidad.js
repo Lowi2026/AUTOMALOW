@@ -104,13 +104,22 @@ javascript: (async () => {
     new Promise((resolve, reject) => {
       let done = false,
         observer = null,
-        timer = null;
+        timer = null,
+        checkScheduled = false;
+      const scheduleCheck = () => {
+        if (checkScheduled) return;
+        checkScheduled = true;
+        Promise.resolve().then(() => {
+          checkScheduled = false;
+          check();
+        });
+      };
       const cleanup = () => {
         if (observer) observer.disconnect();
         if (timer) clearTimeout(timer);
-        document.removeEventListener("visibilitychange", check);
-        window.removeEventListener("pageshow", check);
-        window.removeEventListener("focus", check);
+        document.removeEventListener("visibilitychange", scheduleCheck);
+        window.removeEventListener("pageshow", scheduleCheck);
+        window.removeEventListener("focus", scheduleCheck);
       };
       const finish = (fn, value) => {
         if (done) return;
@@ -136,16 +145,16 @@ javascript: (async () => {
           return finish(reject, e);
         }
       };
-      observer = new MutationObserver(check);
+      observer = new MutationObserver(scheduleCheck);
       observer.observe(document.documentElement, {
         subtree: true,
         childList: true,
         attributes: true,
         characterData: true
       });
-      document.addEventListener("visibilitychange", check);
-      window.addEventListener("pageshow", check);
-      window.addEventListener("focus", check);
+      document.addEventListener("visibilitychange", scheduleCheck);
+      window.addEventListener("pageshow", scheduleCheck);
+      window.addEventListener("focus", scheduleCheck);
       timer = setTimeout(
         () =>
           finish(
