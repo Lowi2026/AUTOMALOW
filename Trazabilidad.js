@@ -322,9 +322,9 @@ javascript: (async () => {
         xls = document.createElement("button"),
         txt = document.createElement("button");
       xls.innerHTML =
-        "??<div style='margin-top:8px;font-size:15px;font-weight:700'>Trazabilidad XLS</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>Procesamiento estándar</div>";
+        "<div aria-hidden='true' style='font-size:28px;line-height:1'>&#128202;</div><div style='margin-top:8px;font-size:15px;font-weight:700'>Trazabilidad XLS</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>Procesamiento estándar</div>";
       txt.innerHTML =
-        "??<div style='margin-top:8px;font-size:15px;font-weight:700'>Trazabilidad TXT</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>ID cliente + OT + equipo</div>";
+        "<div aria-hidden='true' style='font-size:28px;line-height:1'>&#128196;</div><div style='margin-top:8px;font-size:15px;font-weight:700'>Trazabilidad TXT</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>ID cliente + OT + equipo</div>";
       [xls, txt].forEach((b) => {
         b.style.cssText =
           "border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;border-radius:16px;padding:18px 14px;cursor:pointer;text-align:center;transition:.2s;font-family:inherit";
