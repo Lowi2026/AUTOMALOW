@@ -1,9 +1,86 @@
 javascript: (async () => {
-  const url = location.href,
-    USERNAME = "hsteffe",
+  const USERNAME = "hsteffe",
     PASSWORD = "Alemania2026--",
     USERCORREO = "hsteffe1@corp.vodafone.es";
-  if (url.includes("lowi.es/bo/milowi")) {
+  const Utils = {
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    waitForElement: (selector, timeout = 20000, isReady = () => true) =>
+      new Promise((resolve, reject) => {
+        let observer,
+          timer,
+          done = false;
+        const cleanup = () => {
+          if (observer) observer.disconnect();
+          if (timer) clearTimeout(timer);
+        };
+        const finish = (callback, value) => {
+          if (done) return;
+          done = true;
+          cleanup();
+          callback(value);
+        };
+        const check = () => {
+          const element = document.querySelector(selector);
+          if (!element) return;
+          try {
+            if (isReady(element)) finish(resolve, element);
+          } catch (error) {
+            finish(reject, error);
+          }
+        };
+        check();
+        if (done) return;
+        observer = new MutationObserver(check);
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true
+        });
+        timer = setTimeout(
+          () => finish(reject, new Error("Timeout: " + selector)),
+          timeout
+        );
+        check();
+      }),
+    copyText: async (text) => {
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return;
+        } catch {}
+      }
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand("copy");
+      textarea.remove();
+      if (!copied) throw new Error("No se pudo copiar al portapapeles.");
+    },
+    fillInput: (element, value) => {
+      const prototype =
+        element instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+      if (!setter) throw new Error("No se pudo establecer el valor del campo.");
+      element.focus();
+      setter.call(element, value);
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      element.dispatchEvent(
+        new KeyboardEvent("keyup", {
+          key: value.slice(-1),
+          bubbles: true
+        })
+      );
+    }
+  };
+  const isHost = (url, host) =>
+    url.hostname === host || url.hostname.endsWith("." + host);
+
+  async function runLowi() {
     console.log("?? Ejecutando LOWI");
     const eD = ["DNI:", "NIE:"],
       eID = ["AMDOCS ID:", "ID Cliente:"],
@@ -159,12 +236,13 @@ javascript: (async () => {
     menu.innerHTML =
       '<div style="position:fixed;top:20px;right:20px;z-index:9999;background:#222;color:#fff;padding:14px 18px;border-radius:14px;font-family:sans-serif;font-size:16px"><br>Selecciona plantilla:<br><button id="btnLowi" style="margin-top:10px;width:140px;height:45px;background:#ff4d4d;color:#fff;border:0;border-radius:14px;font-weight:bold">Lowi</button><button id="btnCorta" style="margin-left:10px;width:140px;height:45px;background:#3399ff;color:#fff;border:0;border-radius:14px;font-weight:bold">Corta</button></div>';
     document.body.appendChild(menu);
-    ((copiar = (t) =>
-      navigator.clipboard.writeText(t).then(() => {
+    const copiar = async (text) => {
+      try {
+        await Utils.copyText(text);
         menu.remove();
-        let e = document.createElement("div");
-        e.textContent = "? Copiado correctamente";
-        Object.assign(e.style, {
+        const aviso = document.createElement("div");
+        aviso.textContent = "? Copiado correctamente";
+        Object.assign(aviso.style, {
           position: "fixed",
           top: "20px",
           right: "20px",
@@ -174,14 +252,19 @@ javascript: (async () => {
           borderRadius: "8px",
           zIndex: 9999
         });
-        document.body.appendChild(e);
-        setTimeout(() => e.remove(), 2000);
-      })),
-      (document.getElementById("btnLowi").onclick = () =>
-        copiar(crearPlantilla("lowi"))),
-      (document.getElementById("btnCorta").onclick = () =>
-        copiar(crearPlantilla("corta"))));
-  } else if (url.includes("vodafone-espa-a--s-a-u--production")) {
+        document.body.appendChild(aviso);
+        setTimeout(() => aviso.remove(), 2000);
+      } catch (error) {
+        alert("? Error al copiar: " + error.message);
+      }
+    };
+    document.getElementById("btnLowi").onclick = () =>
+      copiar(crearPlantilla("lowi"));
+    document.getElementById("btnCorta").onclick = () =>
+      copiar(crearPlantilla("corta"));
+  }
+
+  async function runVodafoneTraceability() {
     console.log("?? Ejecutando TRAZABILIDAD VODAFONE");
     const fecha = document.getElementById(
       "container-vodafonetrazabilidad---Home--DateRangeFechaCreacion-inner"
@@ -234,78 +317,51 @@ javascript: (async () => {
           new MouseEvent(e, { bubbles: true, cancelable: true })
         )
       );
-    setTimeout(() => {
-      let equipo = "",
-        serie = "";
-      const ot =
-        document
-          .querySelector(
-            "#container-vodafonetrazabilidad---Home--idProductsTable-rows-row0-col1"
-          )
-          ?.innerText.trim() || "NO ENCONTRADA";
+    const tablaLineas = await Utils.waitForElement(
+      "#container-vodafonetrazabilidad---Detail--detailLineTable-tblBody",
+      10000,
+      (table) => table.querySelector("tr")
+    );
+    let equipo = "",
+      serie = "";
+    const ot =
       document
-        .querySelectorAll(
-          "#container-vodafonetrazabilidad---Detail--detailLineTable-tblBody tr"
+        .querySelector(
+          "#container-vodafonetrazabilidad---Home--idProductsTable-rows-row0-col1"
         )
-        .forEach((f) => {
-          let c = f.querySelectorAll("td");
-          if (c.length >= 6) {
-            let d = c[3].innerText.trim(),
-              s = c[5].innerText.trim();
-            if (s) {
-              equipo = d;
-              serie = s;
-            }
-          }
-        });
-      let resultado =
-          "NUMERO DE OT: " +
-          ot +
-          "\n\nEQUIPO: " +
-          equipo +
-          "\nNUMERO DE SERIE/MAC: " +
-          serie +
-          "\n\n" +
-          r,
-        a = document.createElement("textarea");
-      a.value = resultado;
-      document.body.appendChild(a);
-      a.select();
-      document.execCommand("copy");
-      a.remove();
+        ?.innerText.trim() || "NO ENCONTRADA";
+    tablaLineas.querySelectorAll("tr").forEach((row) => {
+      const cells = row.querySelectorAll("td");
+      if (cells.length >= 6) {
+        const description = cells[3].innerText.trim(),
+          serial = cells[5].innerText.trim();
+        if (serial) {
+          equipo = description;
+          serie = serial;
+        }
+      }
+    });
+    const resultado =
+      "NUMERO DE OT: " +
+      ot +
+      "\n\nEQUIPO: " +
+      equipo +
+      "\nNUMERO DE SERIE/MAC: " +
+      serie +
+      "\n\n" +
+      r;
+    try {
+      await Utils.copyText(resultado);
       console.log("? Información completa copiada correctamente");
-    }, 500);
-  } else if (url.includes("nubgt01.ono.es")) {
+    } catch (error) {
+      console.error("? No se pudo copiar la información:", error);
+      alert("? No se pudo copiar la información: " + error.message);
+    }
+  }
+
+  async function runCisas() {
+    const { waitForElement: wait, fillInput: fill } = Utils;
     console.log("?? Ejecutando CISAS");
-    const wait = (s) =>
-        new Promise((r, j) => {
-          let t,
-            o = new MutationObserver(() => {
-              let e = document.querySelector(s);
-              e && (o.disconnect(), clearTimeout(t), r(e));
-            });
-          o.observe(document.documentElement, {
-            childList: true,
-            subtree: true
-          });
-          let e = document.querySelector(s);
-          e && (o.disconnect(), r(e));
-          t = setTimeout(() => {
-            (o.disconnect(), j("Timeout: " + s));
-          }, 20000);
-        }),
-      fill = (e, v) => {
-        e.focus();
-        Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value"
-        ).set.call(e, v);
-        e.dispatchEvent(new Event("input", { bubbles: true }));
-        e.dispatchEvent(new Event("change", { bubbles: true }));
-        e.dispatchEvent(
-          new KeyboardEvent("keyup", { key: v.slice(-1), bubbles: true })
-        );
-      };
     let u = await wait('input[name="username"]');
     fill(u, USERNAME);
     console.log("? Usuario CISAS cargado desde USERNAME");
@@ -315,37 +371,11 @@ javascript: (async () => {
     let b = await wait('button[type="submit"]');
     b.click();
     console.log("?? CISAS enviado");
-  } else if (url.includes("login.microsoftonline.com")) {
+  }
+
+  async function runMicrosoftLogin() {
+    const { waitForElement: wait, fillInput: fill } = Utils;
     console.log("?? Ejecutando LOGIN MICROSOFT");
-    const wait = (s) =>
-        new Promise((r, j) => {
-          let t,
-            o = new MutationObserver(() => {
-              let e = document.querySelector(s);
-              e && (o.disconnect(), clearTimeout(t), r(e));
-            });
-          o.observe(document.documentElement, {
-            childList: true,
-            subtree: true
-          });
-          let e = document.querySelector(s);
-          e && (o.disconnect(), r(e));
-          t = setTimeout(() => {
-            (o.disconnect(), j("Timeout: " + s));
-          }, 20000);
-        }),
-      fill = (e, v) => {
-        e.focus();
-        Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value"
-        ).set.call(e, v);
-        e.dispatchEvent(new Event("input", { bubbles: true }));
-        e.dispatchEvent(new Event("change", { bubbles: true }));
-        e.dispatchEvent(
-          new KeyboardEvent("keyup", { key: v.slice(-1), bubbles: true })
-        );
-      };
     let c = await wait("#i0116");
     fill(c, USERCORREO);
     console.log("? Correo Microsoft cargado desde USERCORREO");
@@ -358,7 +388,9 @@ javascript: (async () => {
     let i = await wait("#idSIButton9");
     i.click();
     console.log("?? Login Microsoft enviado");
-  } else if (url.includes("vodafone.etadirect.com")) {
+  }
+
+  async function runEtaDirect() {
     console.log("?? Ejecutando ETA DIRECT");
     function getText(label) {
       const el = [...document.querySelectorAll("div,span,td")].find(
@@ -374,43 +406,17 @@ javascript: (async () => {
       m = getText("Comentarios del Instalador"),
       d = new Date().toLocaleDateString("es-ES"),
       r = `BO_COPS_Mobility Lowi // Solicitud: ${s} // Nº Cliente: ${c} // Técnico: ${t} // Ticket: ${o} // Fecha de creación: ${d} // Tlf Tecnico: ${f} // Comentario técnico: ${m} // Respuesta a técnico:`;
-    navigator.clipboard
-      .writeText(r)
-      .then(() => alert("? Plantilla copiada"))
-      .catch((e) => alert("? Error: " + e));
-  } else if (url.includes("thot.ono.es")) {
+    try {
+      await Utils.copyText(r);
+      alert("? Plantilla copiada");
+    } catch (error) {
+      alert("? Error: " + error.message);
+    }
+  }
+
+  async function runThot() {
+    const { waitForElement: wait, fillInput: fill, sleep } = Utils;
     console.log("?? Ejecutando THOT");
-    const wait = (s) =>
-        new Promise((r, j) => {
-          let t,
-            o = new MutationObserver(() => {
-              let e = document.querySelector(s);
-              e && (o.disconnect(), clearTimeout(t), r(e));
-            });
-          o.observe(document.documentElement, {
-            childList: true,
-            subtree: true,
-            attributes: true
-          });
-          let e = document.querySelector(s);
-          e && (o.disconnect(), r(e));
-          t = setTimeout(() => {
-            (o.disconnect(), j("Timeout: " + s));
-          }, 20000);
-        }),
-      fill = (e, v) => {
-        e.focus();
-        const s = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          "value"
-        ).set;
-        s.call(e, v);
-        e.dispatchEvent(new Event("input", { bubbles: true }));
-        e.dispatchEvent(new Event("change", { bubbles: true }));
-        e.dispatchEvent(
-          new KeyboardEvent("keyup", { key: v.slice(-1), bubbles: true })
-        );
-      };
     let u = await wait("#login-name");
     fill(u, USERNAME);
     console.log("? Usuario THOT cargado desde USERNAME");
@@ -423,7 +429,7 @@ javascript: (async () => {
     let b = await wait("#enviar"),
       n = 0;
     while (b.disabled && n < 200) {
-      await new Promise((r) => setTimeout(r, 100));
+      await sleep(100);
       b = document.querySelector("#enviar");
       n++;
     }
@@ -431,7 +437,51 @@ javascript: (async () => {
       b.click();
       console.log("?? Login THOT enviado");
     } else console.log("?? El botón continúa deshabilitado");
+  }
+
+  const handlers = [
+    {
+      name: "LOWI",
+      matches: (url) =>
+        isHost(url, "lowi.es") && url.pathname.includes("/bo/milowi"),
+      run: runLowi
+    },
+    {
+      name: "TRAZABILIDAD VODAFONE",
+      matches: (url) => url.href.includes("vodafone-espa-a--s-a-u--production"),
+      run: runVodafoneTraceability
+    },
+    {
+      name: "CISAS",
+      matches: (url) => isHost(url, "nubgt01.ono.es"),
+      run: runCisas
+    },
+    {
+      name: "LOGIN MICROSOFT",
+      matches: (url) => isHost(url, "login.microsoftonline.com"),
+      run: runMicrosoftLogin
+    },
+    {
+      name: "ETA DIRECT",
+      matches: (url) => isHost(url, "vodafone.etadirect.com"),
+      run: runEtaDirect
+    },
+    {
+      name: "THOT",
+      matches: (url) => isHost(url, "thot.ono.es"),
+      run: runThot
+    }
+  ];
+  const currentUrl = new URL(location.href);
+  const handler = handlers.find(({ matches }) => matches(currentUrl));
+  if (handler) {
+    try {
+      await handler.run();
+    } catch (error) {
+      console.error("Error en " + handler.name + ":", error);
+      alert("Error al ejecutar " + handler.name + ": " + error.message);
+    }
   } else {
-    console.log("?? Portal no reconocido:", url);
+    console.log("?? Portal no reconocido:", currentUrl.hostname);
   }
 })();
