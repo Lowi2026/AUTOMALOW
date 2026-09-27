@@ -199,9 +199,10 @@ javascript: (async () => {
       const box = document.createElement("div");
       box.id = "trazabilidad-masiva-contador";
       box.style.cssText =
-        "position:fixed;top:20px;right:20px;width:350px;max-width:calc(100vw - 40px);background:rgba(15,23,42,.97);color:#fff;border-radius:16px;padding:18px 20px;box-shadow:0 14px 40px rgba(0,0,0,.3);z-index:9999999;font:14px Inter,Segoe UI,Arial,sans-serif;border:1px solid rgba(255,255,255,.15)";
+        "position:fixed;top:16px;right:16px;width:360px;max-width:calc(100vw - 32px);background:linear-gradient(145deg,rgba(15,23,42,.99),rgba(30,41,59,.97));color:#f8fafc;border-radius:18px;padding:20px;box-shadow:0 20px 55px rgba(2,6,23,.42);z-index:9999999;font:14px Inter,Segoe UI,Arial,sans-serif;line-height:1.45;border:1px solid rgba(148,163,184,.25);backdrop-filter:blur(16px)";
       box.innerHTML =
         '<div style="font-size:16px;font-weight:800">TRAZABILIDAD MASIVA</div><div id="tpProg" style="margin-top:12px;font-weight:600;color:#cbd5e1"></div><div style="height:7px;background:rgba(255,255,255,.12);border-radius:99px;margin:9px 0 13px;overflow:hidden"><div id="tpBar" style="height:100%;width:0%;background:#38bdf8;transition:width .2s"></div></div><div id="tpOk" style="margin:5px 0;color:#86efac"></div><div id="tpErr" style="margin:5px 0;color:#fca5a5"></div><div id="tpBad" style="margin:5px 0;color:#fca5a5"></div><div id="tpCurrent" style="margin:5px 0;color:#cbd5e1"></div><div id="tpState" style="margin-top:12px;font-weight:700"></div><button id="tpCancel" style="margin-top:14px;width:100%;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:#fff;border-radius:9px;padding:8px;cursor:pointer">Cancelar proceso</button>';
+      ('<div style="display:flex;align-items:center;gap:10px;font-size:16px;font-weight:800;letter-spacing:.2px"><span style="display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#38bdf8;color:#082f49;font-size:16px">&#8635;</span><span>TRAZABILIDAD MASIVA</span></div><div id="tpProg" style="margin-top:16px;font-weight:700;color:#e2e8f0"></div><div style="height:8px;background:rgba(148,163,184,.22);border-radius:99px;margin:10px 0 16px;overflow:hidden"><div id="tpBar" style="height:100%;width:0%;background:#38bdf8;border-radius:inherit;transition:width .25s ease"></div></div><div id="tpOk" style="margin:6px 0;color:#86efac"></div><div id="tpErr" style="margin:6px 0;color:#fca5a5"></div><div id="tpBad" style="margin:6px 0;color:#fca5a5;overflow-wrap:anywhere"></div><div id="tpCurrent" style="margin:6px 0;color:#cbd5e1;overflow-wrap:anywhere"></div><div id="tpState" style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(148,163,184,.18);font-weight:800;color:#f8fafc;overflow-wrap:anywhere"></div><button id="tpCancel" style="margin-top:16px;width:100%;border:1px solid rgba(248,250,252,.22);background:rgba(248,250,252,.1);color:#fff;border-radius:10px;padding:10px;cursor:pointer;font-weight:700;transition:background .2s ease,border-color .2s ease">Cancelar proceso</button>');
       box.querySelector("#tpCancel").onclick = () => {
         STATE.cancelado = true;
         box.querySelector("#tpState").textContent = "CANCELANDO...";
@@ -354,9 +355,13 @@ javascript: (async () => {
         "position:fixed;inset:0;background:rgba(15,23,42,.62);z-index:9999998;display:flex;align-items:center;justify-content:center;padding:20px;font-family:Inter,Segoe UI,Arial,sans-serif;backdrop-filter:blur(7px)";
       const box = document.createElement("div");
       box.style.cssText =
-        "background:#fff;padding:30px;border-radius:22px;width:520px;max-width:100%;box-sizing:border-box;box-shadow:0 24px 70px rgba(0,0,0,.25)";
+        "background:#fff;padding:28px;border-radius:20px;width:720px;max-width:100%;box-sizing:border-box;box-shadow:0 24px 70px rgba(2,6,23,.28);border:1px solid #e2e8f0";
       box.innerHTML =
         '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:15px"><div><div style="font-size:12px;font-weight:800;letter-spacing:1.2px;color:#64748b">TRAZABILIDAD</div><h2 style="margin:8px 0;color:#0f172a;font-size:25px">¿Qué quieres generar?</h2></div><button id="tmClose" title="Cerrar" style="border:0;background:#f1f5f9;color:#475569;width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:19px;line-height:34px;font-weight:700">×</button></div><p style="margin:0 0 24px;color:#64748b;font-size:14px;line-height:1.5">Selecciona el formato de salida para iniciar el proceso de trazabilidad.</p><div id="tmModes" style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px"></div>';
+      box.innerHTML = box.innerHTML.replace(
+        "grid-template-columns:repeat(3,1fr)",
+        "grid-template-columns:repeat(auto-fit,minmax(140px,1fr))"
+      );
       const modes = box.querySelector("#tmModes"),
         xls = document.createElement("button"),
         txt = document.createElement("button"),
@@ -369,16 +374,18 @@ javascript: (async () => {
         "<div aria-hidden='true' style='font-size:28px;line-height:1'>&#128202; &#128196;</div><div style='margin-top:8px;font-size:15px;font-weight:700'>TXT + EXCEL</div><div style='margin-top:4px;font-size:12px;font-weight:400;opacity:.75'>Dos formatos en una extracción</div>";
       [xls, txt, both].forEach((b) => {
         b.style.cssText =
-          "border:1px solid #e2e8f0;background:#f8fafc;color:#0f172a;border-radius:16px;padding:18px 14px;cursor:pointer;text-align:center;transition:.2s;font-family:inherit";
+          "border:1px solid #dbe4ee;background:#f8fafc;color:#0f172a;border-radius:14px;min-height:146px;padding:20px 14px;cursor:pointer;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:background .2s ease,border-color .2s ease,transform .2s ease,box-shadow .2s ease;font-family:inherit";
         b.onmouseenter = () => {
           b.style.background = "#eff6ff";
           b.style.borderColor = "#38bdf8";
           b.style.transform = "translateY(-2px)";
+          b.style.boxShadow = "0 10px 24px rgba(14,165,233,.14)";
         };
         b.onmouseleave = () => {
           b.style.background = "#f8fafc";
           b.style.borderColor = "#e2e8f0";
           b.style.transform = "translateY(0)";
+          b.style.boxShadow = "none";
         };
         modes.appendChild(b);
       });
@@ -471,7 +478,7 @@ javascript: (async () => {
           preview.style.background = p.length ? "#f0fdf4" : "#f8fafc";
           preview.style.color = p.length ? "#166534" : "#64748b";
           preview.textContent = p.length
-            ? "? " +
+            ? "\u2713 " +
               p.length +
               " registro" +
               (p.length === 1 ? "" : "s") +
