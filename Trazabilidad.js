@@ -414,7 +414,7 @@ javascript: (async () => {
       overlay.appendChild(box);
       document.body.appendChild(overlay);
     });
-  const askTXT = () =>
+  const askTXT = (modo = "txt") =>
     new Promise((resolve) => {
       const overlay = document.createElement("div");
       overlay.style.cssText =
@@ -426,6 +426,15 @@ javascript: (async () => {
         '<div style="font-size:12px;font-weight:800;letter-spacing:1.2px;color:#64748b">TRAZABILIDAD · TXT</div><h2 style="margin:7px 0 6px;color:#0f172a;font-size:24px">Carga de trazabilidad</h2><p style="margin:0 0 18px;color:#64748b;font-size:13px;line-height:1.5">Pega desde Excel las columnas <b>ID Cliente</b> y <b>Orden</b>. Cada fila representa un registro.</p><div style="border:1px solid #e2e8f0;border-radius:15px;overflow:hidden;background:#fff"><div style="display:grid;grid-template-columns:1fr 1fr;background:#f8fafc;border-bottom:1px solid #e2e8f0"><div style="padding:11px 14px;font-size:12px;font-weight:800;color:#334155">ID CLIENTE</div><div style="padding:11px 14px;font-size:12px;font-weight:800;color:#334155;border-left:1px solid #e2e8f0">ORDEN</div></div><div id="tmRows" style="max-height:300px;overflow-y:auto"></div></div><textarea id="tmPaste" spellcheck="false" placeholder="Pega aquí desde Excel...\n\n156701578\t608449982\n162796318\t608385516" style="display:block;width:100%;height:110px;box-sizing:border-box;margin-top:12px;padding:12px 14px;border:1px solid #cbd5e1;border-radius:12px;resize:vertical;outline:none;background:#fff;color:#0f172a;font:13px Consolas,monospace;line-height:1.5"></textarea><div id="tmPreview" style="margin-top:12px;padding:11px 13px;border-radius:11px;background:#f8fafc;color:#64748b;font-size:12px">0 registros detectados · Pega los datos de Excel en la tabla</div><div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px"><button id="tmBack" style="border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:11px;padding:11px 17px;cursor:pointer;font-weight:600">? Volver</button><button id="tmCancel" style="border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:11px;padding:11px 17px;cursor:pointer;font-weight:600">Cancelar</button><button id="tmProcess" style="border:0;background:#0f172a;color:#fff;border-radius:11px;padding:11px 19px;cursor:pointer;font-weight:700">Procesar TXT ?</button></div>';
       box.innerHTML = box.innerHTML
         .replace("? Volver", "&#8592; Volver")
+        .replace(
+          "TRAZABILIDAD · TXT",
+          modo === "both" ? "TRAZABILIDAD · TXT + EXCEL" : "TRAZABILIDAD · TXT"
+        )
+        .replace(
+          "Procesar TXT ?",
+          modo === "both" ? "Procesar TXT + EXCEL ?" : "Procesar TXT ?"
+        )
+        .replace("Procesar TXT + EXCEL ?", "Procesar TXT + EXCEL &#9654;")
         .replace("Procesar TXT ?", "Procesar TXT &#9654;");
       const paste = box.querySelector("#tmPaste"),
         rowsEl = box.querySelector("#tmRows"),
@@ -982,7 +991,7 @@ javascript: (async () => {
         }
       }
     } else {
-      const datos = await askTXT();
+      const datos = await askTXT(modo);
       if (datos === "__back") return iniciar();
       if (!datos) return;
       STATE.ots = datos.pares.map((x) => x.ot);
