@@ -39,6 +39,8 @@ javascript: (async () => {
       resultados: [],
       errores: [],
       progreso: null,
+      progresoEstado: "",
+      progresoVisibilityHandler: null,
       cancelado: false
     };
   const log = (...a) => {
@@ -186,6 +188,13 @@ javascript: (async () => {
   };
   const progress = {
     create(total) {
+      if (STATE.progresoVisibilityHandler) {
+        document.removeEventListener(
+          "visibilitychange",
+          STATE.progresoVisibilityHandler
+        );
+        STATE.progresoVisibilityHandler = null;
+      }
       if (STATE.progreso) STATE.progreso.remove();
       const box = document.createElement("div");
       box.id = "trazabilidad-masiva-contador";
@@ -200,18 +209,22 @@ javascript: (async () => {
       };
       document.body.appendChild(box);
       STATE.progreso = box;
+      STATE.progresoEstado = "Preparando proceso...";
       this.update(0, total, "-", "Preparando proceso...");
-      document.addEventListener("visibilitychange", () => {
+      const visibilityHandler = () => {
         if (!STATE.progreso) return;
         const el = STATE.progreso.querySelector("#tpState");
         if (!el) return;
         if (document.hidden) {
           el.textContent =
-            "EJECUTANDO EN SEGUNDO PLANO · " + (state || "Procesando...");
+            "EJECUTANDO EN SEGUNDO PLANO · " +
+            (STATE.progresoEstado || "Procesando...");
         } else if (!STATE.cancelado) {
-          el.textContent = state || "Procesando...";
+          el.textContent = STATE.progresoEstado || "Procesando...";
         }
-      });
+      };
+      STATE.progresoVisibilityHandler = visibilityHandler;
+      document.addEventListener("visibilitychange", visibilityHandler);
     },
     update(done, total, ot, state, errorOT = "") {
       if (!STATE.progreso) return;
@@ -234,11 +247,24 @@ javascript: (async () => {
         : "OT ERRONEA: -";
       STATE.progreso.querySelector("#tpCurrent").textContent =
         "OT actual: " + (ot || "-");
+      STATE.progresoEstado = state || "Procesando...";
       STATE.progreso.querySelector("#tpState").textContent = state;
     },
     finish(total) {
       if (!STATE.progreso) return;
-      this.update(total, total, "-", "PROCESO FINALIZADO");
+      this.update(
+        total,
+        total,
+        "-",
+        STATE.cancelado ? "PROCESO CANCELADO" : "PROCESO FINALIZADO"
+      );
+      if (STATE.progresoVisibilityHandler) {
+        document.removeEventListener(
+          "visibilitychange",
+          STATE.progresoVisibilityHandler
+        );
+        STATE.progresoVisibilityHandler = null;
+      }
       STATE.progreso.style.border = STATE.errores.length
         ? "2px solid #dc3545"
         : "2px solid #28a745";
@@ -989,15 +1015,6 @@ javascript: (async () => {
           );
         } catch (error) {
           STATE.errores.push({ idCliente: id, ot, error: error.message });
-          STATE.resultados.push({
-            idCliente: id,
-            ot,
-            tracking: "NO ENCONTRADO",
-            movilLogistica: "NO ENCONTRADO",
-            equipo: "ERROR",
-            serie: "ERROR",
-            estados: []
-          });
           log("ERROR TXT", id, ot, error.message);
           progress.update(
             i + 1,
