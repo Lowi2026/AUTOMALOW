@@ -266,97 +266,86 @@ javascript: (async () => {
 
   async function runVodafoneTraceability() {
     console.log("?? Ejecutando TRAZABILIDAD VODAFONE");
-    const fecha = document.getElementById(
-      "container-vodafonetrazabilidad---Home--DateRangeFechaCreacion-inner"
-    );
-    if (fecha) {
-      fecha.value = "01/07/2026 – 13/09/2026";
-      fecha.dispatchEvent(new Event("input", { bubbles: true }));
-      fecha.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-    let f = [],
-      r = "";
-    const t = document.querySelector(
-      "#container-vodafonetrazabilidad---Detail--historyDetailTable-listUl"
-    );
-    if (!t) {
-      console.error("? No se encontró la tabla de trazabilidad");
-      return;
-    }
-    t.querySelectorAll("tbody tr").forEach((e) => {
-      let c = e.querySelectorAll("td");
-      if (c.length >= 5)
-        f.push({
-          situacion: c[1].innerText.trim(),
-          descripcion: c[2].innerText.trim(),
-          fecha: c[3].innerText.trim(),
-          hora: c[4].innerText.trim()
-        });
-    });
-    r = "VALIDACION TRAZABILIDAD:\n\n";
-    r +=
-      "SITUACION".padEnd(15) +
-      "DESCRIPCIÓN".padEnd(30) +
-      "FECHA DE ESTADO".padEnd(20) +
-      "HORA DE ESTADO\n";
-    r += "-".repeat(85) + "\n";
-    f.forEach((e) => {
-      r +=
-        e.situacion.padEnd(15) +
-        e.descripcion.padEnd(30) +
-        e.fecha.padEnd(20) +
-        e.hora +
-        "\n";
-    });
-    const tab = document.getElementById(
-      "container-vodafonetrazabilidad---Detail--iconTabFilterShipping-tab"
-    );
-    if (tab)
-      ["pointerdown", "mousedown", "mouseup", "click"].forEach((e) =>
-        tab.dispatchEvent(
-          new MouseEvent(e, { bubbles: true, cancelable: true })
-        )
-      );
-    const tablaLineas = await Utils.waitForElement(
-      "#container-vodafonetrazabilidad---Detail--detailLineTable-tblBody",
-      10000,
-      (table) => table.querySelector("tr")
-    );
-    let equipo = "",
-      serie = "";
-    const ot =
-      document
-        .querySelector(
-          "#container-vodafonetrazabilidad---Home--idProductsTable-rows-row0-col1"
-        )
-        ?.innerText.trim() || "NO ENCONTRADA";
-    tablaLineas.querySelectorAll("tr").forEach((row) => {
-      const cells = row.querySelectorAll("td");
-      if (cells.length >= 6) {
-        const description = cells[3].innerText.trim(),
-          serial = cells[5].innerText.trim();
-        if (serial) {
-          equipo = description;
-          serie = serial;
+
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.style.cssText =
+        "position:fixed;top:16px;right:16px;z-index:9999998;font-family:Inter,Segoe UI,Arial,sans-serif";
+
+      const box = document.createElement("div");
+      box.style.cssText =
+        "width:230px;max-width:calc(100vw - 32px);background:#fff;border-radius:10px;padding:10px;box-shadow:0 6px 20px rgba(0,0,0,.16);border:1px solid #e2e8f0;box-sizing:border-box";
+
+      box.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;color:#334155;font-size:13px;font-weight:700">
+          <span>Trazabilidad</span>
+          <button id="vodafone-cancel" title="Cerrar" aria-label="Cerrar" style="border:0;background:transparent;color:#64748b;padding:0 2px;cursor:pointer;font-size:17px;line-height:1">×</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">
+          <button id="vodafone-individual" style="border:1px solid #dbe4ee;background:#f8fafc;color:#0f172a;border-radius:7px;min-height:34px;cursor:pointer;padding:5px 4px;display:flex;align-items:center;justify-content:center;gap:4px;font-family:inherit;font-size:12px;font-weight:700;transition:background .15s ease,border-color .15s ease">
+            <span aria-hidden="true" style="font-size:14px">🧍</span>
+            <span>Individual</span>
+          </button>
+          <button id="vodafone-masivo" style="border:1px solid #dbe4ee;background:#f8fafc;color:#0f172a;border-radius:7px;min-height:34px;cursor:pointer;padding:5px 4px;display:flex;align-items:center;justify-content:center;gap:4px;font-family:inherit;font-size:12px;font-weight:700;transition:background .15s ease,border-color .15s ease">
+            <span aria-hidden="true" style="font-size:14px">📦</span>
+            <span>Masivo</span>
+          </button>
+        </div>
+      `;
+
+      const loadScript = (url) => {
+        const script = document.createElement("script");
+        script.src = url;
+        script.type = "text/javascript";
+        script.async = true;
+
+        script.onload = () => {
+          console.log("Script cargado correctamente:", url);
+          resolve();
+        };
+
+        script.onerror = () => {
+          console.error("No se pudo cargar el script:", url);
+          alert("No se pudo cargar la trazabilidad seleccionada.");
+          resolve();
+        };
+
+        document.body.appendChild(script);
+      };
+
+      const close = () => overlay.remove();
+
+      box.querySelector("#vodafone-individual").onclick = () => {
+        close();
+        loadScript(
+          "https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/TraIndividual.js?v=" +
+            Date.now()
+        );
+      };
+
+      box.querySelector("#vodafone-masivo").onclick = () => {
+        close();
+        loadScript(
+          "https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/Trazabilidad.js?v=" +
+            Date.now()
+        );
+      };
+
+      box.querySelector("#vodafone-cancel").onclick = () => {
+        close();
+        resolve();
+      };
+
+      overlay.onclick = (event) => {
+        if (event.target === overlay) {
+          close();
+          resolve();
         }
-      }
+      };
+
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
     });
-    const resultado =
-      "NUMERO DE OT: " +
-      ot +
-      "\n\nEQUIPO: " +
-      equipo +
-      "\nNUMERO DE SERIE/MAC: " +
-      serie +
-      "\n\n" +
-      r;
-    try {
-      await Utils.copyText(resultado);
-      console.log("? Información completa copiada correctamente");
-    } catch (error) {
-      console.error("? No se pudo copiar la información:", error);
-      alert("? No se pudo copiar la información: " + error.message);
-    }
   }
 
   async function runCisas() {
