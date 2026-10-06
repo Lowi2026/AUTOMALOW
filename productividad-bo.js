@@ -181,7 +181,7 @@ javascript: (async () => {
       if (!clip?.trim()) return alert("❌ El portapapeles está vacío.");
       const partes = clip
         .split(
-          /^[\t ]*-{3,}[\t ]*$(?=\r?\n[\t ]*(?:[\u2022*-]\s*(?:NOMBRE|DNI|ID)\s*:|ID\s+CLIENTE\s*:|AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|\d{6,}\s*-\s*CERRADA))/gim
+          /^[\t ]*-{3,}[\t ]*$(?=(?:\r?\n[\t ]*)+(?:[\u2022*-]\s*(?:NOMBRE|DNI|ID)\s*:|ID\s+CLIENTE\s*:|AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|\d{6,}\s*-\s*CERRADA))/gim
         )
         .map((x) => x.trim())
         .filter(
