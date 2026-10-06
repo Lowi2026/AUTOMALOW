@@ -213,8 +213,10 @@
                 <button type="button" data-action="copy" disabled>Copiar plantillas</button>
                 <button type="button" data-action="combine" disabled>Plantilla DNI +Traza</button>
                 <button type="button" data-action="retry" disabled>Reprocesar errores</button>
+                <button type="button" data-action="clear-memory">Borrar memoria de clientes</button>
                 <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
+            <div data-memory-status role="status" style="margin-top:6px;color:#555;font-size:12px"></div>
             <section data-errors role="alert" aria-live="assertive" aria-label="Errores y fichas sin pareja" hidden style="margin-top:8px;padding:8px;border:1px solid #c62828;border-radius:4px;background:#fff0f0;color:#8b0000;overflow-wrap:anywhere">
                 <strong>Errores y fichas sin pareja</strong>
                 <ul data-error-list style="margin:4px 0 0;padding-left:20px"></ul>
@@ -260,8 +262,31 @@
         const copyResultButton = templatePanel.querySelector('[data-action="copy-result"]');
         const copyResultPartButton = templatePanel.querySelector('[data-action="copy-result-part"]');
         const downloadResultButton = templatePanel.querySelector('[data-action="download-result"]');
+        const clearMemoryButton = templatePanel.querySelector('[data-action="clear-memory"]');
+        const memoryStatus = templatePanel.querySelector("[data-memory-status]");
         const status = templatePanel.querySelector('[role="status"]');
         const templatesByDni = new Map();
+        const clientMemoryKey = "LOWI_DNI_CLIENT_MEMORY_V1";
+        const clientMemory = new Map();
+        let memoryLoadError = "";
+        try {
+            const savedMemory = JSON.parse(localStorage.getItem(clientMemoryKey) || "[]");
+            if (!Array.isArray(savedMemory)) throw new Error("El formato guardado no es válido.");
+            savedMemory.forEach(entry => {
+                if (
+                    entry &&
+                    typeof entry.template === "string" &&
+                    (typeof entry.clientId === "string" || typeof entry.dni === "string")
+                ) {
+                    const memoryId = String(entry.clientId || "").trim();
+                    const memoryDni = String(entry.dni || "").trim().toUpperCase();
+                    if (memoryId) clientMemory.set(`id:${memoryId}`, entry);
+                    if (memoryDni) clientMemory.set(`dni:${memoryDni}`, entry);
+                }
+            });
+        } catch (error) {
+            memoryLoadError = error.message;
+        }
         let allDnis = [];
         let retryQueue = [];
         let retryMode = false;
@@ -285,7 +310,7 @@
                 ? "Pega aquí la plantilla completa del DNI"
                 : "Un DNI sintético por línea";
             traceTextarea.placeholder = useCompleteTemplate
-                ? "Pega aquí las plantillas de trazabilidad; se usará la primera"
+                ? "Pega trazas con ID CLIENTE: o bloques completos con • ID: antes de NUMERO DE OT:"
                 : "Pega aquí las plantillas de trazabilidad al terminar las consultas";
             startButton.disabled = running || useCompleteTemplate;
             pauseButton.disabled = !running || useCompleteTemplate;
@@ -293,6 +318,37 @@
             copyButton.disabled = useCompleteTemplate || templatesByDni.size === 0;
             retryButton.disabled = useCompleteTemplate || running || retryQueue.length === 0;
             combineButton.disabled = !useCompleteTemplate && templatesByDni.size === 0;
+        }
+
+        function updateMemoryStatus(message = "") {
+            const uniqueClients = new Set(clientMemory.values());
+            memoryStatus.textContent = memoryLoadError
+                ? `No se pudo leer la memoria local: ${memoryLoadError}`
+                : `${uniqueClients.size} clientes guardados en la memoria de este navegador.${message ? ` ${message}` : ""}`;
+        }
+
+        function findRememberedTemplate(dni, clientId) {
+            const id = String(clientId || "").trim();
+            const byId = id ? clientMemory.get(`id:${id}`) : null;
+            const byDni = clientMemory.get(`dni:${String(dni).trim().toUpperCase()}`);
+            return byId || byDni || null;
+        }
+
+        function rememberTemplate(dni, template) {
+            const clientId = template.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim() || "";
+            const normalizedDni = String(dni).trim().toUpperCase();
+            const entry = { clientId, dni: normalizedDni, template, updatedAt: new Date().toISOString() };
+            const records = JSON.parse(localStorage.getItem(clientMemoryKey) || "[]");
+            if (!Array.isArray(records)) throw new Error("La memoria guardada tiene un formato no válido.");
+            const updated = records.filter(record => record &&
+                !(clientId && String(record.clientId || "").trim() === clientId) &&
+                !(normalizedDni && String(record.dni || "").trim().toUpperCase() === normalizedDni)
+            );
+            updated.push(entry);
+            localStorage.setItem(clientMemoryKey, JSON.stringify(updated));
+            if (clientId) clientMemory.set(`id:${clientId}`, entry);
+            if (normalizedDni) clientMemory.set(`dni:${normalizedDni}`, entry);
+            updateMemoryStatus();
         }
 
         function renderErrors(errors) {
@@ -597,7 +653,37 @@
                 status.textContent = "Introduce al menos un DNI sintético.";
                 return;
             }
-            const workerCount = Math.min(maxWorkers, dnis.length);
+            if (!retryMode) {
+                allDnis = [...dnis];
+                templatesByDni.clear();
+            }
+            const traceClientIds = [...traceTextarea.value.matchAll(/^(?:ID CLIENTE:|•\s*ID:)\s*([^\r\n]+)\s*$/gim)]
+                .map(match => match[1].trim());
+            const clientIdByDni = new Map(
+                allDnis.map((dni, index) => [dni, traceClientIds[index] ?? ""])
+            );
+            let reusedCount = 0;
+            for (const dni of dnis) {
+                if (templatesByDni.has(dni)) continue;
+                const remembered = findRememberedTemplate(dni, clientIdByDni.get(dni));
+                if (!remembered) continue;
+                templatesByDni.set(dni, remembered.template);
+                reusedCount++;
+            }
+            renderTemplates();
+            updateMemoryStatus(
+                reusedCount ? `${reusedCount} ficha(s) reutilizada(s) en esta consulta.` : ""
+            );
+            const pendingDnis = dnis.filter(dni => !templatesByDni.has(dni));
+            if (!pendingDnis.length) {
+                retryMode = false;
+                retryQueue = [];
+                renderErrors([]);
+                status.textContent = `No se hicieron consultas: se reutilizaron las ${reusedCount} fichas guardadas.`;
+                updateModeControls();
+                return;
+            }
+            const workerCount = Math.min(maxWorkers, pendingDnis.length);
             workerWindows = [];
             for (let index = 0; index < workerCount; index++) {
                 const workerWindow = window.open(
@@ -613,15 +699,6 @@
                 }
                 workerWindows.push(workerWindow);
             }
-            if (!retryMode) {
-                allDnis = [...dnis];
-                templatesByDni.clear();
-            }
-            const traceClientIds = [...traceTextarea.value.matchAll(/^ID CLIENTE:\s*([^\r\n]+)\s*$/gim)]
-                .map(match => match[1].trim());
-            const clientIdByDni = new Map(
-                allDnis.map((dni, index) => [dni, traceClientIds[index] ?? ""])
-            );
             retryMode = false;
             retryQueue = [];
             retryButton.disabled = true;
@@ -648,12 +725,17 @@
                             break;
                         }
                         const index = nextIndex++;
-                        if (index >= dnis.length) break;
-                        const dni = dnis[index];
-                        status.textContent = `${completed}/${dnis.length} consultas completadas.`;
+                        if (index >= pendingDnis.length) break;
+                        const dni = pendingDnis[index];
+                        status.textContent = `${completed}/${pendingDnis.length} consultas ejecutadas; ${reusedCount} fichas reutilizadas.`;
                         try {
                             const template = await processDni(workerWindow, dni);
                             templatesByDni.set(dni, template);
+                            try {
+                                rememberTemplate(dni, template);
+                            } catch (error) {
+                                updateMemoryStatus(`No se pudo guardar ${dni}: ${error.message}`);
+                            }
                             renderTemplates();
                             copyButton.disabled = false;
                         } catch (error) {
@@ -666,9 +748,9 @@
                             renderErrors(errors);
                         }
                         completed++;
-                        status.textContent = `${completed}/${dnis.length} consultas completadas; ${errors.length} errores.`;
+                        status.textContent = `${completed}/${pendingDnis.length} consultas ejecutadas; ${reusedCount} fichas reutilizadas; ${errors.length} errores.`;
                         if (cancelled) break;
-                        if (nextIndex < dnis.length) {
+                        if (nextIndex < pendingDnis.length) {
                             try {
                                 await returnToSearchPage(workerWindow);
                             } catch (error) {
@@ -685,7 +767,7 @@
 
                 await Promise.all(workerWindows.map((workerWindow, index) => runWorker(workerWindow, index)));
                 const templateCount = allDnis.filter(dni => templatesByDni.has(dni)).length;
-                status.textContent = `${cancelled ? "Proceso detenido" : "Proceso terminado"}. ${templateCount}/${allDnis.length} plantillas generadas; ${errors.length} errores en este intento.`;
+                status.textContent = `${cancelled ? "Proceso detenido" : "Proceso terminado"}. ${templateCount}/${allDnis.length} plantillas disponibles; ${reusedCount} reutilizadas de memoria; ${errors.length} errores en este intento.`;
             } catch (error) {
                 status.textContent = `${error.message} Se conservaron ${templatesByDni.size} plantillas.`;
             } finally {
@@ -773,16 +855,23 @@
         });
 
         combineButton.addEventListener("click", async () => {
-            const traceStarts = [...traceTextarea.value.matchAll(/^ID CLIENTE:\s*([^\r\n]+)\s*$/gim)];
+            const traceStarts = [...traceTextarea.value.matchAll(/^(?:ID CLIENTE:|•\s*ID:)\s*([^\r\n]+)\s*$/gim)];
             const traceTemplates = traceStarts.map((match, index) => {
                 const start = match.index;
                 const end = traceStarts[index + 1]?.index ?? traceTextarea.value.length;
-                const block = traceTextarea.value
+                const rawBlock = traceTextarea.value
                     .slice(start, end)
                     .replace(/[\r\n-]+$/g, "")
                     .trim();
-                const content = traceTextarea.value
-                    .slice(start + match[0].length, end)
+                const afterId = traceTextarea.value.slice(start + match[0].length, end);
+                const otStart = afterId.search(/^NUMERO DE OT:\s*/im);
+                const traceContent = otStart >= 0 ? afterId.slice(otStart) : afterId;
+                const block = (match[0].trimStart().startsWith("•")
+                    ? traceContent
+                    : rawBlock)
+                    .replace(/[\r\n-]+$/g, "")
+                    .trim();
+                const content = traceContent
                     .replace(/[\r\n-]+$/g, "")
                     .trim();
                 return { clientId: match[1].trim(), block, content };
@@ -861,7 +950,7 @@
             }
 
             if (!traceStarts.length) {
-                status.textContent = "Pega las plantillas de trazabilidad; no se encontró ningún ID CLIENTE.";
+                status.textContent = "Pega trazabilidades con ID CLIENTE: o bloques completos que incluyan • ID: antes de NUMERO DE OT:.";
                 return;
             }
 
