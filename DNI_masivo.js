@@ -213,10 +213,14 @@
                 <button type="button" data-action="copy" disabled>Copiar plantillas</button>
                 <button type="button" data-action="combine" disabled>Plantilla DNI +Traza</button>
                 <button type="button" data-action="retry" disabled>Reprocesar errores</button>
+                <button type="button" data-action="export-memory">Exportar base</button>
+                <button type="button" data-action="import-memory">Importar base</button>
                 <button type="button" data-action="clear-memory">Borrar memoria de clientes</button>
                 <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
+            <input data-memory-file type="file" accept=".json,application/json" hidden>
             <div data-memory-status role="status" style="margin-top:6px;color:#555;font-size:12px"></div>
+            <div style="color:#777;font-size:11px">La copia incluye DNI, dirección y teléfonos; guárdala en un lugar protegido.</div>
             <section data-errors role="alert" aria-live="assertive" aria-label="Errores y fichas sin pareja" hidden style="margin-top:8px;padding:8px;border:1px solid #c62828;border-radius:4px;background:#fff0f0;color:#8b0000;overflow-wrap:anywhere">
                 <strong>Errores y fichas sin pareja</strong>
                 <ul data-error-list style="margin:4px 0 0;padding-left:20px"></ul>
@@ -262,7 +266,10 @@
         const copyResultButton = templatePanel.querySelector('[data-action="copy-result"]');
         const copyResultPartButton = templatePanel.querySelector('[data-action="copy-result-part"]');
         const downloadResultButton = templatePanel.querySelector('[data-action="download-result"]');
+        const exportMemoryButton = templatePanel.querySelector('[data-action="export-memory"]');
+        const importMemoryButton = templatePanel.querySelector('[data-action="import-memory"]');
         const clearMemoryButton = templatePanel.querySelector('[data-action="clear-memory"]');
+        const memoryFileInput = templatePanel.querySelector("[data-memory-file]");
         const memoryStatus = templatePanel.querySelector("[data-memory-status]");
         const status = templatePanel.querySelector('[role="status"]');
         const templatesByDni = new Map();
@@ -327,6 +334,82 @@
                 : `${uniqueClients.size} clientes guardados en la memoria de este navegador.${message ? ` ${message}` : ""}`;
         }
 
+        function getMemoryEntries() {
+            return [...new Set(clientMemory.values())];
+        }
+
+        function normalizeMemoryEntry(entry) {
+            if (!entry || typeof entry.template !== "string" || !entry.template.trim()) {
+                throw new Error("Cada cliente debe incluir una plantilla de texto.");
+            }
+            const clientId =
+                String(entry.clientId || entry.template.match(/^•\s*ID:\s*(.+)$/im)?.[1] || "").trim();
+            const dni =
+                String(entry.dni || entry.template.match(/^•\s*DNI:\s*(.+)$/im)?.[1] || "")
+                    .trim()
+                    .toUpperCase();
+            if (!clientId && !dni) {
+                throw new Error("Cada ficha debe contener un ID de cliente o un DNI.");
+            }
+            if (clientId && !/^\d+$/.test(clientId)) {
+                throw new Error(`ID de cliente no válido: ${clientId}`);
+            }
+            return {
+                clientId,
+                dni,
+                template: entry.template.trim(),
+                updatedAt:
+                    typeof entry.updatedAt === "string" &&
+                    !Number.isNaN(Date.parse(entry.updatedAt))
+                        ? entry.updatedAt
+                        : new Date(0).toISOString()
+            };
+        }
+
+        function rebuildClientMemory(entries) {
+            const serialized = JSON.stringify(entries);
+            localStorage.setItem(clientMemoryKey, serialized);
+            clientMemory.clear();
+            entries.forEach(entry => {
+                if (entry.clientId) clientMemory.set(`id:${entry.clientId}`, entry);
+                if (entry.dni) clientMemory.set(`dni:${entry.dni}`, entry);
+            });
+            memoryLoadError = "";
+            updateMemoryStatus();
+        }
+
+        function mergeMemoryEntries(importedEntries) {
+            const merged = getMemoryEntries().map(normalizeMemoryEntry);
+            for (const imported of importedEntries) {
+                const sameClient = entry =>
+                    (imported.clientId && entry.clientId === imported.clientId) ||
+                    (imported.dni && entry.dni === imported.dni);
+                const matchingIndexes = merged
+                    .map((entry, index) => sameClient(entry) ? index : -1)
+                    .filter(index => index >= 0);
+                if (!matchingIndexes.length) {
+                    merged.push(imported);
+                    continue;
+                }
+                const newestMatch = matchingIndexes
+                    .map(index => merged[index])
+                    .reduce((newest, entry) =>
+                        Date.parse(entry.updatedAt) > Date.parse(newest.updatedAt)
+                            ? entry
+                            : newest
+                    );
+                const chosen =
+                    Date.parse(imported.updatedAt) >= Date.parse(newestMatch.updatedAt)
+                        ? imported
+                        : newestMatch;
+                for (let index = matchingIndexes.length - 1; index >= 0; index--)
+                    merged.splice(matchingIndexes[index], 1);
+                merged.push(chosen);
+            }
+            rebuildClientMemory(merged);
+            return merged.length;
+        }
+
         function findRememberedTemplate(dni, clientId) {
             const id = String(clientId || "").trim();
             const byId = id ? clientMemory.get(`id:${id}`) : null;
@@ -335,20 +418,11 @@
         }
 
         function rememberTemplate(dni, template) {
-            const clientId = template.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim() || "";
+            const extractedId = template.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim() || "";
+            const clientId = /^\d+$/.test(extractedId) ? extractedId : "";
             const normalizedDni = String(dni).trim().toUpperCase();
             const entry = { clientId, dni: normalizedDni, template, updatedAt: new Date().toISOString() };
-            const records = JSON.parse(localStorage.getItem(clientMemoryKey) || "[]");
-            if (!Array.isArray(records)) throw new Error("La memoria guardada tiene un formato no válido.");
-            const updated = records.filter(record => record &&
-                !(clientId && String(record.clientId || "").trim() === clientId) &&
-                !(normalizedDni && String(record.dni || "").trim().toUpperCase() === normalizedDni)
-            );
-            updated.push(entry);
-            localStorage.setItem(clientMemoryKey, JSON.stringify(updated));
-            if (clientId) clientMemory.set(`id:${clientId}`, entry);
-            if (normalizedDni) clientMemory.set(`dni:${normalizedDni}`, entry);
-            updateMemoryStatus();
+            mergeMemoryEntries([normalizeMemoryEntry(entry)]);
         }
 
         function renderErrors(errors) {
@@ -801,6 +875,93 @@
             status.textContent = "Deteniendo proceso...";
         });
 
+        exportMemoryButton.addEventListener("click", () => {
+            try {
+                const backup = {
+                    app: "LOWI_DNI_CLIENT_MEMORY",
+                    version: 1,
+                    exportedAt: new Date().toISOString(),
+                    clients: getMemoryEntries()
+                };
+                if (!backup.clients.length) {
+                    updateMemoryStatus("No hay clientes para exportar.");
+                    return;
+                }
+                const blob = new Blob(
+                    [JSON.stringify(backup, null, 2)],
+                    { type: "application/json;charset=utf-8" }
+                );
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `lowi-clientes-${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                updateMemoryStatus(`${backup.clients.length} fichas exportadas.`);
+            } catch (error) {
+                updateMemoryStatus(`No se pudo exportar la base: ${error.message}`);
+            }
+        });
+
+        importMemoryButton.addEventListener("click", () => {
+            memoryFileInput.click();
+        });
+
+        memoryFileInput.addEventListener("change", async () => {
+            const file = memoryFileInput.files?.[0];
+            if (!file) return;
+            try {
+                const parsed = JSON.parse(await file.text());
+                if (
+                    parsed &&
+                    !Array.isArray(parsed) &&
+                    parsed.app &&
+                    parsed.app !== "LOWI_DNI_CLIENT_MEMORY"
+                ) {
+                    throw new Error("El archivo no es una copia de la memoria de clientes LOWI.");
+                }
+                if (
+                    parsed &&
+                    !Array.isArray(parsed) &&
+                    parsed.version !== undefined &&
+                    parsed.version !== 1
+                ) {
+                    throw new Error(`Versión de copia no compatible: ${parsed.version}.`);
+                }
+                const sourceEntries = Array.isArray(parsed)
+                    ? parsed
+                    : parsed && Array.isArray(parsed.clients)
+                        ? parsed.clients
+                        : null;
+                if (!sourceEntries || !sourceEntries.length) {
+                    throw new Error("El archivo no contiene fichas de clientes.");
+                }
+                const validatedEntries = sourceEntries.map(normalizeMemoryEntry);
+                const total = mergeMemoryEntries(validatedEntries);
+                updateMemoryStatus(`${validatedEntries.length} fichas importadas; ${total} clientes en memoria.`);
+                status.textContent = `Copia importada correctamente: ${validatedEntries.length} fichas procesadas.`;
+            } catch (error) {
+                updateMemoryStatus(`No se importó ningún dato: ${error.message}`);
+                status.textContent = `Error al importar la base: ${error.message}`;
+            } finally {
+                memoryFileInput.value = "";
+            }
+        });
+
+        clearMemoryButton.addEventListener("click", () => {
+            if (!confirm("¿Borrar todas las fichas de clientes guardadas en este navegador?")) return;
+            try {
+                localStorage.removeItem(clientMemoryKey);
+                clientMemory.clear();
+                memoryLoadError = "";
+                updateMemoryStatus("Memoria borrada.");
+            } catch (error) {
+                updateMemoryStatus(`No se pudo borrar la memoria: ${error.message}`);
+            }
+        });
+
         retryButton.addEventListener("click", () => {
             if (running || !retryQueue.length) return;
             textarea.value = retryQueue.join("\n");
@@ -989,5 +1150,6 @@
         });
 
         templatePanel.querySelector('[data-action="close"]').addEventListener("click", () => templatePanel.remove());
+        updateMemoryStatus();
     }
 })();
