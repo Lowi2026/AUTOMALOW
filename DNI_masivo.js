@@ -229,7 +229,11 @@
             <div data-output-container hidden style="margin-top:8px">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
                     <strong>Resultado DNI + trazabilidad</strong>
-                    <button type="button" data-action="copy-result">Copiar resultado</button>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <button type="button" data-action="copy-result">Copiar resultado</button>
+                        <button type="button" data-action="copy-result-part" hidden>Copiar parte 1</button>
+                        <button type="button" data-action="download-result">Descargar TXT</button>
+                    </div>
                 </div>
                 <textarea data-output aria-label="Resultado DNI y trazabilidad" readonly placeholder="El resultado combinado aparecerá aquí" style="box-sizing:border-box;width:100%;height:180px;margin-top:4px;padding:8px;resize:vertical"></textarea>
             </div>
@@ -254,6 +258,8 @@
         const output = templatePanel.querySelector("[data-output]");
         const copyGeneratedButton = templatePanel.querySelector('[data-action="copy-generated"]');
         const copyResultButton = templatePanel.querySelector('[data-action="copy-result"]');
+        const copyResultPartButton = templatePanel.querySelector('[data-action="copy-result-part"]');
+        const downloadResultButton = templatePanel.querySelector('[data-action="download-result"]');
         const status = templatePanel.querySelector('[role="status"]');
         const templatesByDni = new Map();
         let allDnis = [];
@@ -266,6 +272,8 @@
         let paused = false;
         let running = false;
         let workerWindows = [];
+        let combinedResultParts = [];
+        let nextCombinedPartIndex = 0;
         const searchPageUrl = new URL("/bo/milowi/user/", location.origin);
         const maxWorkers = 20;
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -307,6 +315,23 @@
                 .filter(Boolean);
             templatesOutput.value = completedTemplates.join("\n\n-----------------------------------------\n\n");
             templatesPanel.hidden = completedTemplates.length === 0;
+        }
+
+        function splitTextIntoParts(text) {
+            const maxPartLength = 32000;
+            const partCount = Math.min(3, Math.max(1, Math.ceil(text.length / maxPartLength)));
+            const parts = [];
+            let remainingText = text;
+            for (let partIndex = 0; partIndex < partCount - 1; partIndex++) {
+                const remainingParts = partCount - partIndex;
+                const targetLength = Math.ceil(remainingText.length / remainingParts);
+                const splitAt = remainingText.lastIndexOf("\n", targetLength);
+                const splitPosition = splitAt > 0 ? splitAt + 1 : targetLength;
+                parts.push(remainingText.slice(0, splitPosition));
+                remainingText = remainingText.slice(splitPosition);
+            }
+            if (remainingText) parts.push(remainingText);
+            return parts;
         }
 
         function copyTextWithExecCommand(target) {
@@ -532,7 +557,29 @@
             window.dniMasivoResultadoCombinado = text;
             output.value = text;
             outputContainer.hidden = false;
-            return copyText(text, output, "resultado DNI + trazabilidad");
+            templatesOutput.value = text;
+            templatesPanel.hidden = false;
+            combinedResultParts = splitTextIntoParts(text);
+            nextCombinedPartIndex = 0;
+            copyResultPartButton.hidden = combinedResultParts.length < 2;
+            copyResultPartButton.disabled = combinedResultParts.length < 2;
+            copyResultPartButton.textContent = `Copiar parte 1/${combinedResultParts.length}`;
+            if (combinedResultParts.length > 1) {
+                const copied = await copyText(
+                    combinedResultParts[0],
+                    templatesOutput,
+                    `la parte 1 de ${combinedResultParts.length}`
+                );
+                if (copied) nextCombinedPartIndex = 1;
+                copyResultPartButton.textContent = copied
+                    ? `Copiar parte ${nextCombinedPartIndex + 1}/${combinedResultParts.length}`
+                    : `Reintentar parte 1/${combinedResultParts.length}`;
+                status.textContent = copied
+                    ? `Resultado extenso: se copió la parte 1/${combinedResultParts.length}. Usa «${copyResultPartButton.textContent}» para continuar o descarga el TXT completo.`
+                    : `${status.textContent} El resto está disponible por partes o en el TXT descargable.`;
+                return false;
+            }
+            return copyText(text, templatesOutput, "resultado DNI + trazabilidad");
         }
 
         startButton.addEventListener("click", async () => {
@@ -689,9 +736,41 @@
         copyGeneratedButton.addEventListener("click", () =>
             copyText(templatesOutput.value, templatesOutput, "las plantillas DNI")
         );
-        copyResultButton.addEventListener("click", () =>
-            copyText(output.value, output, "el resultado DNI + trazabilidad")
-        );
+        copyResultButton.addEventListener("click", () => copyCombinedResult(output.value));
+        copyResultPartButton.addEventListener("click", async () => {
+            if (!combinedResultParts.length) {
+                status.textContent = "Primero genera el resultado DNI + trazabilidad.";
+                return;
+            }
+            const partIndex = nextCombinedPartIndex;
+            const copied = await copyText(
+                combinedResultParts[partIndex],
+                templatesOutput,
+                `la parte ${partIndex + 1} de ${combinedResultParts.length}`
+            );
+            if (!copied) return;
+            nextCombinedPartIndex++;
+            if (nextCombinedPartIndex >= combinedResultParts.length) {
+                copyResultPartButton.disabled = true;
+                copyResultPartButton.textContent = `Partes copiadas (${combinedResultParts.length}/${combinedResultParts.length})`;
+            } else {
+                copyResultPartButton.textContent = `Copiar parte ${nextCombinedPartIndex + 1}/${combinedResultParts.length}`;
+            }
+        });
+        downloadResultButton.addEventListener("click", () => {
+            if (!output.value) {
+                status.textContent = "Primero genera el resultado DNI + trazabilidad.";
+                return;
+            }
+            const blob = new Blob([output.value], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "resultado-dni-trazabilidad.txt";
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            status.textContent = "Resultado completo descargado como TXT.";
+        });
 
         combineButton.addEventListener("click", async () => {
             const traceStarts = [...traceTextarea.value.matchAll(/^ID CLIENTE:\s*([^\r\n]+)\s*$/gim)];
@@ -702,7 +781,11 @@
                     .slice(start, end)
                     .replace(/[\r\n-]+$/g, "")
                     .trim();
-                return { clientId: match[1].trim(), block };
+                const content = traceTextarea.value
+                    .slice(start + match[0].length, end)
+                    .replace(/[\r\n-]+$/g, "")
+                    .trim();
+                return { clientId: match[1].trim(), block, content };
             });
 
             if (fullTemplateMode.checked) {
@@ -746,7 +829,7 @@
                         continue;
                     }
                     usedTraceIndexes.add(traceIndex);
-                    if (!traceTemplates[traceIndex].block) {
+                    if (!traceTemplates[traceIndex].content) {
                         unmatched.push({
                             dni,
                             clientId,
@@ -754,7 +837,7 @@
                         });
                         continue;
                     }
-                    combined.push(`${dniTemplate}\n\n${traceTemplates[traceIndex].block}`);
+                    combined.push(`${dniTemplate}\n\n${traceTemplates[traceIndex].content}`);
                 }
                 traceTemplates.forEach(({ clientId }, index) => {
                     if (!usedTraceIndexes.has(index)) {
