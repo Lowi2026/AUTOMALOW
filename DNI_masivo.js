@@ -1020,22 +1020,17 @@
             const traceTemplates = traceStarts.map((match, index) => {
                 const start = match.index;
                 const end = traceStarts[index + 1]?.index ?? traceTextarea.value.length;
-                const rawBlock = traceTextarea.value
-                    .slice(start, end)
-                    .replace(/[\r\n-]+$/g, "")
-                    .trim();
                 const afterId = traceTextarea.value.slice(start + match[0].length, end);
                 const otStart = afterId.search(/^NUMERO DE OT:\s*/im);
-                const traceContent = otStart >= 0 ? afterId.slice(otStart) : afterId;
-                const block = (match[0].trimStart().startsWith("•")
-                    ? traceContent
-                    : rawBlock)
+                const traceContent = (otStart >= 0 ? afterId.slice(otStart) : afterId)
+                    .replace(/^\s*ID CLIENTE:\s*[^\r\n]*(?:\r?\n|$)/gim, "")
                     .replace(/[\r\n-]+$/g, "")
                     .trim();
-                const content = traceContent
-                    .replace(/[\r\n-]+$/g, "")
-                    .trim();
-                return { clientId: match[1].trim(), block, content };
+                return {
+                    clientId: match[1].trim(),
+                    block: traceContent,
+                    content: traceContent
+                };
             });
 
             if (fullTemplateMode.checked) {
