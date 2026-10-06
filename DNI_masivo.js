@@ -194,11 +194,18 @@
         const clean = (value) => value.replaceAll("(Modificar)", "").trim().split(/\s+/).join(" ");
         const templatePanel = document.createElement("section");
         templatePanel.id = panelId;
-        templatePanel.style.cssText = "position:fixed;z-index:2147483647;right:20px;bottom:20px;width:min(390px,calc(100vw - 40px));padding:14px;background:#fff;color:#222;border:1px solid #888;border-radius:8px;box-shadow:0 4px 18px #0004;font:14px Arial,sans-serif";
+        templatePanel.style.cssText = "position:fixed;z-index:2147483647;right:20px;bottom:20px;width:min(390px,calc(100vw - 40px));max-height:calc(100vh - 40px);box-sizing:border-box;overflow-y:auto;padding:14px;background:#fff;color:#222;border:1px solid #888;border-radius:8px;box-shadow:0 4px 18px #0004;font:14px Arial,sans-serif";
         templatePanel.innerHTML = `
             <strong style="display:block;margin-bottom:8px">Plantilla CORTA masiva</strong>
-            <textarea aria-label="DNI de prueba" placeholder="Un DNI sintético por línea" style="box-sizing:border-box;width:100%;height:100px;padding:8px;resize:vertical"></textarea>
-            <textarea data-traces aria-label="Plantillas de trazabilidad" placeholder="Pega aquí las plantillas de trazabilidad al terminar las consultas" style="box-sizing:border-box;width:100%;height:130px;margin-top:8px;padding:8px;resize:vertical"></textarea>
+            <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <input data-full-template-mode type="checkbox">
+                Plantilla DNI completa
+            </label>
+            <details open style="margin-bottom:8px">
+                <summary style="cursor:pointer">Opciones de consulta</summary>
+                <textarea data-dni-input aria-label="DNI de prueba" placeholder="Un DNI sintético por línea" style="box-sizing:border-box;width:100%;height:100px;margin-top:8px;padding:8px;resize:vertical"></textarea>
+                <textarea data-traces aria-label="Plantillas de trazabilidad" placeholder="Pega aquí las plantillas de trazabilidad al terminar las consultas" style="box-sizing:border-box;width:100%;height:130px;margin-top:8px;padding:8px;resize:vertical"></textarea>
+            </details>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                 <button type="button" data-action="start">Consultar</button>
                 <button type="button" data-action="pause" disabled>Pausar</button>
@@ -208,22 +215,45 @@
                 <button type="button" data-action="retry" disabled>Reprocesar errores</button>
                 <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
-            <div data-current style="margin-top:8px;overflow-wrap:anywhere"></div>
-            <textarea data-output aria-label="Resultado DNI y trazabilidad" readonly placeholder="El resultado combinado aparecerá aquí" style="display:none;box-sizing:border-box;width:100%;height:180px;margin-top:8px;padding:8px;resize:vertical"></textarea>
+            <section data-errors role="alert" aria-live="assertive" aria-label="Errores y fichas sin pareja" hidden style="margin-top:8px;padding:8px;border:1px solid #c62828;border-radius:4px;background:#fff0f0;color:#8b0000;overflow-wrap:anywhere">
+                <strong>Errores y fichas sin pareja</strong>
+                <ul data-error-list style="margin:4px 0 0;padding-left:20px"></ul>
+            </section>
+            <section data-templates hidden style="margin-top:8px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                    <strong>Plantillas generadas</strong>
+                    <button type="button" data-action="copy-generated">Copiar plantillas</button>
+                </div>
+                <textarea data-templates-output aria-label="Plantillas generadas" readonly style="box-sizing:border-box;width:100%;height:180px;margin-top:4px;padding:8px;resize:vertical"></textarea>
+            </section>
+            <div data-output-container hidden style="margin-top:8px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                    <strong>Resultado DNI + trazabilidad</strong>
+                    <button type="button" data-action="copy-result">Copiar resultado</button>
+                </div>
+                <textarea data-output aria-label="Resultado DNI y trazabilidad" readonly placeholder="El resultado combinado aparecerá aquí" style="box-sizing:border-box;width:100%;height:180px;margin-top:4px;padding:8px;resize:vertical"></textarea>
+            </div>
             <div role="status" aria-live="polite" style="margin-top:8px;overflow-wrap:anywhere"></div>
         `;
         document.body.appendChild(templatePanel);
 
-        const textarea = templatePanel.querySelector("textarea");
+        const textarea = templatePanel.querySelector("[data-dni-input]");
         const traceTextarea = templatePanel.querySelector("[data-traces]");
+        const fullTemplateMode = templatePanel.querySelector("[data-full-template-mode]");
         const startButton = templatePanel.querySelector('[data-action="start"]');
         const pauseButton = templatePanel.querySelector('[data-action="pause"]');
         const stopButton = templatePanel.querySelector('[data-action="stop"]');
         const copyButton = templatePanel.querySelector('[data-action="copy"]');
         const combineButton = templatePanel.querySelector('[data-action="combine"]');
         const retryButton = templatePanel.querySelector('[data-action="retry"]');
-        const current = templatePanel.querySelector("[data-current]");
+        const errorsPanel = templatePanel.querySelector("[data-errors]");
+        const errorList = templatePanel.querySelector("[data-error-list]");
+        const templatesPanel = templatePanel.querySelector("[data-templates]");
+        const templatesOutput = templatePanel.querySelector("[data-templates-output]");
+        const outputContainer = templatePanel.querySelector("[data-output-container]");
         const output = templatePanel.querySelector("[data-output]");
+        const copyGeneratedButton = templatePanel.querySelector('[data-action="copy-generated"]');
+        const copyResultButton = templatePanel.querySelector('[data-action="copy-result"]');
         const status = templatePanel.querySelector('[role="status"]');
         const templatesByDni = new Map();
         let allDnis = [];
@@ -236,13 +266,104 @@
         let paused = false;
         let running = false;
         let workerWindows = [];
-        let workerStates = [];
         const searchPageUrl = new URL("/bo/milowi/user/", location.origin);
         const maxWorkers = 20;
         const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+        function updateModeControls() {
+            const useCompleteTemplate = fullTemplateMode.checked;
+            textarea.setAttribute("aria-label", useCompleteTemplate ? "Plantilla completa DNI" : "DNI de prueba");
+            textarea.placeholder = useCompleteTemplate
+                ? "Pega aquí la plantilla completa del DNI"
+                : "Un DNI sintético por línea";
+            traceTextarea.placeholder = useCompleteTemplate
+                ? "Pega aquí las plantillas de trazabilidad; se usará la primera"
+                : "Pega aquí las plantillas de trazabilidad al terminar las consultas";
+            startButton.disabled = running || useCompleteTemplate;
+            pauseButton.disabled = !running || useCompleteTemplate;
+            stopButton.disabled = !running || useCompleteTemplate;
+            copyButton.disabled = useCompleteTemplate || templatesByDni.size === 0;
+            retryButton.disabled = useCompleteTemplate || running || retryQueue.length === 0;
+            combineButton.disabled = !useCompleteTemplate && templatesByDni.size === 0;
+        }
+
+        function renderErrors(errors) {
+            errorList.replaceChildren();
+            errorsPanel.hidden = errors.length === 0;
+            errors.forEach(({ dni, clientId, message, worker }) => {
+                const item = document.createElement("li");
+                const label = document.createElement("strong");
+                label.textContent = dni
+                    ? `DNI/NIE ${dni} — ID Cliente: ${clientId || "no encontrado en la trazabilidad"}: `
+                    : `${worker}: `;
+                item.append(label, document.createTextNode(message));
+                errorList.appendChild(item);
+            });
+        }
+
+        function renderTemplates() {
+            const completedTemplates = allDnis
+                .map(dni => templatesByDni.get(dni))
+                .filter(Boolean);
+            templatesOutput.value = completedTemplates.join("\n\n-----------------------------------------\n\n");
+            templatesPanel.hidden = completedTemplates.length === 0;
+        }
+
+        function copyTextWithExecCommand(target) {
+            target.focus();
+            target.scrollIntoView({ block: "nearest" });
+            target.select();
+            target.setSelectionRange(0, target.value.length);
+            try {
+                return document.execCommand("copy");
+            } catch {
+                return false;
+            }
+        }
+
+        async function copyText(text, target, label) {
+            if (!text) {
+                status.textContent = `No hay contenido de ${label} para copiar.`;
+                return false;
+            }
+            target.value = text;
+            let clipboardError = "Portapapeles no disponible";
+            let clipboardWrite = Promise.resolve(false);
+            try {
+                if (navigator.clipboard?.writeText) {
+                    clipboardWrite = navigator.clipboard.writeText(text).then(
+                        () => true,
+                        error => {
+                            clipboardError = error instanceof Error ? error.message : String(error);
+                            return false;
+                        }
+                    );
+                }
+            } catch (error) {
+                clipboardError = error instanceof Error ? error.message : String(error);
+            }
+
+            const legacyCopied = copyTextWithExecCommand(target);
+            if (await clipboardWrite || legacyCopied) {
+                status.textContent = `Copiado al portapapeles: ${label}.`;
+                return true;
+            }
+            target.focus();
+            target.select();
+            target.setSelectionRange(0, text.length);
+            status.textContent = `El navegador bloqueó la copia automática (${clipboardError}). El texto está seleccionado; pulsa Ctrl+C (o ⌘C).`;
+            return false;
+        }
+
         status.textContent = savedServiceIds.length
             ? `${savedServiceIds.length} IDs recuperados. Pulsa Consultar para abrir la pestaña de trabajo.`
             : "No hay IDs guardados. Pega los DNI sintéticos en esta lista y pulsa Consultar.";
+        fullTemplateMode.addEventListener("change", () => {
+            updateModeControls();
+            status.textContent = fullTemplateMode.checked
+                ? "Pega una plantilla DNI completa y la trazabilidad. Se combinará solo la primera de cada una, sin abrir workers."
+                : "Modo de consulta masiva activado. Pega los DNI sintéticos y pulsa Consultar.";
+        });
 
         async function control() {
             while (paused && !cancelled) await sleep(250);
@@ -373,7 +494,7 @@
             ].join("\n");
         }
 
-        async function processDni(workerWindow, dni, workerIndex) {
+        async function processDni(workerWindow, dni) {
             const searchDoc = await waitForPage(
                 workerWindow,
                 (doc, url) => url.pathname === searchPageUrl.pathname && doc.querySelector("#id_value"),
@@ -386,13 +507,9 @@
             }
             input.focus();
             fillInput(input, dni);
-            workerStates[workerIndex] = `Rellenando DNI ${dni}`;
-            current.textContent = workerStates.join("\n");
             await sleep(300);
             await control();
             button.click();
-            workerStates[workerIndex] = `Esperando ficha de ${dni}`;
-            current.textContent = workerStates.join("\n");
             const detailDoc = await waitForPage(
                 workerWindow,
                 (doc, url) => /^\/bo\/milowi\/user\/\d+\/detail\/?$/.test(url.pathname) && doc.querySelector("#content-main"),
@@ -414,20 +531,15 @@
         async function copyCombinedResult(text) {
             window.dniMasivoResultadoCombinado = text;
             output.value = text;
-            output.style.display = "block";
-            try {
-                await navigator.clipboard.writeText(text);
-                return true;
-            } catch {
-                output.focus();
-                output.select();
-                const copied = document.execCommand("copy");
-                output.setSelectionRange(0, 0);
-                return copied;
-            }
+            outputContainer.hidden = false;
+            return copyText(text, output, "resultado DNI + trazabilidad");
         }
 
         startButton.addEventListener("click", async () => {
+            if (fullTemplateMode.checked) {
+                status.textContent = "El modo Plantilla DNI completa no realiza consultas. Usa Plantilla DNI +Traza para combinar los textos pegados.";
+                return;
+            }
             const sourceIds = retryMode
                 ? retryQueue
                 : savedServiceIds.length
@@ -458,15 +570,21 @@
                 allDnis = [...dnis];
                 templatesByDni.clear();
             }
+            const traceClientIds = [...traceTextarea.value.matchAll(/^ID CLIENTE:\s*([^\r\n]+)\s*$/gim)]
+                .map(match => match[1].trim());
+            const clientIdByDni = new Map(
+                allDnis.map((dni, index) => [dni, traceClientIds[index] ?? ""])
+            );
             retryMode = false;
             retryQueue = [];
             retryButton.disabled = true;
             running = true;
             cancelled = false;
             paused = false;
-            workerStates = Array.from({ length: workerCount }, (_, index) => `Worker ${index + 1}: iniciando`);
+            renderErrors([]);
             copyButton.disabled = true;
             startButton.disabled = true;
+            fullTemplateMode.disabled = true;
             pauseButton.disabled = false;
             stopButton.disabled = false;
             pauseButton.textContent = "Pausar";
@@ -485,18 +603,20 @@
                         const index = nextIndex++;
                         if (index >= dnis.length) break;
                         const dni = dnis[index];
-                        workerStates[workerIndex] = `Worker ${workerIndex + 1}: consulta ${index + 1}/${dnis.length} (${dni})`;
-                        current.textContent = workerStates.join("\n");
-                        status.textContent = `${completed}/${dnis.length} consultas completadas; ${workerCount} workers activos.`;
+                        status.textContent = `${completed}/${dnis.length} consultas completadas.`;
                         try {
-                            const template = await processDni(workerWindow, dni, workerIndex);
+                            const template = await processDni(workerWindow, dni);
                             templatesByDni.set(dni, template);
+                            renderTemplates();
                             copyButton.disabled = false;
                         } catch (error) {
                             if (cancelled) break;
-                            errors.push(`${dni}: ${error.message}`);
-                            workerStates[workerIndex] = `Worker ${workerIndex + 1}: error en ${dni}`;
-                            current.textContent = workerStates.join("\n");
+                            errors.push({
+                                dni,
+                                clientId: clientIdByDni.get(dni),
+                                message: error.message
+                            });
+                            renderErrors(errors);
                         }
                         completed++;
                         status.textContent = `${completed}/${dnis.length} consultas completadas; ${errors.length} errores.`;
@@ -505,9 +625,11 @@
                             try {
                                 await returnToSearchPage(workerWindow);
                             } catch (error) {
-                                errors.push(`Worker ${workerIndex + 1}: ${error.message}`);
-                                workerStates[workerIndex] = `Worker ${workerIndex + 1}: detenido`;
-                                current.textContent = workerStates.join("\n");
+                                errors.push({
+                                    worker: `Worker ${workerIndex + 1}`,
+                                    message: error.message
+                                });
+                                renderErrors(errors);
                                 break;
                             }
                         }
@@ -517,12 +639,12 @@
                 await Promise.all(workerWindows.map((workerWindow, index) => runWorker(workerWindow, index)));
                 const templateCount = allDnis.filter(dni => templatesByDni.has(dni)).length;
                 status.textContent = `${cancelled ? "Proceso detenido" : "Proceso terminado"}. ${templateCount}/${allDnis.length} plantillas generadas; ${errors.length} errores en este intento.`;
-                if (errors.length) current.textContent = `${current.textContent}\nErrores:\n${errors.join("\n")}`;
             } catch (error) {
                 status.textContent = `${error.message} Se conservaron ${templatesByDni.size} plantillas.`;
             } finally {
                 running = false;
                 startButton.disabled = false;
+                fullTemplateMode.disabled = false;
                 pauseButton.disabled = true;
                 stopButton.disabled = true;
                 retryQueue = dnis.filter(dni => !templatesByDni.has(dni));
@@ -558,54 +680,130 @@
         });
 
         copyButton.addEventListener("click", async () => {
-            try {
-                const completedTemplates = allDnis.map(dni => templatesByDni.get(dni)).filter(Boolean);
-                await navigator.clipboard.writeText(completedTemplates.join("\n\n-----------------------------------------\n\n"));
-                status.textContent = `${completedTemplates.length} plantillas copiadas.`;
-            } catch {
-                status.textContent = "No se pudo acceder al portapapeles. Comprueba los permisos del navegador.";
-            }
+            await copyText(
+                allDnis.map(dni => templatesByDni.get(dni)).filter(Boolean).join("\n\n-----------------------------------------\n\n"),
+                templatesOutput,
+                "las plantillas DNI"
+            );
         });
+        copyGeneratedButton.addEventListener("click", () =>
+            copyText(templatesOutput.value, templatesOutput, "las plantillas DNI")
+        );
+        copyResultButton.addEventListener("click", () =>
+            copyText(output.value, output, "el resultado DNI + trazabilidad")
+        );
 
         combineButton.addEventListener("click", async () => {
             const traceStarts = [...traceTextarea.value.matchAll(/^ID CLIENTE:\s*([^\r\n]+)\s*$/gim)];
+            const traceTemplates = traceStarts.map((match, index) => {
+                const start = match.index;
+                const end = traceStarts[index + 1]?.index ?? traceTextarea.value.length;
+                const block = traceTextarea.value
+                    .slice(start, end)
+                    .replace(/[\r\n-]+$/g, "")
+                    .trim();
+                return { clientId: match[1].trim(), block };
+            });
+
+            if (fullTemplateMode.checked) {
+                const dniTemplates = textarea.value
+                    .split(/^\s*-{5,}\s*$/m)
+                    .map(template => template.trim())
+                    .filter(Boolean);
+                if (!dniTemplates.length || dniTemplates.some(template => !/^•\s*DNI:\s*.+$/im.test(template))) {
+                    status.textContent = "Pega una o más plantillas DNI completas, separadas por líneas de guiones, cada una con el campo • DNI:.";
+                    return;
+                }
+                const combined = [];
+                const unmatched = [];
+                const traceIndexesByClientId = new Map();
+                traceTemplates.forEach(({ clientId }, index) => {
+                    const indexes = traceIndexesByClientId.get(clientId) ?? [];
+                    indexes.push(index);
+                    traceIndexesByClientId.set(clientId, indexes);
+                });
+                const usedTraceIndexes = new Set();
+
+                for (const dniTemplate of dniTemplates) {
+                    const dni = dniTemplate.match(/^•\s*DNI:\s*(.+)$/im)?.[1]?.trim() || "DNI no identificado";
+                    const clientId = dniTemplate.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim();
+                    if (!clientId) {
+                        unmatched.push({
+                            dni,
+                            clientId: "no encontrado",
+                            message: "Falta el campo • ID:; no se puede emparejar esta ficha."
+                        });
+                        continue;
+                    }
+                    const traceIndex = (traceIndexesByClientId.get(clientId) ?? [])
+                        .find(index => !usedTraceIndexes.has(index));
+                    if (traceIndex === undefined) {
+                        unmatched.push({
+                            dni,
+                            clientId,
+                            message: "No se encontró una trazabilidad con este ID CLIENTE."
+                        });
+                        continue;
+                    }
+                    usedTraceIndexes.add(traceIndex);
+                    if (!traceTemplates[traceIndex].block) {
+                        unmatched.push({
+                            dni,
+                            clientId,
+                            message: "La trazabilidad correspondiente está vacía."
+                        });
+                        continue;
+                    }
+                    combined.push(`${dniTemplate}\n\n${traceTemplates[traceIndex].block}`);
+                }
+                traceTemplates.forEach(({ clientId }, index) => {
+                    if (!usedTraceIndexes.has(index)) {
+                        unmatched.push({
+                            worker: `ID Cliente ${clientId || "no identificado"}`,
+                            message: "No se encontró una plantilla DNI con este ID CLIENTE."
+                        });
+                    }
+                });
+                renderErrors(unmatched);
+                const summary = `${combined.length} parejas combinadas por ID; ${unmatched.length} fichas o trazabilidades sin pareja.`;
+                if (!combined.length) {
+                    status.textContent = `No se encontró ninguna pareja para copiar. ${summary}`;
+                    return;
+                }
+                const copied = await copyCombinedResult(combined.join("\n\n-----------------------------------------\n\n"));
+                status.textContent = copied
+                    ? `Plantillas DNI completas + trazabilidad coincidentes copiadas. ${summary}`
+                    : `${status.textContent} ${summary}`;
+                return;
+            }
+
             if (!traceStarts.length) {
                 status.textContent = "Pega las plantillas de trazabilidad; no se encontró ningún ID CLIENTE.";
                 return;
             }
 
-            const tracesByClientId = new Map();
-            traceStarts.forEach((match, index) => {
-                const start = match.index;
-                const end = traceStarts[index + 1]?.index ?? traceTextarea.value.length;
-                const block = traceTextarea.value
-                    .slice(start, end)
-                    .replace(/^ID CLIENTE:\s*[^\r\n]+(?:\r?\n|$)/i, "")
-                    .replace(/[\r\n-]+$/g, "")
-                    .trim();
-                tracesByClientId.set(match[1].trim(), block);
-            });
-
             const generatedTemplates = allDnis
                 .map(dni => ({ dni, template: templatesByDni.get(dni) }))
                 .filter(result => result.template);
             const combined = [];
-            const matchedTraceIds = new Set();
+            const usedTraceIndexes = new Set();
             let missing = 0;
-            for (const { dni, template } of generatedTemplates) {
-                const clientId = template.match(/^• ID:\s*(.+)$/m)?.[1]?.trim();
-                const trace = clientId && tracesByClientId.get(clientId);
-                if (!trace) {
-                    missing++;
-                    continue;
+            allDnis.forEach((dni, index) => {
+                const template = templatesByDni.get(dni);
+                if (template) {
+                    const trace = traceTemplates[index]?.block;
+                    if (trace) {
+                        usedTraceIndexes.add(index);
+                        combined.push(`${template}\n\n${trace}`);
+                    } else {
+                        missing++;
+                    }
                 }
-                matchedTraceIds.add(clientId);
-                combined.push(`${template}\n\n${trace}`);
-            }
+            });
 
             const withoutTemplate = allDnis.length - generatedTemplates.length;
-            const unusedTraces = [...tracesByClientId.keys()].filter(id => !matchedTraceIds.has(id)).length;
-            const summary = `Combinadas: ${combined.length}/${generatedTemplates.length} plantillas generadas. Sin traza: ${missing}. Consultas sin plantilla: ${withoutTemplate}. Trazas sin plantilla: ${unusedTraces}.`;
+            const unusedTraces = traceTemplates.length - usedTraceIndexes.size;
+            const summary = `Combinadas por posición: ${combined.length}/${generatedTemplates.length} plantillas generadas. Sin traza: ${missing}. Consultas sin plantilla: ${withoutTemplate}. Trazas sin plantilla: ${unusedTraces}.`;
             if (!combined.length) {
                 status.textContent = `No hubo plantillas para copiar. ${summary}`;
                 return;
@@ -615,7 +813,7 @@
             const copied = await copyCombinedResult(combinedText);
             status.textContent = copied
                 ? `Plantillas DNI +Traza copiadas. ${summary}`
-                : `No se pudo copiar automáticamente. El resultado está en el campo inferior para copiarlo manualmente. ${summary}`;
+                : `${status.textContent} ${summary}`;
         });
 
         templatePanel.querySelector('[data-action="close"]').addEventListener("click", () => templatePanel.remove());
