@@ -1,15 +1,72 @@
 (() => {
     const panelId = "dni-masivo-panel";
     const serviceIdsStorageKey = "lowi.dniMasivo.serviceIds";
+    const clientMemoryKey = "LOWI_DNI_CLIENT_MEMORY_V1";
     const isLowiHost = location.hostname === "www.lowi.es" || location.hostname.endsWith(".lowi.es");
-    const isOrdersPage = isLowiHost && location.pathname.startsWith("/bo/orders/");
+    const isOrdersPage = isLowiHost && /^\/bo\/orders?(?:\/|$)/.test(location.pathname);
     const isUserPage = isLowiHost && /^\/bo\/milowi\/user\/(?:\d+\/detail\/)?$/.test(location.pathname);
 
     if (!isOrdersPage && !isUserPage) {
-        alert("Ejecuta este script en /bo/orders/ o /bo/milowi/user/.");
+        alert("Ejecuta este script en /bo/order/, /bo/orders/ o /bo/milowi/user/.");
         return;
     }
     document.getElementById(panelId)?.remove();
+
+    function normalizeMemoryEntry(entry) {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+            throw new Error("Cada ficha de memoria debe ser un objeto.");
+        }
+        const template = typeof entry.template === "string" ? entry.template.trim() : "";
+        if (entry.template !== undefined && typeof entry.template !== "string") {
+            throw new Error("La plantilla de una ficha debe ser texto.");
+        }
+        const clientId = String(entry.clientId || template.match(/^•\s*ID:\s*(.+)$/im)?.[1] || "").trim();
+        const dni = String(entry.dni || template.match(/^•\s*DNI:\s*(.+)$/im)?.[1] || "")
+            .trim()
+            .toUpperCase();
+        if (!clientId && !dni) {
+            throw new Error("Cada ficha debe contener un ID de cliente o un DNI.");
+        }
+        if (clientId && !/^\d+$/.test(clientId)) {
+            throw new Error(`ID de cliente no válido: ${clientId}`);
+        }
+        if (!template && (!clientId || !dni)) {
+            throw new Error("Una relación sin plantilla debe incluir ID de cliente y DNI.");
+        }
+        return {
+            clientId,
+            dni,
+            ...(template ? { template } : {}),
+            updatedAt:
+                typeof entry.updatedAt === "string" &&
+                !Number.isNaN(Date.parse(entry.updatedAt))
+                    ? entry.updatedAt
+                    : new Date(0).toISOString()
+        };
+    }
+
+    function readClientMemoryEntries() {
+        const savedMemory = JSON.parse(localStorage.getItem(clientMemoryKey) || "[]");
+        if (!Array.isArray(savedMemory)) throw new Error("El formato guardado no es válido.");
+        return savedMemory.map(normalizeMemoryEntry);
+    }
+
+    function saveClientMapping(clientId, dni) {
+        const entries = readClientMemoryEntries();
+        const currentIndex = entries.findIndex(entry => entry.clientId === clientId);
+        const current = currentIndex >= 0 ? entries[currentIndex] : null;
+        const normalizedDni = String(dni).trim().toUpperCase();
+        const mapping = normalizeMemoryEntry({
+            ...current,
+            clientId,
+            dni: normalizedDni,
+            template: current?.dni === normalizedDni ? current.template : undefined,
+            updatedAt: new Date().toISOString()
+        });
+        if (currentIndex >= 0) entries[currentIndex] = mapping;
+        else entries.push(mapping);
+        localStorage.setItem(clientMemoryKey, JSON.stringify(entries));
+    }
 
     function readSavedServiceIds() {
         if (Array.isArray(window.dniMasivoIdsServicio) && window.dniMasivoIdsServicio.length) {
@@ -40,15 +97,15 @@
         panel.id = panelId;
         panel.style.cssText = "position:fixed;z-index:2147483647;right:20px;bottom:20px;width:min(360px,calc(100vw - 40px));padding:14px;background:#fff;color:#222;border:1px solid #888;border-radius:8px;box-shadow:0 4px 18px #0004;font:14px Arial,sans-serif";
         panel.innerHTML = `
-            <strong style="display:block;margin-bottom:8px">Consulta de IDs de servicio</strong>
+            <strong style="display:block;margin-bottom:8px">Consulta de DNI por ID de cliente</strong>
             <textarea aria-label="IDs de cliente" placeholder="Un ID de cliente por línea" style="box-sizing:border-box;width:100%;height:110px;padding:8px;resize:vertical"></textarea>
             <div style="display:flex;gap:8px;margin-top:8px">
                 <button type="button" data-action="start">Consultar IDs</button>
                 <button type="button" data-action="cancel" disabled>Cancelar</button>
-                <button type="button" data-action="copy" disabled>Copiar y guardar IDs</button>
+                <button type="button" data-action="copy" disabled>Copiar DNIs</button>
                 <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
-            <div role="status" aria-live="polite" style="margin-top:8px;overflow-wrap:anywhere">Introduce los IDs, uno por línea.</div>
+            <div role="status" aria-live="polite" style="margin-top:8px;overflow-wrap:anywhere">Introduce los IDs, uno por línea. Los DNI ya guardados se reutilizarán.</div>
         `;
         document.body.appendChild(panel);
 
@@ -58,6 +115,7 @@
         const copyButton = panel.querySelector('[data-action="copy"]');
         const status = panel.querySelector('[role="status"]');
         const serviceIds = [];
+        const results = [];
         let cancelled = false;
         let running = false;
 
@@ -71,8 +129,7 @@
         function readFirstServiceId(table, columnIndex) {
             const firstRow = table.querySelector("tbody tr");
             const value = firstRow?.cells[columnIndex]?.textContent.trim();
-            if (value) serviceIds.push(value);
-            copyButton.disabled = serviceIds.length === 0;
+            return value || "";
         }
 
         function waitForTableUpdate(table, timeoutMs = 60000) {
@@ -128,6 +185,17 @@
                 status.textContent = "Introduce al menos un ID de cliente.";
                 return;
             }
+            let cachedById;
+            try {
+                cachedById = new Map(
+                    readClientMemoryEntries()
+                        .filter(entry => entry.clientId && entry.dni)
+                        .map(entry => [entry.clientId, entry.dni])
+                );
+            } catch (error) {
+                status.textContent = `No se pudo leer la base local de clientes: ${error.message}. Corrige o borra la memoria desde /bo/milowi/user/.`;
+                return;
+            }
 
             let columnIndex;
             try {
@@ -140,19 +208,34 @@
             running = true;
             cancelled = false;
             serviceIds.length = 0;
+            results.length = 0;
             copyButton.disabled = true;
             startButton.disabled = true;
             cancelButton.disabled = false;
             try {
                 for (const [index, id] of ids.entries()) {
                     if (cancelled) break;
+                    const cachedDni = cachedById.get(id);
+                    if (cachedDni) {
+                        serviceIds.push(cachedDni);
+                        results.push({ id, dni: cachedDni, cached: true });
+                        status.textContent = `ID ${index + 1} de ${ids.length}: DNI reutilizado de la base local.`;
+                        continue;
+                    }
                     status.textContent = `Consultando ${index + 1} de ${ids.length}: ${id}`;
                     await requestSearch(input, searchButton, id);
-                    readFirstServiceId(table, columnIndex);
+                    const dni = readFirstServiceId(table, columnIndex);
+                    if (dni) {
+                        serviceIds.push(dni);
+                        results.push({ id, dni, cached: false });
+                        saveClientMapping(id, dni);
+                        cachedById.set(id, dni);
+                    }
                 }
-                status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length} IDs de servicio recopilados.`;
+                const reused = results.filter(result => result.cached).length;
+                status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length}/${ids.length} DNI obtenidos; ${reused} reutilizados de la base local.`;
             } catch (error) {
-                status.textContent = `Proceso detenido: ${error.message} Se conservaron ${serviceIds.length} IDs de servicio recopilados.`;
+                status.textContent = `Proceso detenido: ${error.message} Se conservaron ${serviceIds.length} DNI obtenidos y las relaciones ya guardadas.`;
             } finally {
                 running = false;
                 startButton.disabled = false;
@@ -178,12 +261,12 @@
             try {
                 await navigator.clipboard.writeText(window.dniMasivoIdsServicio.join("\n"));
                 status.textContent = savedForTab
-                    ? `${serviceIds.length} IDs copiados y guardados para la consulta de plantillas en esta pestaña.`
-                    : `${serviceIds.length} IDs copiados. El navegador no permitió guardarlos para la siguiente página.`;
+                    ? `${serviceIds.length} DNI copiados y guardados para la consulta de plantillas en esta pestaña.`
+                    : `${serviceIds.length} DNI copiados. El navegador no permitió guardarlos para la siguiente página.`;
             } catch {
                 status.textContent = savedForTab
-                    ? "IDs guardados para la consulta de plantillas; no se pudo copiar al portapapeles."
-                    : "No se pudieron guardar ni copiar los IDs; revisa los permisos del navegador.";
+                    ? "DNI guardados para la consulta de plantillas; no se pudieron copiar al portapapeles."
+                    : "No se pudieron guardar ni copiar los DNI; revisa los permisos del navegador.";
             }
         });
 
@@ -220,7 +303,7 @@
             </div>
             <input data-memory-file type="file" accept=".json,application/json" hidden>
             <div data-memory-status role="status" style="margin-top:6px;color:#555;font-size:12px"></div>
-            <div style="color:#777;font-size:11px">La copia incluye DNI, dirección y teléfonos; guárdala en un lugar protegido.</div>
+            <div style="color:#777;font-size:11px">La base puede incluir relaciones ID-DNI y fichas con datos personales; guarda las copias en un lugar protegido.</div>
             <section data-errors role="alert" aria-live="assertive" aria-label="Errores y fichas sin pareja" hidden style="margin-top:8px;padding:8px;border:1px solid #c62828;border-radius:4px;background:#fff0f0;color:#8b0000;overflow-wrap:anywhere">
                 <strong>Errores y fichas sin pareja</strong>
                 <ul data-error-list style="margin:4px 0 0;padding-left:20px"></ul>
@@ -273,23 +356,12 @@
         const memoryStatus = templatePanel.querySelector("[data-memory-status]");
         const status = templatePanel.querySelector('[role="status"]');
         const templatesByDni = new Map();
-        const clientMemoryKey = "LOWI_DNI_CLIENT_MEMORY_V1";
         const clientMemory = new Map();
         let memoryLoadError = "";
         try {
-            const savedMemory = JSON.parse(localStorage.getItem(clientMemoryKey) || "[]");
-            if (!Array.isArray(savedMemory)) throw new Error("El formato guardado no es válido.");
-            savedMemory.forEach(entry => {
-                if (
-                    entry &&
-                    typeof entry.template === "string" &&
-                    (typeof entry.clientId === "string" || typeof entry.dni === "string")
-                ) {
-                    const memoryId = String(entry.clientId || "").trim();
-                    const memoryDni = String(entry.dni || "").trim().toUpperCase();
-                    if (memoryId) clientMemory.set(`id:${memoryId}`, entry);
-                    if (memoryDni) clientMemory.set(`dni:${memoryDni}`, entry);
-                }
+            readClientMemoryEntries().forEach(entry => {
+                if (entry.clientId) clientMemory.set(`id:${entry.clientId}`, entry);
+                if (entry.dni) clientMemory.set(`dni:${entry.dni}`, entry);
             });
         } catch (error) {
             memoryLoadError = error.message;
@@ -338,34 +410,6 @@
             return [...new Set(clientMemory.values())];
         }
 
-        function normalizeMemoryEntry(entry) {
-            if (!entry || typeof entry.template !== "string" || !entry.template.trim()) {
-                throw new Error("Cada cliente debe incluir una plantilla de texto.");
-            }
-            const clientId =
-                String(entry.clientId || entry.template.match(/^•\s*ID:\s*(.+)$/im)?.[1] || "").trim();
-            const dni =
-                String(entry.dni || entry.template.match(/^•\s*DNI:\s*(.+)$/im)?.[1] || "")
-                    .trim()
-                    .toUpperCase();
-            if (!clientId && !dni) {
-                throw new Error("Cada ficha debe contener un ID de cliente o un DNI.");
-            }
-            if (clientId && !/^\d+$/.test(clientId)) {
-                throw new Error(`ID de cliente no válido: ${clientId}`);
-            }
-            return {
-                clientId,
-                dni,
-                template: entry.template.trim(),
-                updatedAt:
-                    typeof entry.updatedAt === "string" &&
-                    !Number.isNaN(Date.parse(entry.updatedAt))
-                        ? entry.updatedAt
-                        : new Date(0).toISOString()
-            };
-        }
-
         function rebuildClientMemory(entries) {
             const serialized = JSON.stringify(entries);
             localStorage.setItem(clientMemoryKey, serialized);
@@ -383,7 +427,9 @@
             for (const imported of importedEntries) {
                 const sameClient = entry =>
                     (imported.clientId && entry.clientId === imported.clientId) ||
-                    (imported.dni && entry.dni === imported.dni);
+                    (imported.dni &&
+                        entry.dni === imported.dni &&
+                        (!imported.clientId || !entry.clientId));
                 const matchingIndexes = merged
                     .map((entry, index) => sameClient(entry) ? index : -1)
                     .filter(index => index >= 0);
@@ -391,17 +437,34 @@
                     merged.push(imported);
                     continue;
                 }
-                const newestMatch = matchingIndexes
-                    .map(index => merged[index])
+                const matchingEntries = matchingIndexes.map(index => merged[index]);
+                const newestMatch = matchingEntries.reduce((newest, entry) =>
+                    Date.parse(entry.updatedAt) > Date.parse(newest.updatedAt) ? entry : newest
+                );
+                const newestTemplate = matchingEntries
+                    .filter(entry => entry.template)
                     .reduce((newest, entry) =>
-                        Date.parse(entry.updatedAt) > Date.parse(newest.updatedAt)
+                        !newest || Date.parse(entry.updatedAt) > Date.parse(newest.updatedAt)
                             ? entry
-                            : newest
-                    );
-                const chosen =
+                            : newest,
+                    null);
+                const newestEntry =
                     Date.parse(imported.updatedAt) >= Date.parse(newestMatch.updatedAt)
                         ? imported
                         : newestMatch;
+                const template = imported.template || newestTemplate?.template || newestMatch.template;
+                const templateId = template?.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim();
+                const templateDni = template?.match(/^•\s*DNI:\s*(.+)$/im)?.[1]?.trim().toUpperCase();
+                const templateMatchesMapping =
+                    (!imported.clientId || !templateId || imported.clientId === templateId) &&
+                    (!imported.dni || !templateDni || imported.dni === templateDni);
+                const chosen = normalizeMemoryEntry({
+                    ...newestEntry,
+                    clientId: imported.clientId || newestMatch.clientId,
+                    dni: imported.dni || newestMatch.dni,
+                    template: templateMatchesMapping ? template : undefined,
+                    updatedAt: newestEntry.updatedAt
+                });
                 for (let index = matchingIndexes.length - 1; index >= 0; index--)
                     merged.splice(matchingIndexes[index], 1);
                 merged.push(chosen);
@@ -414,7 +477,7 @@
             const id = String(clientId || "").trim();
             const byId = id ? clientMemory.get(`id:${id}`) : null;
             const byDni = clientMemory.get(`dni:${String(dni).trim().toUpperCase()}`);
-            return byId || byDni || null;
+            return [byId, byDni].find(entry => entry?.template) || null;
         }
 
         function rememberTemplate(dni, template) {
@@ -722,7 +785,10 @@
                 : savedServiceIds.length
                     ? savedServiceIds
                     : textarea.value.split(/[\s,;]+/);
-            const dnis = [...new Set(sourceIds.map(value => value.trim()).filter(Boolean))];
+            const dnis = [...new Set(sourceIds
+                .map(value => value.trim())
+                .filter(Boolean)
+                .map(value => clientMemory.get(`id:${value}`)?.dni || value))];
             if (!dnis.length) {
                 status.textContent = "Introduce al menos un DNI sintético.";
                 return;
@@ -951,7 +1017,7 @@
         });
 
         clearMemoryButton.addEventListener("click", () => {
-            if (!confirm("¿Borrar todas las fichas de clientes guardadas en este navegador?")) return;
+            if (!confirm("¿Borrar todas las relaciones ID-DNI y fichas guardadas en este navegador?")) return;
             try {
                 localStorage.removeItem(clientMemoryKey);
                 clientMemory.clear();

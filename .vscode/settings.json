@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^node --check DNI_masivo\\.js && git diff --check && git diff -- DNI_masivo\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
