@@ -100,7 +100,7 @@ javascript: (() => {
         windowSettings.style.cssText =
           "display:flex;align-items:center;gap:8px;margin:0 0 14px";
         windowToggle.type = "checkbox";
-        windowToggle.checked = true;
+        windowToggle.checked = false;
         windowLabel.append(
           windowToggle,
           document.createTextNode(" Ejecutar con ventana y procesar todas automáticamente")
@@ -589,8 +589,22 @@ javascript: (() => {
         75
       );
       if (!otra) throw Error("No apareció Enviar otra respuesta.");
+      q.pendientes.shift();
+      q.ok.push(resultado);
+      const finalizado = !q.pendientes.length && !q.ko.length;
+      if (finalizado) localStorage.removeItem(K);
+      else save(q);
       otra.click();
-      return resultado;
+      console.log(
+        `✅ ${caso.id} procesado. Pendientes: ${q.pendientes.length}`
+      );
+      if (finalizado) {
+        document.getElementById("AUTOI_PANEL")?.remove();
+        alert(`🏁 PROCESO FINALIZADO\n\n✅ OK: ${q.ok.length}\n❌ KO: 0`);
+      } else {
+        panel();
+      }
+      return { manualCompletado: true };
     }
     const envio = workerSubmitQueue.then(async () => {
       const normalizarValorCampo = (valor) =>
@@ -777,11 +791,13 @@ javascript: (() => {
       );
     }
     const plantilla = q.pendientes[0];
-    const resultado = await procesarPlantilla(plantilla);
-    if (!resultado) {
+    const procesamiento = await procesarPlantilla(plantilla);
+    if (!procesamiento) {
       panel();
       return;
     }
+    if (procesamiento.manualCompletado) return;
+    const resultado = procesamiento;
     q.pendientes.shift();
     q.ok.push(resultado);
     const finalizado = !q.pendientes.length && !q.ko.length;
