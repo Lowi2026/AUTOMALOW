@@ -181,13 +181,13 @@ javascript: (async () => {
       if (!clip?.trim()) return alert("❌ El portapapeles está vacío.");
       const partes = clip
         .split(
-          /^[\t ]*-{3,}[\t ]*$(?=(?:\r?\n[\t ]*)+(?:[\u2022*-]\s*(?:NOMBRE|DNI|ID)\s*:|ID\s+CLIENTE\s*:|AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|\d{6,}\s*-\s*CERRADA))/gim
+          /^[\t ]*-{3,}[\t ]*(?:\r?\n[\t ]*)*(?=(?:[\u2022*-]\s*(?:NOMBRE|DNI)\s*:|(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*[A-Z0-9]*\d[A-Z0-9]*|AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|\d{6,}\s*-\s*CERRADA))/gim
         )
         .map((x) => x.trim())
         .filter(
           (x) =>
             x &&
-            /(?:AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|(?:^|\n)\s*(?:[\u2022*-]\s*)?ID(?:\s+CLIENTE)?\s*:?\s*\d+|(?:^|\n)\s*\d{6,}\s*-\s*CERRADA)/i.test(
+            /(?:AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|(?:^|\n)[\t ]*(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*[A-Z0-9]*\d[A-Z0-9]*|(?:^|\n)\s*\d{6,}\s*-\s*CERRADA)/i.test(
               x
             )
         );
@@ -218,7 +218,7 @@ javascript: (async () => {
     const p = q.pendientes[0],
       a = p.match(/(?:^|\n)\s*AVER[IÍ]A\s*:?\s*(\d+)/i),
       o = p.match(/(?:^|\n)\s*NUMERO\s+DE\s+OT\s*:?\s*(\d+)/i),
-      i = p.match(/(?:^|\n)\s*(?:[\u2022*-]\s*)?ID(?:\s+CLIENTE)?\s*:?\s*(\d+)/i),
+      i = p.match(/(?:^|\n)[\t ]*(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*([A-Z0-9]*\d[A-Z0-9]*)/i),
       cerrada = p.match(/(?:^|\n)\s*(\d{6,})\s*-\s*CERRADA/i),
       caso = a
         ? { tipo: "AVERIA", id: a[1] }
