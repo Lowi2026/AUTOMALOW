@@ -334,7 +334,14 @@ javascript: (() => {
         .toLowerCase()
         .replace(/\s+/g, " ")
         .trim(),
-      tvScore = (normalizado.match(/tv agil|decodificador|\bdeco\b|television|ver tv|sin senal|\bsenal\b|\bhdmi\b|\bmando\b/g) || []).length,
+      equipoTv = /\b(?:tv|deco|decodificador|zapper|stb|tivo)\b|television|android tv|entry zapper/.test(
+        equipoNormalizado
+      ),
+      equipoNet =
+        /\b(?:router|wi-?fi\s*6?|fibra|fiber|ont|docsis|mta|cga\d+|f6600p|st3686)\b/.test(
+          equipoNormalizado
+        ) || /\bno encontrado\b/.test(equipoNormalizado),
+      tvScore = (normalizado.match(/tv agil|decodificador|\bdeco\b|television|ver tv|sin senal|\bsenal\b|\bhdmi\b|\bmando\b|android tv|\btivo\b|control remoto|canales de tv/g) || []).length,
       netScore = (normalizado.match(/\brouter\b|\bwifi\b|wi-fi|\bfibra\b|sin internet|internet no|conexion a internet|banda ancha|\bont\b|\bdocsis\b|\bcga\d+\b/g) || []).length,
       tipForzada = (p.match(/(?:^|\n)\s*TIPOLOGIA\s*:\s*(.+)/i) || [])[1]?.trim(),
       esCorreo = /(?:^|\n)\s*(?:correos?\s+install\b|correos?\s*(?:\n|$)|asunto\s*:)/i.test(p),
@@ -346,10 +353,10 @@ javascript: (() => {
           ? "Correos install"
           : esRepetida
             ? "Rep Autoi"
-            : equipo
-              ? equipoNormalizado === "sagemcom deco tv lowi entry zapper"
-                ? "Autoi TV"
-                : "Autoi Net"
+            : equipoTv
+              ? "Autoi TV"
+              : equipoNet
+                ? "Autoi Net"
               : tvScore > netScore
                 ? "Autoi TV"
                 : netScore > tvScore
