@@ -1,8 +1,8 @@
-javascript: (async () => {
+javascript: (() => {
+  const iniciarAutoi = async (clipboardText = null) => {
   const K = "AUTOI_COLA_V6",
     FORM_URL =
       "https://vodafone-my.sharepoint.com/personal/hsteffe1_corp_vodafone_es/_layouts/15/listforms.aspx?cid=YjJmYjdmNDEtNTZkNy00NTAwLThjZDctMWY2MGM4M2VkMmIw&nav=MzBmNGNkZTItYTE3Yi00YzE1LThjM2QtY2EyM2RiMDk4MjY2",
-    MAX_WORKERS = 20,
     TIPOS = [
       "Correos install",
       "Televisión",
@@ -23,7 +23,7 @@ javascript: (async () => {
         localStorage.getItem(K) || '{"pendientes":[],"ok":[],"ko":[]}'
       ),
     save = (q) => localStorage.setItem(K, JSON.stringify(q)),
-    setv = (e, v) => {
+    setv = (e, v, dispatchBlur = true) => {
       if (!e) return false;
       const targetWindow = e.ownerDocument.defaultView;
       const p =
@@ -42,18 +42,31 @@ javascript: (async () => {
         })
       );
       e.dispatchEvent(new targetWindow.Event("change", { bubbles: true }));
-      e.dispatchEvent(new targetWindow.Event("blur", { bubbles: true }));
+      if (dispatchBlur)
+        e.dispatchEvent(new targetWindow.Event("blur", { bubbles: true }));
       return true;
     },
     wait = async (sel, n = 60, d = 60, getDocument = () => document) => {
+      let navigationError = null;
       for (let i = 0; i < n; i++) {
-        const doc =
-          typeof getDocument === "function" ? getDocument() : getDocument;
-        if (doc.defaultView?.closed) throw Error("La ventana del formulario se cerró.");
-        const e = doc.querySelector(sel);
-        if (e && e.offsetParent !== null) return e;
+        try {
+          const doc =
+            typeof getDocument === "function" ? getDocument() : getDocument;
+          if (doc.defaultView?.closed)
+            throw Error("La ventana del formulario se cerró.");
+          const e = doc.querySelector(sel);
+          if (e && e.offsetParent !== null) return e;
+          navigationError = null;
+        } catch (error) {
+          if (error?.name !== "SecurityError") throw error;
+          navigationError = error;
+        }
         await S(d);
       }
+      if (navigationError)
+        throw Error(
+          "No se pudo acceder al formulario de SharePoint. Comprueba que la sesión esté iniciada y que la ventana haya terminado de cargar."
+        );
       return null;
     },
     elegirModo = (plantillasCount) =>
@@ -63,11 +76,9 @@ javascript: (async () => {
           title = document.createElement("h3"),
           description = document.createElement("p"),
           modes = document.createElement("div"),
-          workerSettings = document.createElement("div"),
-          workerLabel = document.createElement("label"),
-          workerToggle = document.createElement("input"),
-          workerCountLabel = document.createElement("label"),
-          workerCount = document.createElement("input"),
+          windowSettings = document.createElement("div"),
+          windowLabel = document.createElement("label"),
+          windowToggle = document.createElement("input"),
           manualLabel = document.createElement("label"),
           select = document.createElement("select"),
           actions = document.createElement("div"),
@@ -86,20 +97,13 @@ javascript: (async () => {
         description.textContent = "Elige cómo procesar las plantillas copiadas.";
         description.style.cssText = "margin:0 0 14px;color:#444";
         modes.style.cssText = "display:flex;gap:16px;margin-bottom:14px";
-        workerSettings.style.cssText =
-          "display:flex;align-items:center;gap:8px;margin:0 0 14px;flex-wrap:wrap";
-        workerToggle.type = "checkbox";
-        workerLabel.append(workerToggle, document.createTextNode(" Procesar en varias ventanas"));
-        workerCount.type = "number";
-        workerCount.min = "2";
-        workerCount.max = String(Math.min(MAX_WORKERS, plantillasCount));
-        workerCount.value = String(Math.min(3, plantillasCount));
-        workerToggle.disabled = plantillasCount < 2;
-        workerCount.style.cssText =
-          "box-sizing:border-box;width:68px;padding:5px;border:1px solid #888;border-radius:4px";
-        workerCountLabel.append(
-          document.createTextNode("Workers: "),
-          workerCount
+        windowSettings.style.cssText =
+          "display:flex;align-items:center;gap:8px;margin:0 0 14px";
+        windowToggle.type = "checkbox";
+        windowToggle.checked = true;
+        windowLabel.append(
+          windowToggle,
+          document.createTextNode(" Ejecutar con ventana y procesar todas automáticamente")
         );
         const radioGroup = `AUTOI_MODE_${Date.now()}`;
         const radioAutomatico = document.createElement("input"),
@@ -147,48 +151,34 @@ javascript: (async () => {
         const actualizar = () => {
           const manual = radioManual.checked;
           select.disabled = !manual;
-          workerCount.disabled = !workerToggle.checked;
-          const count = Number(workerCount.value);
-          const countValido =
-            Number.isInteger(count) &&
-            count >= 2 &&
-            count <= MAX_WORKERS &&
-            count <= plantillasCount;
-          confirm.disabled =
-            (manual && !select.value) ||
-            (workerToggle.checked && !countValido);
+          confirm.disabled = manual && !select.value;
           confirm.style.opacity = confirm.disabled ? "0.55" : "1";
         };
         radioAutomatico.addEventListener("change", actualizar);
         radioManual.addEventListener("change", actualizar);
         select.addEventListener("change", actualizar);
-        workerToggle.addEventListener("change", actualizar);
-        workerCount.addEventListener("input", actualizar);
         actualizar();
         cancel.onclick = () => cerrar(null);
         confirm.onclick = () => {
           const workerWindows = [];
-          if (workerToggle.checked) {
-            const count = Math.min(Number(workerCount.value), plantillasCount);
-            for (let index = 0; index < count; index++) {
-              const workerWindow = window.open(
-                FORM_URL,
-                `AUTOI_WORKER_${Date.now()}_${index}`,
-                `width=1100,height=850,left=${20 + index * 35},top=${20 + index * 35}`
+          if (windowToggle.checked) {
+            const workerWindow = window.open(
+              FORM_URL,
+              `AUTOI_WORKER_${Date.now()}`,
+              "width=1100,height=850"
+            );
+            if (!workerWindow) {
+              alert(
+                "El navegador bloqueó la ventana del formulario. Permite las ventanas emergentes y vuelve a iniciar."
               );
-              if (!workerWindow) {
-                workerWindows.forEach((worker) => worker.close());
-                alert(
-                  "El navegador bloqueó una ventana worker. Permite las ventanas emergentes y vuelve a iniciar."
-                );
-                return;
-              }
-              workerWindows.push(workerWindow);
+              return;
             }
+            workerWindows.push(workerWindow);
           }
           cerrar({
             modo: radioManual.checked ? "manual" : "automatica",
             tipologia: radioManual.checked ? select.value : "",
+            ejecutarConVentana: windowToggle.checked,
             workerWindows
           });
         };
@@ -196,15 +186,15 @@ javascript: (async () => {
           if (event.target === overlay) cerrar(null);
         };
         document.addEventListener("keydown", alTeclado);
-        workerSettings.append(workerLabel, workerCountLabel);
+        windowSettings.append(windowLabel);
         modes.append(labelAutomatico, manualLabel);
         actions.append(cancel, confirm);
         dialog.append(
           title,
           description,
           modes,
+          windowSettings,
           select,
-          workerSettings,
           actions
         );
         overlay.appendChild(dialog);
@@ -219,8 +209,24 @@ javascript: (async () => {
       d.id = "AUTOI_PANEL";
       d.style.cssText =
         "position:fixed;top:20px;left:20px;z-index:999999;background:#fff;color:#111;padding:12px 15px;border:1px solid #bbb;border-radius:9px;font:13px Arial;box-shadow:0 4px 18px #0004;min-width:220px";
-      d.innerHTML = `<b>📦 AUTOI</b><hr style="margin:7px 0"><div>⏳ Pendientes: <b>${q.pendientes.length}</b></div><div>✅ OK: <b>${q.ok.length}</b></div><div>❌ KO: <b>${q.ko.length}</b></div><hr style="margin:7px 0"><button id="A_COPY">📋 Copiar KO</button> <button id="A_CLEAR">🗑️ Limpiar</button>`;
+      d.innerHTML = `<b>📦 AUTOI</b><hr style="margin:7px 0"><div>⏳ Pendientes: <b>${q.pendientes.length}</b></div><div>✅ OK: <b>${q.ok.length}</b></div><div>❌ KO: <b>${q.ko.length}</b></div><hr style="margin:7px 0"><button id="A_CLIP" ${q.pendientes.length || q.ok.length || q.ko.length ? "disabled" : ""}>📥 Tomar del clipboard</button> <button id="A_COPY">📋 Copiar KO</button> <button id="A_CLEAR">🗑️ Limpiar</button>`;
       document.body.appendChild(d);
+      document.getElementById("A_CLIP").onclick = async (event) => {
+        const button = event.currentTarget;
+        button.disabled = true;
+        try {
+          const text = await navigator.clipboard.readText();
+          if (!text.trim()) {
+            alert("❌ El portapapeles está vacío.");
+            return;
+          }
+          await iniciarAutoi(text);
+        } catch (error) {
+          alert(`❌ No se pudo leer el portapapeles: ${error.message}`);
+        } finally {
+          if (button.isConnected) button.disabled = false;
+        }
+      };
       document.getElementById("A_COPY").onclick = async () => {
         const q = load();
         if (!q.ko.length) return alert("No hay plantillas KO.");
@@ -242,12 +248,15 @@ javascript: (async () => {
         }
       };
     };
-  let workerTipologiaQueue = Promise.resolve();
+  let workerTipologiaQueue = Promise.resolve(),
+    workerSubmitQueue = Promise.resolve(),
+    workerFormQueue = Promise.resolve();
   try {
     let q = load(),
       workerWindows = [];
+    if (clipboardText === null) panel();
     if (!q.pendientes.length && !q.ok.length && !q.ko.length) {
-      const clip = await navigator.clipboard.readText();
+      const clip = clipboardText ?? (await navigator.clipboard.readText());
       if (!clip?.trim()) return alert("❌ El portapapeles está vacío.");
       const partes = clip
         .split(
@@ -268,15 +277,15 @@ javascript: (async () => {
       q.pendientes = partes;
       q.modo = configuracion.modo;
       q.tipologiaManual = configuracion.tipologia;
-      q.workers = configuracion.workerWindows.length > 0;
-      q.workerCount = configuracion.workerWindows.length;
+      q.workers = configuracion.ejecutarConVentana;
+      q.workerCount = q.workers ? 1 : 0;
       workerWindows = configuracion.workerWindows;
       save(q);
       console.log(`📥 ${partes.length} plantillas cargadas.`);
       alert(
         `📥 ${partes.length} plantillas cargadas.\n\n${
-          workerWindows.length
-            ? `Se procesarán hasta ${workerWindows.length} en paralelo.`
+          configuracion.ejecutarConVentana
+            ? "Se procesarán automáticamente, una por una, en una sola ventana."
             : "Se procesará la primera."
         }`
       );
@@ -350,10 +359,15 @@ javascript: (async () => {
       `📋 ${caso.tipo}: ${caso.id} | 📦 ${equipo || "Sin equipo"} | 🎯 ${tip || "Elegir manualmente"}`
     );
     const id = await esperar("#TextField1");
-    if (!id) throw Error("No apareció TextField1.");
-    setv(id, "");
+    if (!id) {
+      const error = new Error("No apareció TextField1.");
+      if (formularioWindow !== window) error.detenerWorker = true;
+      throw error;
+    }
+    setv(id, "", formularioWindow === window);
     await S(50);
-    if (!setv(id, caso.id)) throw Error("No se pudo rellenar TextField1.");
+    if (!setv(id, caso.id, formularioWindow === window))
+      throw Error("No se pudo rellenar TextField1.");
     await S(100);
     const ts = await esperar("#displayView-displayDiv-Tipolog_x00ed_a");
     if (!ts) throw Error("No apareció el selector de Tipología.");
@@ -553,22 +567,129 @@ javascript: (async () => {
     await S(80);
     const obs = await esperar("#TextField8");
     if (!obs) throw Error("No apareció TextField8.");
-    setv(obs, "");
+    setv(obs, "", formularioWindow === window);
     await S(40);
-    if (!setv(obs, p)) throw Error("No se pudo rellenar TextField8.");
+    if (!setv(obs, p, formularioWindow === window))
+      throw Error("No se pudo rellenar TextField8.");
     await S(100);
     const btn = await esperar("#form-submit-button");
     if (!btn) throw Error("No apareció el botón Enviar.");
-    btn.click();
-    console.log(`📤 Enviando ${caso.id}...`);
-    const otra = await esperar(
-      'button[aria-label="Enviar otra respuesta"]',
-      80,
-      75
+    const resultado = {
+      id: caso.id,
+      tipo: caso.tipo,
+      tipologia: tipElegida,
+      plantilla: p
+    };
+    if (formularioWindow === window) {
+      btn.click();
+      console.log(`📤 Enviando ${caso.id}...`);
+      const otra = await esperar(
+        'button[aria-label="Enviar otra respuesta"]',
+        80,
+        75
+      );
+      if (!otra) throw Error("No apareció Enviar otra respuesta.");
+      otra.click();
+      return resultado;
+    }
+    const envio = workerSubmitQueue.then(async () => {
+      const normalizarValorCampo = (valor) =>
+        String(valor ?? "")
+          .replace(/\r\n?/g, "\n")
+          .trim();
+      for (const [selector, valor, nombre] of [
+        ["#TextField1", caso.id, "Número de caso"],
+        ["#TextField8", p, "Observaciones"]
+      ]) {
+        let campo = getDocument().querySelector(selector);
+        for (
+          let intento = 0;
+          intento < 3 &&
+          (!campo ||
+            normalizarValorCampo(campo.value) !==
+              normalizarValorCampo(valor));
+          intento++
+        ) {
+          if (!campo) break;
+          setv(campo, valor, false);
+          await S(150);
+          campo = getDocument().querySelector(selector);
+        }
+        if (
+          !campo ||
+          normalizarValorCampo(campo.value) !== normalizarValorCampo(valor)
+        ) {
+          const error = new Error(
+            `${nombre} no coincide con el valor esperado antes del envío del caso ${caso.id}; se cancela el envío para evitar perder información.`
+          );
+          error.detenerWorker = true;
+          throw error;
+        }
+      }
+      const botonEnviar = getDocument().querySelector("#form-submit-button");
+      if (
+        !botonEnviar ||
+        botonEnviar.disabled ||
+        botonEnviar.getAttribute("aria-disabled") === "true"
+      )
+        throw Error(`El botón Enviar no está disponible para ${caso.id}.`);
+      const idAntesDeEnviar = getDocument().querySelector("#TextField1"),
+        observacionesAntesDeEnviar =
+          getDocument().querySelector("#TextField8");
+      if (
+        normalizarValorCampo(idAntesDeEnviar?.value) !==
+          normalizarValorCampo(caso.id) ||
+        normalizarValorCampo(observacionesAntesDeEnviar?.value) !==
+          normalizarValorCampo(p)
+      ) {
+        const error = new Error(
+          `SharePoint borró o modificó los datos del caso ${caso.id} antes de enviarlo; el envío se cancela.`
+        );
+        error.detenerWorker = true;
+        throw error;
+      }
+      botonEnviar.click();
+      console.log(`📤 Enviando ${caso.id}...`);
+      const otra = await esperar(
+        'button[aria-label="Enviar otra respuesta"]',
+        400,
+        75
+      );
+      if (!otra) {
+        const error = new Error(
+          `No se confirmó el envío del caso ${caso.id}; se deja pendiente y se detiene este worker.`
+        );
+        error.detenerWorker = true;
+        throw error;
+      }
+      otra.click();
+      for (let intento = 0; intento < 100; intento++) {
+        const campo = getDocument().querySelector("#TextField1"),
+          botonOtra = getDocument().querySelector(
+            'button[aria-label="Enviar otra respuesta"]'
+          );
+        if (
+          campo &&
+          String(campo.value).trim() === "" &&
+          (!botonOtra || botonOtra.getClientRects().length === 0)
+        ) {
+          return;
+        }
+        await S(75);
+      }
+      const error = new Error(
+        `El caso ${caso.id} se envió, pero el formulario no se reinició; se detiene este worker para evitar un envío duplicado.`
+      );
+      error.detenerWorker = true;
+      error.resultadoEnviado = resultado;
+      throw error;
+    });
+    workerSubmitQueue = envio.then(
+      () => undefined,
+      () => undefined
     );
-    if (!otra) throw Error("No apareció Enviar otra respuesta.");
-    otra.click();
-    return { id: caso.id, tipo: caso.tipo, tipologia: tipElegida, plantilla: p };
+    await envio;
+    return resultado;
     }
     if (workerWindows.length) {
       let nextIndex = 0;
@@ -577,10 +698,18 @@ javascript: (async () => {
         while (nextIndex < pendientesIniciales.length) {
           const plantilla = pendientesIniciales[nextIndex++];
           try {
-            const resultado = await procesarPlantilla(
-              plantilla,
-              formularioWindow
+            const tarea = workerFormQueue.then(async () => {
+              if (formularioWindow.closed)
+                throw Error(`La ventana worker ${workerIndex + 1} se cerró.`);
+              formularioWindow.focus();
+              await S(500);
+              return procesarPlantilla(plantilla, formularioWindow);
+            });
+            workerFormQueue = tarea.then(
+              () => undefined,
+              () => undefined
             );
+            const resultado = await tarea;
             if (!resultado) continue;
             const indice = q.pendientes.indexOf(plantilla);
             if (indice >= 0) q.pendientes.splice(indice, 1);
@@ -590,6 +719,16 @@ javascript: (async () => {
               `✅ Worker ${workerIndex + 1}: ${resultado.id}. Pendientes: ${q.pendientes.length}`
             );
           } catch (error) {
+            if (error?.detenerWorker) {
+              if (error.resultadoEnviado) {
+                const indice = q.pendientes.indexOf(plantilla);
+                if (indice >= 0) q.pendientes.splice(indice, 1);
+                q.ok.push(error.resultadoEnviado);
+              }
+              save(q);
+              console.error(`⏸️ Worker ${workerIndex + 1}`, error);
+              break;
+            }
             const indice = q.pendientes.indexOf(plantilla);
             if (indice >= 0) q.pendientes.splice(indice, 1);
             q.ko.push({
@@ -658,6 +797,16 @@ javascript: (async () => {
   } catch (e) {
     console.error("❌", e);
     const q = load();
+    if (e?.detenerWorker) {
+      if (e.resultadoEnviado && q.pendientes.length) {
+        q.pendientes.shift();
+        q.ok.push(e.resultadoEnviado);
+      }
+      save(q);
+      panel();
+      alert(`⏸️ ${e.message}`);
+      return;
+    }
     if (q.pendientes.length) {
       const p = q.pendientes.shift();
       q.ko.push({ plantilla: p, error: e.message });
@@ -666,4 +815,6 @@ javascript: (async () => {
     panel();
     alert(`❌ PLANTILLA KO\n\n${e.message}`);
   }
+  };
+  iniciarAutoi();
 })();
