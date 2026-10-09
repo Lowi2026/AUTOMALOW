@@ -1,5 +1,8 @@
 javascript: (async () => {
   const K = "AUTOI_COLA_V6",
+    FORM_URL =
+      "https://vodafone-my.sharepoint.com/personal/hsteffe1_corp_vodafone_es/_layouts/15/listforms.aspx?cid=YjJmYjdmNDEtNTZkNy00NTAwLThjZDctMWY2MGM4M2VkMmIw&nav=MzBmNGNkZTItYTE3Yi00YzE1LThjM2QtY2EyM2RiMDk4MjY2",
+    MAX_WORKERS = 20,
     TIPOS = [
       "Correos install",
       "Televisión",
@@ -22,40 +25,47 @@ javascript: (async () => {
     save = (q) => localStorage.setItem(K, JSON.stringify(q)),
     setv = (e, v) => {
       if (!e) return false;
+      const targetWindow = e.ownerDocument.defaultView;
       const p =
-          e instanceof HTMLTextAreaElement
-            ? HTMLTextAreaElement.prototype
-            : HTMLInputElement.prototype,
+          e.tagName === "TEXTAREA"
+            ? targetWindow.HTMLTextAreaElement.prototype
+            : targetWindow.HTMLInputElement.prototype,
         f = Object.getOwnPropertyDescriptor(p, "value")?.set;
       if (!f) return false;
       e.focus();
       f.call(e, v);
       e.dispatchEvent(
-        new InputEvent("input", {
+        new targetWindow.InputEvent("input", {
           bubbles: true,
           inputType: "insertText",
           data: v
         })
       );
-      e.dispatchEvent(new Event("change", { bubbles: true }));
-      e.dispatchEvent(new Event("blur", { bubbles: true }));
+      e.dispatchEvent(new targetWindow.Event("change", { bubbles: true }));
+      e.dispatchEvent(new targetWindow.Event("blur", { bubbles: true }));
       return true;
     },
-    wait = async (sel, n = 60, d = 60) => {
+    wait = async (sel, n = 60, d = 60, doc = document) => {
       for (let i = 0; i < n; i++) {
-        const e = document.querySelector(sel);
+        if (doc.defaultView?.closed) throw Error("La ventana del formulario se cerró.");
+        const e = doc.querySelector(sel);
         if (e && e.offsetParent !== null) return e;
         await S(d);
       }
       return null;
     },
-    elegirModo = () =>
+    elegirModo = (plantillasCount) =>
       new Promise((resolve) => {
         const overlay = document.createElement("div"),
           dialog = document.createElement("div"),
           title = document.createElement("h3"),
           description = document.createElement("p"),
           modes = document.createElement("div"),
+          workerSettings = document.createElement("div"),
+          workerLabel = document.createElement("label"),
+          workerToggle = document.createElement("input"),
+          workerCountLabel = document.createElement("label"),
+          workerCount = document.createElement("input"),
           manualLabel = document.createElement("label"),
           select = document.createElement("select"),
           actions = document.createElement("div"),
@@ -74,6 +84,21 @@ javascript: (async () => {
         description.textContent = "Elige cómo procesar las plantillas copiadas.";
         description.style.cssText = "margin:0 0 14px;color:#444";
         modes.style.cssText = "display:flex;gap:16px;margin-bottom:14px";
+        workerSettings.style.cssText =
+          "display:flex;align-items:center;gap:8px;margin:0 0 14px;flex-wrap:wrap";
+        workerToggle.type = "checkbox";
+        workerLabel.append(workerToggle, document.createTextNode(" Procesar en varias ventanas"));
+        workerCount.type = "number";
+        workerCount.min = "2";
+        workerCount.max = String(Math.min(MAX_WORKERS, plantillasCount));
+        workerCount.value = String(Math.min(3, plantillasCount));
+        workerToggle.disabled = plantillasCount < 2;
+        workerCount.style.cssText =
+          "box-sizing:border-box;width:68px;padding:5px;border:1px solid #888;border-radius:4px";
+        workerCountLabel.append(
+          document.createTextNode("Workers: "),
+          workerCount
+        );
         const radioGroup = `AUTOI_MODE_${Date.now()}`;
         const radioAutomatico = document.createElement("input"),
           labelAutomatico = document.createElement("label"),
@@ -120,25 +145,66 @@ javascript: (async () => {
         const actualizar = () => {
           const manual = radioManual.checked;
           select.disabled = !manual;
-          confirm.disabled = manual && !select.value;
+          workerCount.disabled = !workerToggle.checked;
+          const count = Number(workerCount.value);
+          const countValido =
+            Number.isInteger(count) &&
+            count >= 2 &&
+            count <= MAX_WORKERS &&
+            count <= plantillasCount;
+          confirm.disabled =
+            (manual && !select.value) ||
+            (workerToggle.checked && !countValido);
           confirm.style.opacity = confirm.disabled ? "0.55" : "1";
         };
         radioAutomatico.addEventListener("change", actualizar);
         radioManual.addEventListener("change", actualizar);
         select.addEventListener("change", actualizar);
+        workerToggle.addEventListener("change", actualizar);
+        workerCount.addEventListener("input", actualizar);
+        actualizar();
         cancel.onclick = () => cerrar(null);
-        confirm.onclick = () =>
+        confirm.onclick = () => {
+          const workerWindows = [];
+          if (workerToggle.checked) {
+            const count = Math.min(Number(workerCount.value), plantillasCount);
+            for (let index = 0; index < count; index++) {
+              const workerWindow = window.open(
+                FORM_URL,
+                `AUTOI_WORKER_${Date.now()}_${index}`,
+                `width=1100,height=850,left=${20 + index * 35},top=${20 + index * 35}`
+              );
+              if (!workerWindow) {
+                workerWindows.forEach((worker) => worker.close());
+                alert(
+                  "El navegador bloqueó una ventana worker. Permite las ventanas emergentes y vuelve a iniciar."
+                );
+                return;
+              }
+              workerWindows.push(workerWindow);
+            }
+          }
           cerrar({
             modo: radioManual.checked ? "manual" : "automatica",
-            tipologia: radioManual.checked ? select.value : ""
+            tipologia: radioManual.checked ? select.value : "",
+            workerWindows
           });
+        };
         overlay.onclick = (event) => {
           if (event.target === overlay) cerrar(null);
         };
         document.addEventListener("keydown", alTeclado);
+        workerSettings.append(workerLabel, workerCountLabel);
         modes.append(labelAutomatico, manualLabel);
         actions.append(cancel, confirm);
-        dialog.append(title, description, modes, select, actions);
+        dialog.append(
+          title,
+          description,
+          modes,
+          select,
+          workerSettings,
+          actions
+        );
         overlay.appendChild(dialog);
         document.body.appendChild(overlay);
         radioAutomatico.focus();
@@ -174,8 +240,10 @@ javascript: (async () => {
         }
       };
     };
+  let workerTipologiaQueue = Promise.resolve();
   try {
-    let q = load();
+    let q = load(),
+      workerWindows = [];
     if (!q.pendientes.length && !q.ok.length && !q.ko.length) {
       const clip = await navigator.clipboard.readText();
       if (!clip?.trim()) return alert("❌ El portapapeles está vacío.");
@@ -193,15 +261,22 @@ javascript: (async () => {
         );
       if (!partes.length)
         return alert("❌ No se encontraron plantillas válidas.");
-      const configuracion = await elegirModo();
+      const configuracion = await elegirModo(partes.length);
       if (!configuracion) return;
       q.pendientes = partes;
       q.modo = configuracion.modo;
       q.tipologiaManual = configuracion.tipologia;
+      q.workers = configuracion.workerWindows.length > 0;
+      q.workerCount = configuracion.workerWindows.length;
+      workerWindows = configuracion.workerWindows;
       save(q);
       console.log(`📥 ${partes.length} plantillas cargadas.`);
       alert(
-        `📥 ${partes.length} plantillas cargadas.\n\nSe procesará la primera.`
+        `📥 ${partes.length} plantillas cargadas.\n\n${
+          workerWindows.length
+            ? `Se procesarán hasta ${workerWindows.length} en paralelo.`
+            : "Se procesará la primera."
+        }`
       );
     }
     if (!q.pendientes.length) {
@@ -215,20 +290,27 @@ javascript: (async () => {
         `🏁 PROCESO FINALIZADO\n\n✅ OK: ${q.ok.length}\n❌ KO: ${q.ko.length}`
       );
     }
-    const p = q.pendientes[0],
-      a = p.match(/(?:^|\n)\s*AVER[IÍ]A\s*:?\s*(\d+)/i),
-      o = p.match(/(?:^|\n)\s*NUMERO\s+DE\s+OT\s*:?\s*(\d+)/i),
-      i = p.match(/(?:^|\n)[\t ]*(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*([A-Z0-9]*\d[A-Z0-9]*)/i),
-      cerrada = p.match(/(?:^|\n)\s*(\d{6,})\s*-\s*CERRADA/i),
-      caso = a
-        ? { tipo: "AVERIA", id: a[1] }
-        : o
-          ? { tipo: "OT", id: o[1] }
-          : i
-            ? { tipo: "ID", id: i[1] }
-            : cerrada
-              ? { tipo: "ID", id: cerrada[1] }
-              : null;
+    async function procesarPlantilla(p, formularioWindow = window) {
+      const doc = formularioWindow.document;
+      const esperar = (
+        selector,
+        intentos = formularioWindow === window ? 60 : 1000,
+        demora = 60
+      ) =>
+        wait(selector, intentos, demora, doc);
+      const a = p.match(/(?:^|\n)\s*AVER[IÍ]A\s*:?\s*(\d+)/i),
+        o = p.match(/(?:^|\n)\s*NUMERO\s+DE\s+OT\s*:?\s*(\d+)/i),
+        i = p.match(/(?:^|\n)[\t ]*(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*([A-Z0-9]*\d[A-Z0-9]*)/i),
+        cerrada = p.match(/(?:^|\n)\s*(\d{6,})\s*-\s*CERRADA/i),
+        caso = a
+          ? { tipo: "AVERIA", id: a[1] }
+          : o
+            ? { tipo: "OT", id: o[1] }
+            : i
+              ? { tipo: "ID", id: i[1] }
+              : cerrada
+                ? { tipo: "ID", id: cerrada[1] }
+                : null;
     if (!caso) throw Error("No se encontró AVERIA, NUMERO DE OT ni ID.");
     const normalizado = p
         .normalize("NFD")
@@ -265,13 +347,13 @@ javascript: (async () => {
     console.log(
       `📋 ${caso.tipo}: ${caso.id} | 📦 ${equipo || "Sin equipo"} | 🎯 ${tip || "Elegir manualmente"}`
     );
-    const id = await wait("#TextField1");
+    const id = await esperar("#TextField1");
     if (!id) throw Error("No apareció TextField1.");
     setv(id, "");
     await S(50);
     if (!setv(id, caso.id)) throw Error("No se pudo rellenar TextField1.");
     await S(100);
-    const ts = await wait("#displayView-displayDiv-Tipolog_x00ed_a");
+    const ts = await esperar("#displayView-displayDiv-Tipolog_x00ed_a");
     if (!ts) throw Error("No apareció el selector de Tipología.");
     const normalizarTexto = (texto) =>
       texto
@@ -283,11 +365,11 @@ javascript: (async () => {
     const findOption = (label) => {
       const textoBuscado = normalizarTexto(label),
         visibles = [...
-          document.querySelectorAll(
+          doc.querySelectorAll(
             '[role="option"],li,div,span,button,[role="menuitem"]'
           )
         ].filter((e) => {
-          const estilo = getComputedStyle(e),
+          const estilo = formularioWindow.getComputedStyle(e),
             texto = normalizarTexto(e.innerText || e.textContent || "");
           return (
             texto === textoBuscado &&
@@ -303,13 +385,13 @@ javascript: (async () => {
       )[0];
     };
     const findOriginalOption = (label) =>
-      [...document.querySelectorAll('[role="option"],li,div')].find(
+      [...doc.querySelectorAll('[role="option"],li,div')].find(
         (e) =>
           e.innerText?.trim().toLowerCase() === label.toLowerCase() &&
           e.offsetParent !== null
       );
     const hayOpcionesVisibles = () =>
-      [...document.querySelectorAll('[role="option"],li')].some(
+      [...doc.querySelectorAll('[role="option"],li')].some(
         (e) => e.getClientRects().length > 0
       );
     const seleccionarOpcionReact = async (label) => {
@@ -340,7 +422,7 @@ javascript: (async () => {
         !hayOpcionesVisibles()
       ) {
         ts.dispatchEvent(
-          new KeyboardEvent("keydown", {
+          new formularioWindow.KeyboardEvent("keydown", {
             key: "ArrowDown",
             code: "ArrowDown",
             keyCode: 40,
@@ -356,10 +438,10 @@ javascript: (async () => {
       }
       if (!option) return false;
       option.dispatchEvent(
-        new MouseEvent("mousedown", {
+        new formularioWindow.MouseEvent("mousedown", {
           bubbles: true,
           cancelable: true,
-          view: window
+          view: formularioWindow
         })
       );
       option.click();
@@ -446,10 +528,16 @@ javascript: (async () => {
       ? await seleccionarOpcionReact(tip)
       : false;
     if (!tipologiaSeleccionada) {
-      const manual = await seleccionarTipologia();
+      const solicitudTipologia = workerTipologiaQueue.then(
+        () => seleccionarTipologia()
+      );
+      workerTipologiaQueue = solicitudTipologia.then(
+        () => undefined,
+        () => undefined
+      );
+      const manual = await solicitudTipologia;
       if (manual === null) {
-        panel();
-        return;
+        return null;
       }
       tipElegida = manual.trim();
       tipologiaSeleccionada = await seleccionarOpcionReact(tipElegida);
@@ -457,34 +545,108 @@ javascript: (async () => {
         alert(
           `React no confirmó la selección de "${tipElegida}". La plantilla sigue pendiente.`
         );
-        panel();
-        return;
+        return null;
       }
     }
     await S(80);
-    const obs = await wait("#TextField8");
+    const obs = await esperar("#TextField8");
     if (!obs) throw Error("No apareció TextField8.");
     setv(obs, "");
     await S(40);
     if (!setv(obs, p)) throw Error("No se pudo rellenar TextField8.");
     await S(100);
-    const btn = await wait("#form-submit-button");
+    const btn = await esperar("#form-submit-button");
     if (!btn) throw Error("No apareció el botón Enviar.");
     btn.click();
     console.log(`📤 Enviando ${caso.id}...`);
-    const otra = await wait(
+    const otra = await esperar(
       'button[aria-label="Enviar otra respuesta"]',
       80,
       75
     );
     if (!otra) throw Error("No apareció Enviar otra respuesta.");
+    otra.click();
+    return { id: caso.id, tipo: caso.tipo, tipologia: tipElegida, plantilla: p };
+    }
+    if (workerWindows.length) {
+      let nextIndex = 0;
+      const pendientesIniciales = [...q.pendientes];
+      const ejecutarWorker = async (formularioWindow, workerIndex) => {
+        while (nextIndex < pendientesIniciales.length) {
+          const plantilla = pendientesIniciales[nextIndex++];
+          try {
+            const resultado = await procesarPlantilla(
+              plantilla,
+              formularioWindow
+            );
+            if (!resultado) continue;
+            const indice = q.pendientes.indexOf(plantilla);
+            if (indice >= 0) q.pendientes.splice(indice, 1);
+            q.ok.push(resultado);
+            save(q);
+            console.log(
+              `✅ Worker ${workerIndex + 1}: ${resultado.id}. Pendientes: ${q.pendientes.length}`
+            );
+          } catch (error) {
+            const indice = q.pendientes.indexOf(plantilla);
+            if (indice >= 0) q.pendientes.splice(indice, 1);
+            q.ko.push({
+              plantilla,
+              error: error instanceof Error ? error.message : String(error)
+            });
+            save(q);
+            console.error(`❌ Worker ${workerIndex + 1}`, error);
+          }
+          panel();
+        }
+      };
+      try {
+        await Promise.all(
+          workerWindows.map((formularioWindow, index) =>
+            ejecutarWorker(formularioWindow, index)
+          )
+        );
+      } finally {
+        workerWindows.forEach((formularioWindow) => {
+          if (!formularioWindow.closed) formularioWindow.close();
+        });
+        workerWindows = [];
+      }
+      q.workers = false;
+      q.workerCount = 0;
+      if (!q.pendientes.length && !q.ko.length) {
+        localStorage.removeItem(K);
+        document.getElementById("AUTOI_PANEL")?.remove();
+        return alert(
+          `🏁 PROCESO FINALIZADO\n\n✅ OK: ${q.ok.length}\n❌ KO: 0`
+        );
+      }
+      save(q);
+      panel();
+      return alert(
+        `🏁 PROCESO FINALIZADO\n\n✅ OK: ${q.ok.length}\n❌ KO: ${q.ko.length}\n⏳ Pendientes: ${q.pendientes.length}`
+      );
+    }
+    if (q.workers) {
+      q.workers = false;
+      q.workerCount = 0;
+      save(q);
+      console.warn(
+        "No hay ventanas worker disponibles; se continuará en la ventana actual."
+      );
+    }
+    const plantilla = q.pendientes[0];
+    const resultado = await procesarPlantilla(plantilla);
+    if (!resultado) {
+      panel();
+      return;
+    }
     q.pendientes.shift();
-    q.ok.push({ id: caso.id, tipo: caso.tipo, tipologia: tipElegida, plantilla: p });
+    q.ok.push(resultado);
     const finalizado = !q.pendientes.length && !q.ko.length;
     if (finalizado) localStorage.removeItem(K);
     else save(q);
-    otra.click();
-    console.log(`✅ ${caso.id} procesado. Pendientes: ${q.pendientes.length}`);
+    console.log(`✅ ${resultado.id} procesado. Pendientes: ${q.pendientes.length}`);
     if (finalizado) {
       document.getElementById("AUTOI_PANEL")?.remove();
       alert(`🏁 PROCESO FINALIZADO\n\n✅ OK: ${q.ok.length}\n❌ KO: 0`);
