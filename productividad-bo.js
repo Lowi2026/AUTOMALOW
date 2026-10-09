@@ -45,8 +45,10 @@ javascript: (async () => {
       e.dispatchEvent(new targetWindow.Event("blur", { bubbles: true }));
       return true;
     },
-    wait = async (sel, n = 60, d = 60, doc = document) => {
+    wait = async (sel, n = 60, d = 60, getDocument = () => document) => {
       for (let i = 0; i < n; i++) {
+        const doc =
+          typeof getDocument === "function" ? getDocument() : getDocument;
         if (doc.defaultView?.closed) throw Error("La ventana del formulario se cerró.");
         const e = doc.querySelector(sel);
         if (e && e.offsetParent !== null) return e;
@@ -291,13 +293,13 @@ javascript: (async () => {
       );
     }
     async function procesarPlantilla(p, formularioWindow = window) {
-      const doc = formularioWindow.document;
+      const getDocument = () => formularioWindow.document;
       const esperar = (
         selector,
         intentos = formularioWindow === window ? 60 : 1000,
         demora = 60
       ) =>
-        wait(selector, intentos, demora, doc);
+        wait(selector, intentos, demora, getDocument);
       const a = p.match(/(?:^|\n)\s*AVER[IÍ]A\s*:?\s*(\d+)/i),
         o = p.match(/(?:^|\n)\s*NUMERO\s+DE\s+OT\s*:?\s*(\d+)/i),
         i = p.match(/(?:^|\n)[\t ]*(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*([A-Z0-9]*\d[A-Z0-9]*)/i),
@@ -365,7 +367,7 @@ javascript: (async () => {
     const findOption = (label) => {
       const textoBuscado = normalizarTexto(label),
         visibles = [...
-          doc.querySelectorAll(
+          getDocument().querySelectorAll(
             '[role="option"],li,div,span,button,[role="menuitem"]'
           )
         ].filter((e) => {
@@ -385,13 +387,13 @@ javascript: (async () => {
       )[0];
     };
     const findOriginalOption = (label) =>
-      [...doc.querySelectorAll('[role="option"],li,div')].find(
+      [...getDocument().querySelectorAll('[role="option"],li,div')].find(
         (e) =>
           e.innerText?.trim().toLowerCase() === label.toLowerCase() &&
           e.offsetParent !== null
       );
     const hayOpcionesVisibles = () =>
-      [...doc.querySelectorAll('[role="option"],li')].some(
+      [...getDocument().querySelectorAll('[role="option"],li')].some(
         (e) => e.getClientRects().length > 0
       );
     const seleccionarOpcionReact = async (label) => {
