@@ -12,6 +12,14 @@
     }
     document.getElementById(panelId)?.remove();
 
+    function extractTemplateClientId(template) {
+        return template.match(/^\s*•?\s*ID:\s*(.+)$/im)?.[1]?.trim() || "";
+    }
+
+    function extractTemplateDni(template) {
+        return template.match(/^\s*•?\s*(?:DNI\/NIE|DNI|NIE):\s*(.+)$/im)?.[1]?.trim() || "";
+    }
+
     function normalizeMemoryEntry(entry) {
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
             throw new Error("Cada ficha de memoria debe ser un objeto.");
@@ -20,8 +28,8 @@
         if (entry.template !== undefined && typeof entry.template !== "string") {
             throw new Error("La plantilla de una ficha debe ser texto.");
         }
-        const clientId = String(entry.clientId || template.match(/^•\s*ID:\s*(.+)$/im)?.[1] || "").trim();
-        const dni = String(entry.dni || template.match(/^•\s*DNI:\s*(.+)$/im)?.[1] || "")
+        const clientId = String(entry.clientId || extractTemplateClientId(template)).trim();
+        const dni = String(entry.dni || extractTemplateDni(template))
             .trim()
             .toUpperCase();
         if (!clientId && !dni) {
@@ -279,13 +287,17 @@
         templatePanel.id = panelId;
         templatePanel.style.cssText = "position:fixed;z-index:2147483647;right:20px;bottom:20px;width:min(390px,calc(100vw - 40px));max-height:calc(100vh - 40px);box-sizing:border-box;overflow-y:auto;padding:14px;background:#fff;color:#222;border:1px solid #888;border-radius:8px;box-shadow:0 4px 18px #0004;font:14px Arial,sans-serif";
         templatePanel.innerHTML = `
-            <strong style="display:block;margin-bottom:8px">Plantilla CORTA masiva</strong>
+            <strong style="display:block;margin-bottom:8px">Plantilla soporte masiva</strong>
             <label style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
                 <input data-full-template-mode type="checkbox">
-                Plantilla DNI completa
+                Combinar plantillas completas pegadas
             </label>
             <details open style="margin-bottom:8px">
                 <summary style="cursor:pointer">Opciones de consulta</summary>
+                <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
+                    <input data-complete-template type="checkbox">
+                    Plantilla completa
+                </label>
                 <textarea data-dni-input aria-label="DNI de prueba" placeholder="Un DNI sintético por línea" style="box-sizing:border-box;width:100%;height:100px;margin-top:8px;padding:8px;resize:vertical"></textarea>
                 <textarea data-traces aria-label="Plantillas de trazabilidad" placeholder="Pega aquí las plantillas de trazabilidad al terminar las consultas" style="box-sizing:border-box;width:100%;height:130px;margin-top:8px;padding:8px;resize:vertical"></textarea>
             </details>
@@ -333,6 +345,7 @@
         const textarea = templatePanel.querySelector("[data-dni-input]");
         const traceTextarea = templatePanel.querySelector("[data-traces]");
         const fullTemplateMode = templatePanel.querySelector("[data-full-template-mode]");
+        const completeTemplate = templatePanel.querySelector("[data-complete-template]");
         const startButton = templatePanel.querySelector('[data-action="start"]');
         const pauseButton = templatePanel.querySelector('[data-action="pause"]');
         const stopButton = templatePanel.querySelector('[data-action="stop"]');
@@ -384,9 +397,9 @@
 
         function updateModeControls() {
             const useCompleteTemplate = fullTemplateMode.checked;
-            textarea.setAttribute("aria-label", useCompleteTemplate ? "Plantilla completa DNI" : "DNI de prueba");
+            textarea.setAttribute("aria-label", useCompleteTemplate ? "Plantillas DNI completas pegadas" : "DNI de prueba");
             textarea.placeholder = useCompleteTemplate
-                ? "Pega aquí la plantilla completa del DNI"
+                ? "Pega aquí las plantillas DNI completas"
                 : "Un DNI sintético por línea";
             traceTextarea.placeholder = useCompleteTemplate
                 ? "Pega trazas con ID CLIENTE: o bloques completos con • ID: antes de NUMERO DE OT:"
@@ -404,6 +417,37 @@
             memoryStatus.textContent = memoryLoadError
                 ? `No se pudo leer la memoria local: ${memoryLoadError}`
                 : `${uniqueClients.size} clientes guardados en la memoria de este navegador.${message ? ` ${message}` : ""}`;
+        }
+
+        function formatSupportTemplate(template, includeDiagnosticFields) {
+            const readValue = (pattern, fallback = "[No encontrado]") => {
+                for (const line of template.split(/\r?\n/)) {
+                    const match = line.match(pattern);
+                    if (match) return match[1].trim();
+                }
+                return fallback;
+            };
+            const lines = [
+                `Nombre: ${readValue(/^\s*•?\s*Nombre:\s*(.*)$/i)}`,
+                `DNI/NIE: ${readValue(/^\s*•?\s*(?:DNI\/NIE|DNI|NIE):\s*(.*)$/i)}`,
+                `ID: ${readValue(/^\s*•?\s*ID:\s*(.*)$/i)}`,
+                `Dirección: ${readValue(/^\s*•?\s*Direcci[oó]n:\s*(.*)$/i)}`,
+                `Móvil: ${readValue(/^\s*•?\s*(?:#\s*)?(?:M[oó]vil|Tlf\.\s*contacto):\s*(.*)$/i)}`
+            ];
+            if (includeDiagnosticFields) {
+                lines.push(
+                    `• Qué dice el cliente que le sucede: ${readValue(/^\s*•?\s*Qu[eé]\s*dice el cliente que le sucede:\s*(.*)$/i, "N/A")}`,
+                    `• Pruebas realizadas: ${readValue(/^\s*•?\s*Pruebas realizadas:\s*(.*)$/i, "N/A")}`,
+                    `• Diagnóstico: ${readValue(/^\s*•?\s*Diagn[oó]stico:\s*(.*)$/i, "N/A")}`,
+                    `• Solución: ${readValue(/^\s*•?\s*Soluci[oó]n:\s*(.*)$/i, "N/A")}`
+                );
+            }
+            lines.push(
+                `Tecnología: ${readValue(/^\s*•?\s*Tecnolog[ií]a:\s*(.*)$/i)}`,
+                `Velocidad: ${readValue(/^\s*•?\s*Velocidad:\s*(.*)$/i)}`,
+                `Fecha: ${readValue(/^\s*•?\s*Fecha:\s*(.*)$/i)}`
+            );
+            return lines.join("\n");
         }
 
         function getMemoryEntries() {
@@ -453,8 +497,8 @@
                         ? imported
                         : newestMatch;
                 const template = imported.template || newestTemplate?.template || newestMatch.template;
-                const templateId = template?.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim();
-                const templateDni = template?.match(/^•\s*DNI:\s*(.+)$/im)?.[1]?.trim().toUpperCase();
+                const templateId = template ? extractTemplateClientId(template) : "";
+                const templateDni = template ? extractTemplateDni(template).toUpperCase() : "";
                 const templateMatchesMapping =
                     (!imported.clientId || !templateId || imported.clientId === templateId) &&
                     (!imported.dni || !templateDni || imported.dni === templateDni);
@@ -481,7 +525,7 @@
         }
 
         function rememberTemplate(dni, template) {
-            const extractedId = template.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim() || "";
+            const extractedId = extractTemplateClientId(template);
             const clientId = /^\d+$/.test(extractedId) ? extractedId : "";
             const normalizedDni = String(dni).trim().toUpperCase();
             const entry = { clientId, dni: normalizedDni, template, updatedAt: new Date().toISOString() };
@@ -505,7 +549,8 @@
         function renderTemplates() {
             const completedTemplates = allDnis
                 .map(dni => templatesByDni.get(dni))
-                .filter(Boolean);
+                .filter(Boolean)
+                .map(template => formatSupportTemplate(template, completeTemplate.checked));
             templatesOutput.value = completedTemplates.join("\n\n-----------------------------------------\n\n");
             templatesPanel.hidden = completedTemplates.length === 0;
         }
@@ -579,9 +624,10 @@
         fullTemplateMode.addEventListener("change", () => {
             updateModeControls();
             status.textContent = fullTemplateMode.checked
-                ? "Pega una plantilla DNI completa y la trazabilidad. Se combinará solo la primera de cada una, sin abrir workers."
+                ? "Pega las plantillas DNI completas y la trazabilidad para combinarlas, sin abrir consultas."
                 : "Modo de consulta masiva activado. Pega los DNI sintéticos y pulsa Consultar.";
         });
+        completeTemplate.addEventListener("change", renderTemplates);
 
         async function control() {
             while (paused && !cancelled) await sleep(250);
@@ -703,12 +749,37 @@
             const customerId = extractLabel(doc, ["AMDOCS ID:", "ID Cliente:"]);
             const address = extractAddress(doc);
             const mobile = extractMobile(doc);
+            const pageText = doc.body.innerText;
+            const primaryInternetIndex = pageText.indexOf("Internet principal");
+            const additionalInternetIndex = pageText.indexOf("Internet adicional", primaryInternetIndex + 1);
+            const internetText = primaryInternetIndex >= 0
+                ? pageText.slice(
+                    primaryInternetIndex,
+                    additionalInternetIndex > primaryInternetIndex ? additionalInternetIndex : undefined
+                )
+                : pageText;
+            const technology = (internetText.match(/\b(NEBAL|NEBAF|HFC|FTTH)\b/i) || ["", "N/A"])[1]
+                .toUpperCase();
+            const speed = (internetText.match(/\b(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))\b/i) || ["", "N/A"])[1]
+                .replace(/\s+(?=(?:Mbps|Gbps)\b)/i, "");
+            const date = new Date().toLocaleDateString("es-ES", {
+                day: "numeric",
+                month: "long",
+                year: "numeric"
+            });
             return [
-                `• Nombre: ${name}`,
-                `• DNI: ${dni}`,
-                `• ID: ${customerId}`,
-                `• Dirección: ${address}`,
-                `• # Móvil: ${mobile}`
+                `Nombre: ${name}`,
+                `DNI/NIE: ${dni}`,
+                `ID: ${customerId}`,
+                `Dirección: ${address}`,
+                `Móvil: ${mobile}`,
+                "• Qué dice el cliente que le sucede: N/A",
+                "• Pruebas realizadas: N/A",
+                "• Diagnóstico: N/A",
+                "• Solución: N/A",
+                `Tecnología: ${technology}`,
+                `Velocidad: ${speed}`,
+                `Fecha: ${date}`
             ].join("\n");
         }
 
@@ -777,7 +848,7 @@
 
         startButton.addEventListener("click", async () => {
             if (fullTemplateMode.checked) {
-                status.textContent = "El modo Plantilla DNI completa no realiza consultas. Usa Plantilla DNI +Traza para combinar los textos pegados.";
+                status.textContent = "El modo de combinación con plantillas pegadas no realiza consultas.";
                 return;
             }
             const sourceIds = retryMode
@@ -1037,7 +1108,11 @@
 
         copyButton.addEventListener("click", async () => {
             await copyText(
-                allDnis.map(dni => templatesByDni.get(dni)).filter(Boolean).join("\n\n-----------------------------------------\n\n"),
+                allDnis
+                    .map(dni => templatesByDni.get(dni))
+                    .filter(Boolean)
+                    .map(template => formatSupportTemplate(template, completeTemplate.checked))
+                    .join("\n\n-----------------------------------------\n\n"),
                 templatesOutput,
                 "las plantillas DNI"
             );
@@ -1104,8 +1179,8 @@
                     .split(/^\s*-{5,}\s*$/m)
                     .map(template => template.trim())
                     .filter(Boolean);
-                if (!dniTemplates.length || dniTemplates.some(template => !/^•\s*DNI:\s*.+$/im.test(template))) {
-                    status.textContent = "Pega una o más plantillas DNI completas, separadas por líneas de guiones, cada una con el campo • DNI:.";
+                if (!dniTemplates.length || dniTemplates.some(template => !extractTemplateDni(template))) {
+                    status.textContent = "Pega una o más plantillas DNI completas, separadas por líneas de guiones, cada una con el campo DNI/NIE: o • DNI:.";
                     return;
                 }
                 const combined = [];
@@ -1119,8 +1194,8 @@
                 const usedTraceIndexes = new Set();
 
                 for (const dniTemplate of dniTemplates) {
-                    const dni = dniTemplate.match(/^•\s*DNI:\s*(.+)$/im)?.[1]?.trim() || "DNI no identificado";
-                    const clientId = dniTemplate.match(/^•\s*ID:\s*(.+)$/im)?.[1]?.trim();
+                    const dni = extractTemplateDni(dniTemplate) || "DNI no identificado";
+                    const clientId = extractTemplateClientId(dniTemplate);
                     if (!clientId) {
                         unmatched.push({
                             dni,
@@ -1188,7 +1263,9 @@
                     const trace = traceTemplates[index]?.block;
                     if (trace) {
                         usedTraceIndexes.add(index);
-                        combined.push(`${template}\n\n${trace}`);
+                        combined.push(
+                            `${formatSupportTemplate(template, completeTemplate.checked)}\n\n${trace}`
+                        );
                     } else {
                         missing++;
                     }
