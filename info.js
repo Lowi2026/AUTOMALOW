@@ -10,8 +10,7 @@
         historyLimit: 500,
         rootId: "g-automation-root",
         supabaseScriptUrl: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
-        templatesFile: "PL.json",
-        incidentsFile: "averias.json"
+        templatesFile: "PL.json"
     });
 
     // Utilidades comunes de DOM, red, fechas, eventos y portapapeles.
@@ -371,6 +370,14 @@
 
     // Inyector de Jira: panel de averías, automatización de campos y copia del TT.
     const JiraModule = (() => {
+        const STEP_KEYS = ["GRUPO", "TIPO", "SUBTIPO_L1", "SUBTIPO_L2", "EXTRA_CIERRE"];
+
+        function isValidIncident(incident) {
+            return incident && typeof incident.label === "string" && incident.label.trim() &&
+                incident.pasos && typeof incident.pasos === "object" && !Array.isArray(incident.pasos) &&
+                STEP_KEYS.every(key => Number.isInteger(incident.pasos[key]) && incident.pasos[key] >= 0);
+        }
+
         const formatDateTime = date => {
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -644,13 +651,33 @@
 
         async function start() {
             try {
-                const incidents = await Core.fetchJson(CONFIG.incidentsFile);
-                if (!Array.isArray(incidents)) throw new TypeError("averias.json no contiene una lista.");
+                const client = await DataClient.createClient();
+                const result = await client.from("averias")
+                    .select("orden,label,grupo,tipo,subtipo_l1,subtipo_l2,extra_cierre")
+                    .eq("activo", true)
+                    .order("orden", { ascending: true });
+                const rows = DataClient.assertSuccess(result);
+                if (!Array.isArray(rows) || !rows.length) {
+                    throw new TypeError("La tabla public.averias no contiene registros activos válidos.");
+                }
+                const incidents = rows.map(row => ({
+                    label: row.label,
+                    pasos: {
+                        GRUPO: row.grupo,
+                        TIPO: row.tipo,
+                        SUBTIPO_L1: row.subtipo_l1,
+                        SUBTIPO_L2: row.subtipo_l2,
+                        EXTRA_CIERRE: row.extra_cierre
+                    }
+                }));
+                if (incidents.some(incident => !isValidIncident(incident))) {
+                    throw new TypeError("Hay averías con pasos incompletos o índices inválidos en public.averias.");
+                }
                 document.getElementById(CONFIG.rootId)?.remove();
-                createPanel(incidents.filter(item => item && typeof item.label === "string" && item.pasos));
+                createPanel(incidents);
             } catch (error) {
                 console.error("No se pudo inicializar el módulo Jira.", error);
-                window.alert(`No se pudo iniciar el inyector de Jira: ${error.message}`);
+                window.alert(`No se pudieron cargar las averías desde Supabase: ${error.message}`);
             }
         }
 
