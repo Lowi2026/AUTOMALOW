@@ -9,19 +9,19 @@
   },
   {
     "label": "LENTITUD EN LA CONEXIÓN",
-     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
+     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 4, "EXTRA_CIERRE": 5 }
   },
   {
     "label": "CORTES EN EL SERVICIO",
-     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 3, "EXTRA_CIERRE": 5 }
+     "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 4, "EXTRA_CIERRE": 5 }
   },
   {
     "label": "NO NAVEGA",
-    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 4, "EXTRA_CIERRE": 5 }
+    "pasos": { "GRUPO": 0, "TIPO": 0, "SUBTIPO_L1": 0, "SUBTIPO_L2": 5, "EXTRA_CIERRE": 5 }
   },
     {
     "label": "BLOQUEADO IMPAGO ERRONEAMENTE",
-    "pasos": { "GRUPO": 0, "TIPO": 1, "SUBTIPO_L1": 2, "SUBTIPO_L2": 1, "EXTRA_CIERRE": 5 }
+    "pasos": { "GRUPO": 0, "TIPO": 1, "SUBTIPO_L1": 2, "SUBTIPO_L2": 0, "EXTRA_CIERRE": 5 }
   },
   {
      "label": "CLIENTE - AFECTADO POR MASIVA",
