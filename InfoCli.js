@@ -298,6 +298,70 @@
         return { createClient, assertSuccess };
     })();
 
+    const Icons = (() => {
+        const shapes = Object.freeze({
+            wifi: [
+                ["path", { d: "M5 12.55a11 11 0 0 1 14.08 0" }],
+                ["path", { d: "M1.42 9a16 16 0 0 1 21.16 0" }],
+                ["path", { d: "M8.53 16.11a6 6 0 0 1 6.95 0" }],
+                ["circle", { cx: "12", cy: "20", r: "1", fill: "currentColor", stroke: "none" }]
+            ],
+            tv: [
+                ["rect", { x: "2", y: "3", width: "20", height: "15", rx: "2" }],
+                ["path", { d: "M8 21h8M12 18v3" }]
+            ],
+            bolt: [["path", { d: "M13 2 3 14h7l-1 8 12-12h-7l-1-8Z", fill: "currentColor", stroke: "none" }]],
+            chevron: [["path", { d: "m6 9 6 6 6-6" }]],
+            trash: [
+                ["path", { d: "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" }],
+                ["path", { d: "M10 11v5M14 11v5" }]
+            ],
+            close: [["path", { d: "m18 6-12 12M6 6l12 12" }]],
+            copy: [
+                ["rect", { x: "8", y: "8", width: "13", height: "13", rx: "2" }],
+                ["path", { d: "M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" }]
+            ],
+            user: [
+                ["circle", { cx: "12", cy: "8", r: "4" }],
+                ["path", { d: "M4 21a8 8 0 0 1 16 0" }]
+            ],
+            clock: [
+                ["circle", { cx: "12", cy: "12", r: "10" }],
+                ["path", { d: "M12 6v6l4 2" }]
+            ],
+            headset: [
+                ["path", { d: "M3 14v-3a9 9 0 0 1 18 0v3" }],
+                ["rect", { x: "2", y: "13", width: "4", height: "7", rx: "2" }],
+                ["rect", { x: "18", y: "13", width: "4", height: "7", rx: "2" }],
+                ["path", { d: "M18 20a6 6 0 0 1-6 3h-2" }]
+            ]
+        });
+
+        function create(name, className = "icon-svg") {
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 24 24");
+            svg.setAttribute("width", "1em");
+            svg.setAttribute("height", "1em");
+            svg.setAttribute("fill", "none");
+            svg.setAttribute("stroke", "currentColor");
+            svg.setAttribute("stroke-width", "2");
+            svg.setAttribute("stroke-linecap", "round");
+            svg.setAttribute("stroke-linejoin", "round");
+            svg.setAttribute("aria-hidden", "true");
+            svg.setAttribute("focusable", "false");
+            if (className) svg.setAttribute("class", className);
+
+            for (const [tagName, attributes] of shapes[name] || []) {
+                const shape = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+                for (const [key, value] of Object.entries(attributes)) shape.setAttribute(key, value);
+                svg.appendChild(shape);
+            }
+            return svg;
+        }
+
+        return { create };
+    })();
+
     const JiraModule = (() => {
         const formatDateTime = date => {
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -565,11 +629,6 @@
         }
 
         function addStyles() {
-            const iconStylesheet = document.createElement("link");
-            iconStylesheet.rel = "stylesheet";
-            iconStylesheet.href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css";
-            shadow.appendChild(iconStylesheet);
-
             const style = Core.createElement("style");
             style.textContent = `
                 :host{--bg:#130919;--card:#1c0f24;--border:rgba(185,118,247,.18);font:13px Arial,sans-serif;color:#fff}
@@ -585,6 +644,8 @@
                 .tabs{display:flex;border-bottom:1px solid var(--border)}
                 .tab-button{flex:1;padding:11px 6px;background:transparent;border:0;color:#aaa;cursor:pointer;font-weight:600}
                 .tab-button.active{color:white;border-bottom:2px solid #b976f7}
+                .tabs{min-width:0}
+                .tab-button{min-width:0;padding-left:4px;padding-right:4px;font-size:12px}
                 .body{padding:12px;overflow:auto}.view{display:none}.view.active{display:block}
                 .category,.subgroup,.history-group,.note{border:1px solid var(--border);border-radius:11px;background:var(--card);overflow:hidden;margin-bottom:9px}
                 .accordion,.group-trigger,.history-trigger{width:100%;padding:12px;text-align:left;background:transparent;border:0;color:#fff;cursor:pointer;font-weight:600}
@@ -592,6 +653,7 @@
                 .accordion:hover,.group-trigger:hover{background:rgba(185,118,247,.04)}
                 .category-heading,.group-heading{display:flex;align-items:center;min-width:0}
                 .category-heading span,.group-heading span{overflow-wrap:anywhere}
+                .icon-svg{display:inline-block;width:1em;height:1em;vertical-align:-.12em;flex:none}
                 .icon-circle-main{width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:none;
                     margin-right:10px;border-radius:50%;color:#b976f7;background:rgba(122,34,180,.2);border:1px solid rgba(185,118,247,.3)}
                 .sub-cat-circle{width:27px;height:27px;display:flex;align-items:center;justify-content:center;flex:none;
@@ -642,6 +704,12 @@
                 .history-dot{width:8px;height:8px;flex:none;border-radius:50%;margin-right:10px;display:inline-block}
                 .history-dot.fibra{background:#00d0ff;box-shadow:0 0 8px #00d0ff}
                 .history-dot.tv{background:#f59e0b;box-shadow:0 0 8px #f59e0b}
+                .icon-circle-main .icon-svg{width:15px;height:15px}
+                .sub-cat-circle .icon-svg{width:13px;height:13px}
+                .chevron{width:11px;height:11px}
+                .template-copy .icon-svg{width:12px;height:12px}
+                .stat-label .icon-svg{width:11px;height:11px}
+                .history-customer .icon-svg,.history-time .icon-svg,.recall-agent .icon-svg{width:12px;height:12px}
                 .history-badge{min-width:22px;padding:2px 8px;border-radius:20px;background:#7a22b4;color:#fff;
                     text-align:center;font-size:11px;font-weight:700}
                 .history-content{display:none;padding:4px 12px 12px;background:rgba(19,9,25,.2);
@@ -656,6 +724,24 @@
                 .history-time{flex:none;color:rgba(255,255,255,.45);font-size:10px;font-weight:400}
                 .history-entry p{white-space:pre-wrap;overflow-wrap:anywhere;color:rgba(255,255,255,.65);
                     font-size:11px;margin:2px 0 0}
+                .recall-summary{padding:11px 12px;border:1px solid var(--border);border-radius:10px;
+                    background:rgba(28,16,38,.4);margin-bottom:10px;color:rgba(255,255,255,.65);font-size:11px;line-height:1.5}
+                .recall-summary strong{color:#b976f7}
+                .recall-filter{padding:10px;border:1px solid var(--border);border-radius:12px;
+                    background:var(--card);margin-bottom:10px}
+                .recall-filter label{display:block;color:#b976f7;font-size:10px;font-weight:700;
+                    letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+                .recall-filter-row{display:flex;align-items:center;gap:7px}
+                .recall-filter-row input{flex:1;min-width:0}
+                .recall-filter-clear{width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+                    padding:0;border:1px solid var(--border);border-radius:7px;background:transparent;color:#b976f7;cursor:pointer}
+                .recall-filter-clear:hover{background:rgba(185,118,247,.12)}
+                .recall-entry{padding:11px 12px;border:1px solid var(--border);border-left:3px solid #b976f7;
+                    border-radius:10px;background:var(--card);margin-bottom:8px}
+                .recall-customer{font-size:13px;font-weight:700;overflow-wrap:anywhere}
+                .recall-dni{color:#b976f7;font-size:12px;font-weight:700;margin-top:4px}
+                .recall-dates{display:grid;gap:5px;margin-top:9px;color:rgba(255,255,255,.7);font-size:11px}
+                .recall-agent{display:flex;align-items:center;gap:6px;margin-top:8px;color:rgba(255,255,255,.55);font-size:11px}
                 .note-editor textarea{min-height:80px;resize:vertical;margin:5px 0}
                 .note-title{font-weight:700;color:#b976f7;margin-bottom:5px;overflow-wrap:anywhere}
                 .note-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0}
@@ -685,6 +771,7 @@
                 <nav class="tabs" aria-label="Secciones">
                     <button class="tab-button active" data-tab="templates">Plantillas</button>
                     <button class="tab-button" data-tab="history">Historial</button>
+                    <button class="tab-button" data-tab="recall">Rellamantes</button>
                     <button class="tab-button" data-tab="vault">Baúl</button>
                 </nav>
                 <main class="body" id="body">
@@ -695,15 +782,28 @@
                             <div class="danger-row">
                                 <input id="history-date" type="date">
                                 <button class="clear" id="clear-history" type="button" title="Limpiar historial"
-                                    aria-label="Limpiar historial"><i class="fa-solid fa-trash-can"></i></button>
+                                        aria-label="Limpiar historial"></button>
                             </div>
                         </div>
                         <div class="stats">
                             <div class="stat total"><span class="stat-label">Total copiadas</span><strong id="total-count">0</strong></div>
-                            <div class="stat"><span class="stat-label"><i class="fa-solid fa-bolt"></i> Fibra</span><strong id="fiber-count">0</strong></div>
-                            <div class="stat tv-stat"><span class="stat-label"><i class="fa-solid fa-tv"></i> TV</span><strong id="tv-count">0</strong></div>
+                            <div class="stat"><span class="stat-label" id="fiber-label">Fibra</span><strong id="fiber-count">0</strong></div>
+                            <div class="stat tv-stat"><span class="stat-label" id="tv-label">TV</span><strong id="tv-count">0</strong></div>
                         </div>
                         <div id="history-list"></div>
+                    </section>
+                    <section class="view" data-view="recall" id="recall-view">
+                        <div class="recall-filter">
+                            <label for="recall-date">FILTRAR POR FECHA DE RELLAMADA</label>
+                            <div class="recall-filter-row">
+                                <input id="recall-date" type="date" aria-label="Filtrar por fecha de rellamada">
+                                <button class="recall-filter-clear" id="clear-recall-date" type="button"
+                                    title="Quitar filtro de fecha" aria-label="Quitar filtro de fecha">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                        <div id="recall-list"></div>
                     </section>
                     <section class="view" data-view="vault" id="vault-view">
                         <div class="note-editor">
@@ -717,6 +817,11 @@
                 <footer class="footer"><button id="toggle-panel" type="button">Ocultar interfaz</button></footer>
             `;
             shadow.appendChild(panel);
+            shadow.getElementById("close").replaceChildren(Icons.create("close"));
+            shadow.getElementById("clear-history").appendChild(Icons.create("trash"));
+            shadow.getElementById("fiber-label").prepend(Icons.create("bolt"), " ");
+            shadow.getElementById("tv-label").prepend(Icons.create("tv"), " ");
+            shadow.getElementById("clear-recall-date").replaceChildren(Icons.create("close"));
             const toast = Core.createElement("div", "toast", "");
             toast.id = "toast";
             toast.hidden = true;
@@ -725,6 +830,7 @@
 
             selectedDate = shadow.getElementById("history-date");
             selectedDate.value = Core.todayLocal();
+            shadow.getElementById("recall-date").value = "";
             bindShellEvents(panel);
             setupDrag(shadow.getElementById("drag-handle"), panel);
         }
@@ -747,10 +853,16 @@
                     button.classList.add("active");
                     shadow.querySelector(`[data-view="${button.dataset.tab}"]`).classList.add("active");
                     if (button.dataset.tab === "history") renderHistory();
+                    if (button.dataset.tab === "recall") renderRecallers();
                     if (button.dataset.tab === "vault") renderNotes();
                 });
             });
             selectedDate.addEventListener("change", () => renderHistory());
+            shadow.getElementById("recall-date").addEventListener("change", renderRecallers);
+            shadow.getElementById("clear-recall-date").addEventListener("click", () => {
+                shadow.getElementById("recall-date").value = "";
+                renderRecallers();
+            });
             shadow.getElementById("clear-history").addEventListener("click", clearHistory);
             shadow.getElementById("save-note").addEventListener("click", saveNote);
         }
@@ -805,11 +917,11 @@
                     trigger.setAttribute("aria-expanded", "false");
                     const categoryHeading = Core.createElement("span", "category-heading");
                     const categoryIcon = Core.createElement("span", "icon-circle-main");
-                    categoryIcon.appendChild(Core.createElement("i", `fa-solid ${isTv ? "fa-tv" : "fa-wifi"}`));
+                    categoryIcon.appendChild(Icons.create(isTv ? "tv" : "wifi"));
                     const categoryLabel = Core.createElement("span", "",
                         `${category}${state.services.length > 1 ? ` (${service.title})` : ""}`);
                     categoryHeading.append(categoryIcon, categoryLabel);
-                    trigger.append(categoryHeading, Core.createElement("i", "fa-solid fa-chevron-down chevron"));
+                    trigger.append(categoryHeading, Icons.create("chevron", "icon-svg chevron"));
                     const content = Core.createElement("div", "accordion-content");
                     content.id = categoryId;
                     trigger.addEventListener("click", () => {
@@ -826,11 +938,9 @@
                         groupTrigger.setAttribute("aria-expanded", "false");
                         const groupHeading = Core.createElement("span", "group-heading");
                         const groupIcon = Core.createElement("span", `sub-cat-circle ${isTv ? "tv" : "fibra"}`);
-                        groupIcon.appendChild(Core.createElement("i",
-                            `fa-solid ${isTv ? "fa-tv" : "fa-bolt"}`));
+                        groupIcon.appendChild(Icons.create(isTv ? "tv" : "bolt"));
                         groupHeading.append(groupIcon, Core.createElement("span", "", group));
-                        groupTrigger.append(groupHeading,
-                            Core.createElement("i", "fa-solid fa-chevron-down chevron"));
+                        groupTrigger.append(groupHeading, Icons.create("chevron", "icon-svg chevron"));
                         const subgroupContent = Core.createElement("div", "subgroup-content");
                         subgroupContent.id = `group-${serviceIndex}-${categoryIndex}-${groupIndex}`;
                         groupTrigger.addEventListener("click", () => {
@@ -844,7 +954,7 @@
                             button.type = "button";
                             const templateLabel = Core.createElement("span", "template-label", templateName);
                             const copyLabel = Core.createElement("span", "template-copy");
-                            copyLabel.append(Core.createElement("i", "fa-regular fa-copy"), " Copiar");
+                            copyLabel.append(Icons.create("copy"), " Copiar");
                             button.append(templateLabel, copyLabel);
                             button.addEventListener("click", () =>
                                 copyTemplate(button, service, category, group, templateName, template));
@@ -1023,12 +1133,12 @@
                     const entryHeader = Core.createElement("div", "history-entry-header");
                     const customer = Core.createElement("span", "history-customer");
                     customer.append(
-                        Core.createElement("i", "fa-solid fa-user"),
+                        Icons.create("user"),
                         ` ${item.cliente || "N/A"} (${item.dni || "N/A"})`
                     );
                     const time = Core.createElement("span", "history-time");
                     time.append(
-                        Core.createElement("i", "fa-regular fa-clock"),
+                        Icons.create("clock"),
                         ` ${item.hora_str || ""}`
                     );
                     entryHeader.append(
@@ -1041,6 +1151,214 @@
                 });
                 section.append(trigger, content);
                 container.appendChild(section);
+            }
+        }
+
+        function normalizeDni(value) {
+            const normalized = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+            return normalized && normalized !== "NA" ? normalized : null;
+        }
+
+        function colombiaDate(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return null;
+            const parts = new Intl.DateTimeFormat("en-CA", {
+                timeZone: "America/Bogota",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            }).formatToParts(date);
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+
+        function dayDifference(fromDate, toDate) {
+            const from = Date.parse(`${fromDate}T00:00:00Z`);
+            const to = Date.parse(`${toDate}T00:00:00Z`);
+            return Number.isFinite(from) && Number.isFinite(to)
+                ? Math.round((to - from) / 86400000)
+                : null;
+        }
+
+        async function fetchAllRows(queryFactory) {
+            const pageSize = 500;
+            const rows = [];
+            for (let offset = 0; ; offset += pageSize) {
+                const result = await queryFactory().range(offset, offset + pageSize - 1);
+                const page = DataClient.assertSuccess(result) || [];
+                rows.push(...page);
+                if (page.length < pageSize) return rows;
+            }
+        }
+
+        async function getRelevantRecallLogs() {
+            const ownLogs = await fetchAllRows(() => state.db.from("logs_soporte")
+                .select("dni")
+                .eq("agente_id", state.agentId)
+                .not("dni", "is", null)
+                .order("id", { ascending: true }));
+            const dniValues = [...new Set(ownLogs
+                .filter(log => normalizeDni(log.dni))
+                .map(log => String(log.dni).trim()))];
+            if (!dniValues.length) return [];
+
+            const records = [];
+            const dniBatchSize = 50;
+            for (let index = 0; index < dniValues.length; index += dniBatchSize) {
+                const batch = dniValues.slice(index, index + dniBatchSize);
+                const rows = await fetchAllRows(() => state.db.from("logs_soporte")
+                    .select("id,created_at,agente_id,cliente,dni")
+                    .in("dni", batch)
+                    .order("created_at", { ascending: true })
+                    .order("id", { ascending: true }));
+                records.push(...rows);
+            }
+            return records;
+        }
+
+        function findRecallers(records) {
+            const byDni = new Map();
+            records.forEach(record => {
+                const dni = normalizeDni(record.dni);
+                const agentId = String(record.agente_id || "").trim();
+                const eventDate = colombiaDate(record.created_at);
+                if (!dni || !agentId || !eventDate) return;
+                if (!byDni.has(dni)) byDni.set(dni, []);
+                byDni.get(dni).push({ ...record, agente_id: agentId, eventDate });
+            });
+
+            const recallers = [];
+            for (const [dni, events] of byDni) {
+                events.sort((left, right) => {
+                    const timeDifference = new Date(left.created_at) - new Date(right.created_at);
+                    return timeDifference || Number(left.id) - Number(right.id);
+                });
+
+                let previousEpisode = null;
+                for (const event of events) {
+                    if (!previousEpisode) {
+                        previousEpisode = event;
+                        continue;
+                    }
+
+                    if (event.agente_id === previousEpisode.agente_id) {
+                        previousEpisode = event;
+                        continue;
+                    }
+
+                    const daysApart = dayDifference(previousEpisode.eventDate, event.eventDate);
+                    if (previousEpisode.agente_id === state.agentId &&
+                        daysApart !== null && daysApart >= 0 && daysApart < 7) {
+                        recallers.push({
+                            dni,
+                            cliente: previousEpisode.cliente || event.cliente || "N/A",
+                            initialDate: previousEpisode.created_at,
+                            initialDay: previousEpisode.eventDate,
+                            callbackDate: event.created_at,
+                            callbackDay: event.eventDate,
+                            callbackAgent: event.agente_id
+                        });
+                    }
+                    previousEpisode = event;
+                }
+            }
+
+            return recallers.sort((left, right) =>
+                new Date(right.callbackDate) - new Date(left.callbackDate) ||
+                left.cliente.localeCompare(right.cliente, "es")
+            );
+        }
+
+        function formatRecallDate(timestamp) {
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) return "Fecha no disponible";
+
+            const dateParts = new Intl.DateTimeFormat("en-GB", {
+                timeZone: "America/Bogota",
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric"
+            }).formatToParts(date);
+            const timeParts = new Intl.DateTimeFormat("en-US", {
+                timeZone: "America/Bogota",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            }).formatToParts(date);
+            const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+            const timeValues = Object.fromEntries(timeParts.map(part => [part.type, part.value]));
+            return `${dateValues.day}/${dateValues.month}/${dateValues.year} ` +
+                `${timeValues.hour}:${timeValues.minute} ${timeValues.dayPeriod.toUpperCase()}`;
+        }
+
+        function formatDateOnly(date) {
+            const [year, month, day] = date.split("-");
+            return `${day}/${month}/${year}`;
+        }
+
+        function renderRecallEntries(container, recallers, filterDate) {
+            container.replaceChildren();
+            if (!recallers.length) {
+                showEmpty(container, filterDate
+                    ? "No tienes rellamadas en la fecha seleccionada."
+                    : "No se encontraron rellamadas tuyas dentro de la ventana de 7 días.");
+                return;
+            }
+
+            const summary = Core.createElement("div", "recall-summary");
+            summary.append(
+                Core.createElement("strong", "", String(recallers.length)),
+                " cliente(s) atendido(s) después por otro agente dentro de los 7 días siguientes. ",
+                "Las tipificaciones consecutivas del mismo agente se consolidan usando la última.",
+                filterDate ? ` Fecha de rellamada: ${formatDateOnly(filterDate)}.` : ""
+            );
+            container.appendChild(summary);
+
+            recallers.forEach(recaller => {
+                const entry = Core.createElement("article", "recall-entry");
+                entry.append(
+                    Core.createElement("div", "recall-customer", recaller.cliente),
+                    Core.createElement("div", "recall-dni", `DNI/NIE: ${recaller.dni}`)
+                );
+                const dates = Core.createElement("div", "recall-dates");
+                dates.append(
+                    Core.createElement("div", "", `Tu atención: ${formatRecallDate(recaller.initialDate)}`),
+                    Core.createElement("div", "", `Rellamada: ${formatRecallDate(recaller.callbackDate)}`)
+                );
+                const agent = Core.createElement("div", "recall-agent");
+                agent.append(
+                    Icons.create("headset"),
+                    ` Atendió después: ${recaller.callbackAgent}`
+                );
+                entry.append(dates, agent);
+                container.appendChild(entry);
+            });
+        }
+
+        async function renderRecallers() {
+            const container = shadow.getElementById("recall-list");
+            if (!state.agentId) {
+                showEmpty(container, "No se pudo identificar al agente; no se pueden consultar sus rellamadas.");
+                return;
+            }
+            if (!state.db) {
+                showEmpty(container, "No hay conexión con Supabase. Las rellamadas requieren consultar tipificaciones del equipo.");
+                return;
+            }
+
+            showEmpty(container, "Buscando clientes atendidos por otro agente...");
+            try {
+                const records = await getRelevantRecallLogs();
+                const allRecallers = findRecallers(records);
+                const filterDate = shadow.getElementById("recall-date").value;
+                const recallers = filterDate
+                    ? allRecallers.filter(recaller => recaller.callbackDay === filterDate)
+                    : allRecallers;
+                renderRecallEntries(container, recallers, filterDate);
+            } catch (error) {
+                console.error("No se pudieron calcular las rellamadas.", error);
+                showEmpty(container,
+                    `No se pudieron consultar las tipificaciones necesarias. Verifica el acceso de lectura de logs_soporte para detectar cambios de agente. ${error.message}`);
             }
         }
 
@@ -1094,14 +1412,14 @@
                     if (button.dataset.confirming === "true") {
                         delete button.dataset.confirming;
                         button.classList.remove("confirming");
-                        button.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                        button.replaceChildren(Icons.create("trash"));
                     }
                 }, 4000);
                 return;
             }
             delete button.dataset.confirming;
             button.classList.remove("confirming");
-            button.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+            button.replaceChildren(Icons.create("trash"));
             if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
                 notify("Selecciona una fecha válida antes de borrar el historial.", true);
                 return;
