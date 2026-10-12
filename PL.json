@@ -10,13 +10,13 @@
     },
     "Llamada no valida": {
       "Transferencia improcedente": [
-        "N/A",
+        "Cliente informa motivo que no procede a soporte",
         "N/A",
         "N/A",
         "N/A"
       ],
       "No valida para soporte": [
-        "N/A",
+        "Cliente no tiene fallos de fibra",
         "N/A",
         "N/A",
         "N/A"
@@ -24,7 +24,7 @@
     },
     "Estado Averia": {
       "Info Averia Tecnica": [
-        "N/A",
+        "Consulta por estado de incidencia ",
         "N/A",
         "N/A",
         "N/A"
@@ -32,13 +32,13 @@
     },
     "Avería Masiva": {
       "Solo Información": [
-        "N/A",
+        "No tengo wifi aún, ¿qué ha pasado con la incidencia?",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Crear Ticket Asociado": [
-        "N/A",
+        "No tengo wifi",
         "N/A",
         "N/A",
         "N/A"
@@ -46,7 +46,7 @@
     },
     "Incomunicado Total": {
       "Enviar Técnico Campo": [
-        "N/A",
+        "No tengo internet",
         "N/A",
         "N/A",
         "N/A"
@@ -54,13 +54,13 @@
     },
     "Incomunicado por IP": {
       "Resuelto": [
-        "N/A",
+        "No tengo internet",
         "N/A",
         "N/A",
         "N/A"
       ],
       "No levanta (Contrata)": [
-        "N/A",
+        "No tengo internet",
         "N/A",
         "N/A",
         "N/A"
@@ -68,7 +68,7 @@
     },
     "Sincronismo": {
       "Sincroniza no Navega": [
-        "N/A",
+        "Cliente sin internet ",
         "N/A",
         "N/A",
         "N/A"
@@ -76,19 +76,19 @@
     },
     "Cortes de Servicio": {
       "Resuelto (CPE/Bandas)": [
-        "N/A",
+        "El cliente informa cortes intermitentes en la conexión a Internet",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Técnico (Cambio CPE)": [
-        "N/A",
+        "El cliente informa cortes intermitentes en la conexión a Internet",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Escalar a NV2": [
-        "N/A",
+        "El cliente informa cortes intermitentes en la conexión a Internet",
         "N/A",
         "N/A",
         "N/A"
@@ -96,19 +96,19 @@
     },
     "Lentitud": {
       "Resuelto (Optimizado)": [
-        "N/A",
+        "Me va muy lento el internet",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Enviar Técnico": [
-        "N/A",
+        "Me va muy lento el internet",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Escalar a NV2": [
-        "N/A",
+        "Me va muy lento el internet",
         "N/A",
         "N/A",
         "N/A"
@@ -116,13 +116,13 @@
     },
     "Fuera de Umbrales": {
       "Resuelto": [
-        "N/A",
+        "El internet va y viene o va muy lento",
         "N/A",
         "N/A",
         "N/A"
       ],
       "No mejora (Contrata)": [
-        "N/A",
+        "El internet va y viene o va muy lento",
         "N/A",
         "N/A",
         "N/A"
@@ -130,13 +130,13 @@
     },
     "Bandas WiFi": {
       "Separar Redes": [
-        "N/A",
+        "Necesito separar la red wifi",
         "N/A",
         "N/A",
         "N/A"
       ],
       "No responde (Voxont)": [
-        "N/A",
+        "Necesito separar la red wifi",
         "N/A",
         "N/A",
         "N/A"
@@ -144,13 +144,13 @@
     },
     "Contraseña WiFi": {
       "Resuelto (Cambiada)": [
-        "N/A",
+        "Quiero cambiar la contraseña del WiFi",
         "N/A",
         "N/A",
         "N/A"
       ],
       "No responde (Voxont)": [
-        "N/A",
+        "Quiero cambiar la contraseña del WiFi",
         "N/A",
         "N/A",
         "N/A"
@@ -158,13 +158,13 @@
     },
     "Técnico Incumplido": {
       "Cita en curso / Esperar": [
-        "N/A",
+        "Tengo cita con el técnico",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Incumplimiento (Reportar)": [
-        "N/A",
+        "El técnico no vino a la cita",
         "N/A",
         "N/A",
         "N/A"
@@ -172,13 +172,13 @@
     },
     "Proceso Migración": {
       "Ya esta cancelado en SMART": [
-        "N/A",
+        "Solicita la migracion de servicio",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Solicita migrar": [
-        "N/A",
+        "Cliente indica que quiere cambiar de cable o servicio",
         "N/A",
         "N/A",
         "N/A"
@@ -188,13 +188,13 @@
   "TV": {
     "Mando": {
       "Mando - Resuelto": [
-        "N/A",
+        "El mando no funciona",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Mando - No Funciona (Escalar)": [
-        "N/A",
+        "El mando no funciona",
         "N/A",
         "N/A",
         "N/A"
@@ -202,13 +202,13 @@
     },
     "Error 101": {
       "Error 101 - En reparto (Esperar)": [
-        "N/A",
+        "Me sale error 101",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Error 101 - Escalar a NV2 (MAC)": [
-        "N/A",
+        "Me sale error 101",
         "N/A",
         "N/A",
         "N/A"
@@ -216,13 +216,27 @@
     },
     "Canales": {
       "Canales - No ve algun canal": [
-        "N/A",
+        "No ve algún canal",
         "N/A",
         "N/A",
         "N/A"
       ],
       "Canales - No sale pack deportes": [
+        "No le salen los canales deportivos",
         "N/A",
+        "N/A",
+        "N/A"
+      ]
+    },
+    "Autoi": {
+      "Cliente solicita informacion envio": [
+        "Cliente solicita información sobre el envío de Autoi",
+        "N/A",
+        "N/A",
+        "N/A"
+      ],
+      "Autoi No funciona": [
+        "Cliente indica que Autoi no funciona",
         "N/A",
         "N/A",
         "N/A"
