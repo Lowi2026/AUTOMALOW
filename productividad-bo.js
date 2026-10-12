@@ -7,15 +7,14 @@ javascript: (() => {
       "Correos install",
       "Televisión",
       "Long Runner",
-      "Winback - Correo Reconexion",
-      "Winback - Brain",
-      "Winback - 983",
+      "Wimback - Migraciones",
       "Cierres",
       "Envio a campo",
       "llamadas Front",
       "Autoi TV",
       "Autoi Net",
-      "Rep Autoi"
+      "Rep Autoi",
+      "Control Base"
     ],
     S = (ms) => new Promise((r) => setTimeout(r, ms)),
     load = () =>
@@ -260,7 +259,7 @@ javascript: (() => {
       if (!clip?.trim()) return alert("❌ El portapapeles está vacío.");
       const partes = clip
         .split(
-          /^[\t ]*-{3,}[\t ]*(?:\r?\n[\t ]*)*(?=(?:[\u2022*-]\s*(?:NOMBRE|DNI)\s*:|(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*[A-Z0-9]*\d[A-Z0-9]*|AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|\d{6,}\s*-\s*CERRADA))/gim
+          /^[\t ]*-{3,}[\t ]*(?:\r?\n[\t ]*)*(?=(?:[^\r\n]*\S[^\r\n]*\r?\n[\t ]*)?(?:[\t ]*(?:[\u2022*-]\s*(?:NOMBRE|DNI)\s*:|(?:[\u2022*-][\t ]*)?ID(?:[ \t]+CLIENTE)?[ \t]*:?[ \t]*[A-Z0-9]*\d[A-Z0-9]*|AVER[IÍ]A\s*:?\s*\d+|NUMERO\s+DE\s+OT\s*:?\s*\d+|\d{6,}\s*-\s*CERRADA)))/gim
         )
         .map((x) => x.trim())
         .filter(
@@ -323,6 +322,30 @@ javascript: (() => {
                 ? { tipo: "ID", id: cerrada[1] }
                 : null;
     if (!caso) throw Error("No se encontró AVERIA, NUMERO DE OT ni ID.");
+    const normalizarTipologia = (valor) =>
+        String(valor ?? "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim()
+          .replace(/\s+/g, " "),
+      tipologiasPorEtiqueta = new Map(
+        TIPOS.map((tipologia) => [normalizarTipologia(tipologia), tipologia])
+      );
+    tipologiasPorEtiqueta.set(normalizarTipologia("Autoi television"), "Autoi TV");
+    tipologiasPorEtiqueta.set(normalizarTipologia("Autoi Internet"), "Autoi Net");
+    const primeraLinea = p.split(/\r?\n/).find((linea) => linea.trim()) || "",
+      etiquetaSuperior = primeraLinea.replace(/^[\s•*-]+/, "").trim(),
+      tipologiaSuperior = tipologiasPorEtiqueta.get(
+        normalizarTipologia(etiquetaSuperior)
+      ),
+      etiquetaDeclarada =
+        (p.match(/(?:^|\n)\s*TIPOLOGIA\s*:\s*(.+)/i) || [])[1]?.trim() || "",
+      tipologiaDeclarada = tipologiasPorEtiqueta.get(
+        normalizarTipologia(etiquetaDeclarada)
+      ),
+      tipForzada = tipologiaSuperior || tipologiaDeclarada || "";
     const normalizado = p
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -343,7 +366,6 @@ javascript: (() => {
         ) || /\bno encontrado\b/.test(equipoNormalizado),
       tvScore = (normalizado.match(/tv agil|decodificador|\bdeco\b|television|ver tv|sin senal|\bsenal\b|\bhdmi\b|\bmando\b|android tv|\btivo\b|control remoto|canales de tv/g) || []).length,
       netScore = (normalizado.match(/\brouter\b|\bwifi\b|wi-fi|\bfibra\b|sin internet|internet no|conexion a internet|banda ancha|\bont\b|\bdocsis\b|\bcga\d+\b/g) || []).length,
-      tipForzada = (p.match(/(?:^|\n)\s*TIPOLOGIA\s*:\s*(.+)/i) || [])[1]?.trim(),
       esCorreo = /(?:^|\n)\s*(?:correos?\s+install\b|correos?\s*(?:\n|$)|asunto\s*:)/i.test(p),
       esRepetida = /repetida\s*\+?|rep\s+autoi|ot cancelada por no valida/i.test(normalizado) || cerrada,
       tip = q.modo === "manual"
