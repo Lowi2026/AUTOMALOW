@@ -659,7 +659,10 @@
 
     // Interfaz y funciones Lowi: plantillas, historial, rellamadas y baúl.
     const LowiModule = (() => {
-        const state = { templates: null, services: [], agentId: null, db: null, toastTimer: null };
+        const state = {
+            templates: null, services: [], agentId: null, db: null,
+            toastTimer: null, toastHost: null, toastElement: null
+        };
         let root;
         let shadow;
         let selectedDate;
@@ -676,8 +679,37 @@
         });
 
         function notify(message, isError = false) {
-            const toast = shadow.getElementById("toast");
-            if (!toast) return;
+            if (!state.toastHost?.isConnected) {
+                const host = document.createElement("div");
+                host.setAttribute("aria-live", "polite");
+                host.style.setProperty("all", "initial");
+                host.style.setProperty("position", "fixed", "important");
+                host.style.setProperty("top", "12px", "important");
+                host.style.setProperty("right", "12px", "important");
+                host.style.setProperty("z-index", "2147483647", "important");
+                host.style.setProperty("display", "block", "important");
+                host.style.setProperty("width", "max-content", "important");
+                host.style.setProperty("max-width", "calc(100vw - 24px)", "important");
+                host.style.setProperty("pointer-events", "none", "important");
+                const toastShadow = host.attachShadow({ mode: "open" });
+                const style = document.createElement("style");
+                style.textContent = `
+                    :host{all:initial}
+                    #toast{max-width:min(360px,calc(100vw - 24px));padding:10px 13px;border-radius:8px;
+                        background:#7a22b4;color:#fff;box-shadow:0 8px 20px #0009;
+                        font:12px Arial,sans-serif;overflow-wrap:anywhere}
+                    #toast.error{background:#b91c1c}
+                    #toast[hidden]{display:none!important}
+                `;
+                const toast = document.createElement("div");
+                toast.id = "toast";
+                toast.hidden = true;
+                toastShadow.append(style, toast);
+                document.documentElement.appendChild(host);
+                state.toastHost = host;
+                state.toastElement = toast;
+            }
+            const toast = state.toastElement;
             toast.textContent = message;
             toast.classList.toggle("error", isError);
             toast.hidden = false;
@@ -835,8 +867,6 @@
                 .footer{border-top:1px solid var(--border)}.footer button{width:100%;background:var(--card);color:#fff;border:1px solid var(--border);
                     border-radius:8px;padding:9px;cursor:pointer}
                 .footer button:hover{background:#7a22b4}
-                .toast{position:fixed;right:12px;top:12px;z-index:2;background:#7a22b4;color:#fff;padding:10px 13px;border-radius:8px;
-                    box-shadow:0 8px 20px #0009;font-size:12px}.toast.error{background:#b91c1c}
                 .muted{text-align:center;opacity:.65;padding:12px;font-size:12px}.copied{border-color:#10b981}
             `;
             shadow.appendChild(style);
@@ -915,10 +945,6 @@
             shadow.getElementById("fiber-label").prepend(Icons.create("bolt"), " ");
             shadow.getElementById("tv-label").prepend(Icons.create("tv"), " ");
             shadow.getElementById("clear-recall-date").replaceChildren(Icons.create("close"));
-            const toast = Core.createElement("div", "toast", "");
-            toast.id = "toast";
-            toast.hidden = true;
-            shadow.appendChild(toast);
             document.body.appendChild(root);
 
             selectedDate = shadow.getElementById("history-date");
