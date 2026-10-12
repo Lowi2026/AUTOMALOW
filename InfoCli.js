@@ -1,0 +1,1315 @@
+(() => {
+    "use strict";
+
+    const CONFIG = Object.freeze({
+        repositoryUrl: "https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/",
+        supabaseUrl: "https://gjchhoraaukfaumzcwnd.supabase.co",
+        supabaseKey: "sb_publishable_3AVUNcIiNxzTMAhDnvon1Q_GMBwjSW3",
+        historyStorageKey: "g_automation_logs",
+        historyLimit: 500,
+        rootId: "g-automation-root",
+        supabaseScriptUrl: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+        templatesFile: "PL.json",
+        incidentsFile: "averias.json"
+    });
+
+    const Core = (() => {
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const todayLocal = (date = new Date()) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
+
+        const escapeText = value => String(value ?? "");
+        const dispatchChange = element => {
+            if (!element) return;
+            element.dispatchEvent(new Event("input", { bubbles: true }));
+            element.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
+        async function fetchJson(path) {
+            const response = await fetch(`${CONFIG.repositoryUrl}${path}?v=${Date.now()}`, {
+                cache: "no-store"
+            });
+            if (!response.ok) {
+                throw new Error(`No se pudo cargar ${path} (HTTP ${response.status}).`);
+            }
+            return response.json();
+        }
+
+        async function copyText(text) {
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return;
+                } catch (error) {
+                    console.warn("Clipboard API no disponible; se probará el método alternativo.", error);
+                }
+            }
+
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.setAttribute("readonly", "");
+            Object.assign(textarea.style, {
+                position: "fixed",
+                opacity: "0",
+                pointerEvents: "none"
+            });
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand("copy");
+            textarea.remove();
+            if (!copied) throw new Error("El navegador no permitió copiar al portapapeles.");
+        }
+
+        function createElement(tag, className, text) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = escapeText(text);
+            return element;
+        }
+
+        return { wait, todayLocal, dispatchChange, fetchJson, copyText, createElement, escapeText };
+    })();
+
+    const Identity = (() => {
+        function getAgentId() {
+            const link = document.querySelector('a[href*="customfield_16881="]');
+            if (!link) return null;
+
+            try {
+                const url = new URL(link.href, window.location.href);
+                const email = url.searchParams.get("customfield_16881")?.trim().toLowerCase();
+                if (!email || !email.includes("@")) return null;
+                return email.split("@")[0].replace(/\./g, "_");
+            } catch (error) {
+                console.error("No se pudo identificar al agente desde el enlace del ticket.", error);
+                return null;
+            }
+        }
+        return { getAgentId };
+    })();
+
+    const Extractor = (() => {
+        const NOT_FOUND = "N/A";
+
+        function pageText() {
+            return document.body?.innerText || "";
+        }
+
+        function getValue(labels, text = pageText()) {
+            for (const label of labels) {
+                const index = text.indexOf(label);
+                if (index < 0) continue;
+                const value = text.slice(index + label.length).split("\n", 1)[0]
+                    .trim().replace(/^[:\s-]+/, "");
+                if (value) return value;
+            }
+            return NOT_FOUND;
+        }
+
+        function getDocument() {
+            let documentId = getValue([
+                "DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"
+            ]);
+            if (documentId === NOT_FOUND) {
+                const match = pageText().match(/(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i);
+                if (match) documentId = match[1];
+            }
+            return documentId === NOT_FOUND
+                ? NOT_FOUND
+                : documentId.toUpperCase().replace(/[\s-]/g, "");
+        }
+
+        function getMobileNumbers() {
+            const regex = /(?:^|\D)([67]\d{2}\s?\d{3}\s?\d{3})(?:\D|$)/g;
+            const numbers = new Set();
+            let match;
+            while ((match = regex.exec(pageText())) !== null) {
+                numbers.add(match[1].replace(/\s+/g, ""));
+            }
+            return numbers.size ? [...numbers].join(" | ") : NOT_FOUND;
+        }
+
+        function getAddress(text) {
+            const labels = ["Dirección de instalación:", "Direccion:", "Dirección de installation:"];
+            const terminators = ["Tipo de huella:", "Tarifa:", "Internet principal"];
+            for (const label of labels) {
+                const index = text.indexOf(label);
+                if (index < 0) continue;
+                let address = text.slice(index + label.length);
+                const end = terminators.map(term => address.indexOf(term))
+                    .filter(position => position >= 0)
+                    .reduce((min, position) => Math.min(min, position), address.length);
+                address = address.slice(0, end).trim();
+                if (address) return address;
+            }
+            return NOT_FOUND;
+        }
+
+        function getTechnology(text) {
+            const normalized = text.toUpperCase();
+            if (normalized.includes("NEBAL")) return "NEBAL";
+            if (normalized.includes("NEBAF")) return "NEBAF";
+            if (normalized.includes("HFC")) return "HFC";
+            return "FTTH";
+        }
+
+        function hasOntAlarm(text) {
+            const normalized = text.toUpperCase();
+            return normalized.includes("ONT") &&
+                ["ALARM", "LOS RED", "EXTERNA"].some(token => normalized.includes(token));
+        }
+
+        function getInternetServices(text) {
+            const primaryIndex = text.indexOf("Internet principal");
+            const additionalIndex = text.indexOf("Internet adicional");
+            return [
+                {
+                    title: "Principal",
+                    text: primaryIndex >= 0
+                        ? text.slice(primaryIndex, additionalIndex > primaryIndex ? additionalIndex : undefined)
+                        : ""
+                },
+                {
+                    title: "Adicional",
+                    text: additionalIndex >= 0 ? text.slice(additionalIndex) : ""
+                }
+            ].filter(service => service.text.trim());
+        }
+
+        return { NOT_FOUND, pageText, getValue, getDocument, getMobileNumbers, getAddress,
+            getTechnology, hasOntAlarm, getInternetServices };
+    })();
+
+    const LocalHistory = (() => {
+        function read() {
+            try {
+                const stored = localStorage.getItem(CONFIG.historyStorageKey);
+                if (!stored) return [];
+                const parsed = JSON.parse(stored);
+                if (!Array.isArray(parsed)) throw new TypeError("El historial guardado no es una lista.");
+                return parsed.filter(item => item && typeof item === "object");
+            } catch (error) {
+                console.error("No se pudo leer el historial local.", error);
+                return [];
+            }
+        }
+
+        function write(entries) {
+            try {
+                localStorage.setItem(CONFIG.historyStorageKey, JSON.stringify(entries));
+                return true;
+            } catch (error) {
+                console.error("No se pudo guardar el historial local.", error);
+                return false;
+            }
+        }
+
+        function add(entry) {
+            const timestamp = Date.now();
+            const entries = read();
+            entries.unshift({
+                timestamp,
+                fechaStr: Core.todayLocal(),
+                horaStr: new Intl.DateTimeFormat("es-ES", {
+                    hour: "2-digit", minute: "2-digit"
+                }).format(new Date(timestamp)),
+                ...entry
+            });
+            return write(entries.slice(0, CONFIG.historyLimit));
+        }
+
+        function removeByDate(date, agentId) {
+            if (!agentId) return false;
+            const filtered = read().filter(entry => {
+                return !(entry.agenteId === agentId && entry.fechaStr === date);
+            });
+            return write(filtered);
+        }
+
+        function forDate(date, agentId) {
+            if (!agentId) return [];
+            return read().filter(entry => {
+                return entry.agenteId === agentId && entry.fechaStr === date;
+            }).map(entry => ({
+                cliente: entry.cliente,
+                dni: entry.dni,
+                sub_cat: entry.subCat || "General",
+                clase: entry.clase || "fibra",
+                plantilla: entry.plantilla,
+                hora_str: entry.horaStr || ""
+            }));
+        }
+
+        return { add, removeByDate, forDate };
+    })();
+
+    const DataClient = (() => {
+        let clientPromise;
+
+        function loadSupabase() {
+            if (window.supabase?.createClient) return Promise.resolve(window.supabase);
+            if (clientPromise) return clientPromise;
+
+            clientPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[src="${CONFIG.supabaseScriptUrl}"]`);
+                const script = existing || document.createElement("script");
+                const timeout = window.setTimeout(() => {
+                    reject(new Error("Tiempo agotado al cargar el cliente de Supabase."));
+                }, 15000);
+
+                const onLoad = () => {
+                    window.clearTimeout(timeout);
+                    if (window.supabase?.createClient) resolve(window.supabase);
+                    else reject(new Error("Supabase se cargó sin exponer createClient."));
+                };
+                const onError = () => {
+                    window.clearTimeout(timeout);
+                    reject(new Error("No se pudo cargar el cliente de Supabase."));
+                };
+
+                script.addEventListener("load", onLoad, { once: true });
+                script.addEventListener("error", onError, { once: true });
+                if (!existing) {
+                    script.src = CONFIG.supabaseScriptUrl;
+                    script.async = true;
+                    document.head.appendChild(script);
+                }
+            }).catch(error => {
+                clientPromise = null;
+                throw error;
+            });
+            return clientPromise;
+        }
+
+        async function createClient() {
+            const supabase = await loadSupabase();
+            return supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        }
+
+        function assertSuccess(result) {
+            if (result.error) throw result.error;
+            return result.data;
+        }
+
+        return { createClient, assertSuccess };
+    })();
+
+    const JiraModule = (() => {
+        const formatDateTime = date => {
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${String(date.getDate()).padStart(2, "0")}/${months[date.getMonth()]}/` +
+                `${String(date.getFullYear()).slice(-2)} ${String(date.getHours()).padStart(2, "0")}:` +
+                `${String(date.getMinutes()).padStart(2, "0")}`;
+        };
+
+        function nextBusinessDay(date) {
+            const day = date.getDay();
+            date.setDate(date.getDate() + (day === 5 ? 3 : day === 6 ? 2 : 1));
+            return date;
+        }
+
+        async function selectReactOption(input, steps) {
+            if (!(input instanceof HTMLInputElement)) {
+                throw new Error("No se encontró uno de los campos desplegables de Jira.");
+            }
+            if (!Number.isInteger(steps) || steps < 0) {
+                throw new Error("La configuración contiene un índice de opción inválido.");
+            }
+
+            input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+            await Core.wait(350);
+            input.value = " ";
+            Core.dispatchChange(input);
+            await Core.wait(200);
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+            await Core.wait(250);
+            for (let index = 0; index < steps; index++) {
+                input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+                await Core.wait(150);
+            }
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+            await Core.wait(400);
+        }
+
+        function setFieldValue(id, value, notify = false) {
+            const field = document.getElementById(id);
+            if (!field) throw new Error(`No se encontró el campo Jira "${id}".`);
+            field.value = value;
+            if (notify) Core.dispatchChange(field);
+        }
+
+        function fillCommonFields() {
+            const now = new Date();
+            const start = nextBusinessDay(new Date(now));
+            start.setHours(8, 0, 0, 0);
+            const end = new Date(start);
+            end.setHours(16, 0, 0, 0);
+
+            setFieldValue("customfield_16825", formatDateTime(now), true);
+            setFieldValue("customfield_16823", formatDateTime(start), true);
+            setFieldValue("customfield_16824", formatDateTime(end), true);
+            setFieldValue("customfield_16833", "OK", true);
+
+            const product = document.getElementById("customfield_16820");
+            const description = document.getElementById("customfield_16821");
+            if (product?.value && description) {
+                description.value = product.value;
+                Core.dispatchChange(description);
+            }
+        }
+
+        function makeToast(message, isError = false) {
+            const oldToast = document.querySelector(".g-automation-toast");
+            oldToast?.remove();
+            const toast = Core.createElement("div", "g-automation-toast", message);
+            Object.assign(toast.style, {
+                position: "fixed", top: "20px", right: "20px", zIndex: "10000001",
+                background: isError ? "#b91c1c" : "#7A22B4", color: "#fff",
+                padding: "11px 18px", borderRadius: "8px", fontSize: "12px",
+                fontWeight: "700", boxShadow: "0 5px 15px rgba(0,0,0,.4)"
+            });
+            document.body.appendChild(toast);
+            window.setTimeout(() => toast.remove(), 3000);
+        }
+
+        function createPanel(incidents) {
+            const host = document.createElement("div");
+            host.id = CONFIG.rootId;
+            const shadow = host.attachShadow({ mode: "open" });
+            const style = Core.createElement("style");
+            style.textContent = `
+                :host{font-family:Arial,sans-serif;color:#fff}
+                *{box-sizing:border-box}
+                .panel{position:fixed;z-index:9999999;top:20px;right:20px;width:340px;max-height:calc(100vh - 40px);
+                    display:flex;flex-direction:column;background:#130919;border:1px solid #4a2a5b;border-radius:16px;
+                    box-shadow:0 20px 40px #000b;overflow:hidden}
+                .header,.footer{padding:14px;background:#130919;display:flex;align-items:center;justify-content:space-between}
+                .header{cursor:move;border-bottom:1px solid #321c3b}
+                h2{font-size:15px;margin:0 0 4px}.subtitle{font-size:11px;color:#b976f7;margin:0}
+                button{font:inherit;cursor:pointer}.close{background:transparent;border:0;color:#fff;font-size:18px}
+                .body{padding:14px;overflow:auto}.incident-list{display:grid;gap:6px}
+                .incident{width:100%;padding:10px 12px;border:0;border-radius:8px;color:#fff;background:#7a22b4;
+                    text-align:left;font-size:12px;font-weight:600}
+                .incident:hover{background:#912fd4}
+                .copy{width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#5c188c;color:#fff}
+                .footer{border-top:1px solid #321c3b}.toggle{width:100%;padding:9px;border:1px solid #4a2a5b;
+                    border-radius:8px;background:#1c0f24;color:#fff}
+            `;
+            shadow.appendChild(style);
+
+            const panel = Core.createElement("section", "panel");
+            const header = Core.createElement("header", "header");
+            header.id = "g-drag-handle";
+            const title = document.createElement("div");
+            const heading = Core.createElement("h2", "", "Robot Inyector Jira");
+            const subtitle = Core.createElement("p", "subtitle", "enabler.es — Modo Index");
+            title.append(heading, subtitle);
+            const close = Core.createElement("button", "close", "×");
+            close.type = "button";
+            close.setAttribute("aria-label", "Cerrar panel");
+            header.append(title, close);
+
+            const body = Core.createElement("main", "body");
+            body.id = "g-body-view";
+            const list = Core.createElement("div", "incident-list");
+            incidents.forEach((incident, index) => {
+                const button = Core.createElement("button", "incident", incident.label);
+                button.type = "button";
+                button.dataset.incidentIndex = String(index);
+                list.appendChild(button);
+            });
+            body.appendChild(list);
+            const copy = Core.createElement("button", "copy", "📋 Copiar TT");
+            copy.type = "button";
+            copy.id = "g-copy-tt";
+            body.appendChild(copy);
+
+            const footer = Core.createElement("footer", "footer");
+            const toggle = Core.createElement("button", "toggle", "Ocultar interfaz");
+            toggle.type = "button";
+            footer.appendChild(toggle);
+            panel.append(header, body, footer);
+            shadow.appendChild(panel);
+            document.body.appendChild(host);
+
+            close.addEventListener("click", () => host.remove());
+            toggle.addEventListener("click", () => {
+                const hidden = body.hidden;
+                body.hidden = !hidden;
+                panel.style.maxHeight = hidden ? "calc(100vh - 40px)" : "75px";
+                toggle.textContent = hidden ? "Ocultar interfaz" : "Mostrar interfaz";
+            });
+            copy.addEventListener("click", async () => {
+                const breadcrumb = document.querySelector(".aui-nav-breadcrumbs li:last-child");
+                const ticket = breadcrumb?.textContent?.trim();
+                if (!ticket) {
+                    makeToast("No se encontró el código TT en la vista actual.", true);
+                    return;
+                }
+                try {
+                    await Core.copyText(ticket);
+                    makeToast(`TT copiado: ${ticket}`);
+                } catch (error) {
+                    console.error(error);
+                    makeToast(error.message, true);
+                }
+            });
+            shadow.querySelectorAll(".incident").forEach(button => {
+                button.addEventListener("click", async () => {
+                    const incident = incidents[Number(button.dataset.incidentIndex)];
+                    if (!incident?.pasos) {
+                        makeToast("La avería no tiene una configuración válida.", true);
+                        return;
+                    }
+                    button.disabled = true;
+                    try {
+                        const summary = document.getElementById("summary");
+                        if (!summary) throw new Error("No se encontró el resumen del ticket.");
+                        summary.value = incident.label;
+                        Core.dispatchChange(summary);
+                        const steps = incident.pasos;
+                        const selectors = [
+                            ["[id^='react-select-customfield_16817'] input", steps.GRUPO],
+                            ["#insight-atlas-select-16800 input", steps.TIPO],
+                            ["#insight-atlas-select-16801 input", steps.SUBTIPO_L1],
+                            ["#insight-atlas-select-16802 input", steps.SUBTIPO_L2],
+                            ['#cd-1 input[id^="react-select"]', steps.EXTRA_CIERRE]
+                        ];
+                        for (const [selector, index] of selectors) {
+                            await selectReactOption(document.querySelector(selector), index);
+                        }
+                        fillCommonFields();
+                        makeToast("Ticket completado.");
+                    } catch (error) {
+                        console.error("Error durante la inyección en Jira.", error);
+                        makeToast(error.message || "Error durante la inyección.", true);
+                    } finally {
+                        button.disabled = false;
+                    }
+                });
+            });
+            setupDrag(header, panel);
+        }
+
+        function setupDrag(handle, panel) {
+            let pointerX = 0;
+            let pointerY = 0;
+            let dragging = false;
+            handle.addEventListener("pointerdown", event => {
+                if (event.target.closest("button")) return;
+                dragging = true;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                handle.setPointerCapture(event.pointerId);
+            });
+            handle.addEventListener("pointermove", event => {
+                if (!dragging) return;
+                const dx = event.clientX - pointerX;
+                const dy = event.clientY - pointerY;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                const rect = panel.getBoundingClientRect();
+                panel.style.right = "auto";
+                panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + dx))}px`;
+                panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 50, rect.top + dy))}px`;
+            });
+            const stopDragging = () => { dragging = false; };
+            handle.addEventListener("pointerup", stopDragging);
+            handle.addEventListener("pointercancel", stopDragging);
+        }
+
+        async function start() {
+            try {
+                const incidents = await Core.fetchJson(CONFIG.incidentsFile);
+                if (!Array.isArray(incidents)) throw new TypeError("averias.json no contiene una lista.");
+                document.getElementById(CONFIG.rootId)?.remove();
+                createPanel(incidents.filter(item => item && typeof item.label === "string" && item.pasos));
+            } catch (error) {
+                console.error("No se pudo inicializar el módulo Jira.", error);
+                window.alert(`No se pudo iniciar el inyector de Jira: ${error.message}`);
+            }
+        }
+
+        return { start };
+    })();
+
+    const LowiModule = (() => {
+        const state = { templates: null, services: [], agentId: null, db: null, toastTimer: null };
+        let root;
+        let shadow;
+        let selectedDate;
+
+        const TEMPLATE_MARKERS = Object.freeze({
+            DINAMICO_INCOMUNICADO: "incommunicado",
+            DINAMICO_CORTES_RESUELTO: "cutsResolved",
+            DINAMICO_CORTES_TECNICO: "cutsTechnician",
+            DINAMICO_CORTES_NV2: "cutsLevelTwo",
+            DINAMICO_FUERA_RESUELTO: "thresholdResolved",
+            DINAMICO_FUERA_NO: "thresholdNotResolved",
+            DINAMICO_FUERA_RESUELTO_SOL: "thresholdSolution"
+        });
+
+        function notify(message, isError = false) {
+            const toast = shadow.getElementById("toast");
+            if (!toast) return;
+            toast.textContent = message;
+            toast.classList.toggle("error", isError);
+            toast.hidden = false;
+            window.clearTimeout(state.toastTimer);
+            state.toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2600);
+        }
+
+        function addStyles() {
+            const iconStylesheet = document.createElement("link");
+            iconStylesheet.rel = "stylesheet";
+            iconStylesheet.href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css";
+            shadow.appendChild(iconStylesheet);
+
+            const style = Core.createElement("style");
+            style.textContent = `
+                :host{--bg:#130919;--card:#1c0f24;--border:rgba(185,118,247,.18);font:13px Arial,sans-serif;color:#fff}
+                *{box-sizing:border-box}
+                .panel{position:fixed;z-index:9999999;top:20px;right:20px;width:350px;max-height:calc(100vh - 40px);
+                    display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border:1px solid var(--border);
+                    border-radius:18px;box-shadow:0 20px 50px #000b}
+                .header,.footer{padding:14px 16px;background:var(--bg);display:flex;align-items:center;justify-content:space-between}
+                .header{cursor:move;border-bottom:1px solid var(--border)}
+                .header h2{font-size:15px;margin:0 0 4px}.header p{font-size:11px;color:#b976f7;margin:0}
+                button,input,textarea{font:inherit}.button{color:#fff;border:0;border-radius:8px;padding:9px 11px;background:#7a22b4;cursor:pointer}
+                .close{background:transparent;color:#fff;border:0;cursor:pointer;font-size:17px}
+                .tabs{display:flex;border-bottom:1px solid var(--border)}
+                .tab-button{flex:1;padding:11px 6px;background:transparent;border:0;color:#aaa;cursor:pointer;font-weight:600}
+                .tab-button.active{color:white;border-bottom:2px solid #b976f7}
+                .body{padding:12px;overflow:auto}.view{display:none}.view.active{display:block}
+                .category,.subgroup,.history-group,.note{border:1px solid var(--border);border-radius:11px;background:var(--card);overflow:hidden;margin-bottom:9px}
+                .accordion,.group-trigger,.history-trigger{width:100%;padding:12px;text-align:left;background:transparent;border:0;color:#fff;cursor:pointer;font-weight:600}
+                .accordion,.group-trigger{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+                .accordion:hover,.group-trigger:hover{background:rgba(185,118,247,.04)}
+                .category-heading,.group-heading{display:flex;align-items:center;min-width:0}
+                .category-heading span,.group-heading span{overflow-wrap:anywhere}
+                .icon-circle-main{width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:none;
+                    margin-right:10px;border-radius:50%;color:#b976f7;background:rgba(122,34,180,.2);border:1px solid rgba(185,118,247,.3)}
+                .sub-cat-circle{width:27px;height:27px;display:flex;align-items:center;justify-content:center;flex:none;
+                    margin-right:10px;border-radius:50%;font-size:11px}
+                .sub-cat-circle.fibra{color:#00d0ff;background:rgba(0,150,255,.15);border:1px solid rgba(0,150,255,.3)}
+                .sub-cat-circle.tv{color:#f59e0b;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3)}
+                .chevron{font-size:10px;opacity:.5;margin-left:8px;transition:transform .15s ease}
+                .accordion[aria-expanded="true"]>.chevron,.group-trigger[aria-expanded="true"]>.chevron{transform:rotate(180deg)}
+                .accordion-content,.subgroup-content,.history-content{display:none;padding:0 9px 9px}.open{display:block}
+                .accordion-content{padding:0 10px 10px}
+                .subgroup{margin-top:7px;background:#1c0f24}
+                .group-trigger{padding:10px 12px}
+                .template{font-size:12px}
+                .template{width:100%;display:flex;justify-content:space-between;gap:8px;align-items:center;text-align:left;
+                    padding:11px;background:#23142d;border:1px solid var(--border);border-radius:9px;color:#fff;cursor:pointer;margin-top:7px}
+                .template:hover{border-color:#b976f7;background:rgba(185,118,247,.08)}
+                .template-label{font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+                .template-copy{color:#b976f7;font-size:10px;font-weight:700;text-transform:uppercase;white-space:nowrap}
+                .calendar,.stat,.note-editor{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card);margin-bottom:10px}
+                .calendar{border-radius:14px;padding:12px;margin-bottom:14px}
+                .calendar label{display:block;color:#b976f7;font-size:11px;font-weight:700;letter-spacing:.5px;
+                    text-transform:uppercase;margin-bottom:6px}
+                input[type=date],input[type=text],textarea{width:100%;background:var(--bg);color:#fff;border:1px solid var(--border);
+                    border-radius:7px;padding:9px}
+                input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+                .danger-row{display:flex;align-items:center;gap:8px}
+                .danger-row input{flex:1;min-width:0}
+                .clear{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex:none;
+                    color:#ef4444;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.2)}
+                .calendar .clear{padding:0}
+                .clear:hover{background:rgba(239,68,68,.2);color:#ff6b6b}
+                .clear.confirming{width:auto;padding:0 12px;background:#ef4444;color:#fff;font-size:11px;font-weight:700}
+                .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+                .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+                    background:rgba(28,16,38,.4);border-color:rgba(185,118,247,.08);margin:0}
+                .stat.total{grid-column:span 2;background:linear-gradient(135deg,rgba(122,34,180,.2),rgba(28,16,38,.4));
+                    border-color:rgba(185,118,247,.2);padding:14px}
+                .stat-label{font-size:11px;color:rgba(255,255,255,.5);font-weight:500;text-transform:uppercase}
+                .stat strong{display:block;color:#b976f7;font-size:18px;margin-top:2px}
+                .stat.total strong{font-size:22px}
+                #fiber-count{color:#00f0ff}.stat.tv-stat strong{color:#f59e0b}
+                .history-group{border-radius:12px;margin-bottom:8px}
+                .history-trigger{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;
+                    text-align:left;font-size:13px}
+                .history-trigger:hover{background:rgba(185,118,247,.04)}
+                .history-name{display:flex;align-items:center;min-width:0}
+                .history-name-label{overflow-wrap:anywhere}
+                .history-dot{width:8px;height:8px;flex:none;border-radius:50%;margin-right:10px;display:inline-block}
+                .history-dot.fibra{background:#00d0ff;box-shadow:0 0 8px #00d0ff}
+                .history-dot.tv{background:#f59e0b;box-shadow:0 0 8px #f59e0b}
+                .history-badge{min-width:22px;padding:2px 8px;border-radius:20px;background:#7a22b4;color:#fff;
+                    text-align:center;font-size:11px;font-weight:700}
+                .history-content{display:none;padding:4px 12px 12px;background:rgba(19,9,25,.2);
+                    border-top:1px solid rgba(185,118,247,.05)}
+                .history-content.open{display:block}
+                .history-entry{display:flex;flex-direction:column;gap:4px;margin-top:8px;padding:10px;
+                    border-radius:10px;background:#23142d;border-left:3px solid #00d0ff;font-size:11px}
+                .history-entry.tv{border-left-color:#f59e0b}
+                .history-entry-header{display:flex;justify-content:space-between;gap:6px;align-items:center;
+                    color:#fff;font-size:12px;font-weight:600}
+                .history-customer{overflow-wrap:anywhere}
+                .history-time{flex:none;color:rgba(255,255,255,.45);font-size:10px;font-weight:400}
+                .history-entry p{white-space:pre-wrap;overflow-wrap:anywhere;color:rgba(255,255,255,.65);
+                    font-size:11px;margin:2px 0 0}
+                .note-editor textarea{min-height:80px;resize:vertical;margin:5px 0}
+                .note-title{font-weight:700;color:#b976f7;margin-bottom:5px;overflow-wrap:anywhere}
+                .note-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0}
+                .note-actions{display:flex;gap:5px;flex-wrap:wrap}.note-actions button,.clear{padding:7px;border:1px solid var(--border);
+                    border-radius:7px;background:transparent;color:#fff;cursor:pointer}.confirming{background:#b91c1c!important}
+                .footer{border-top:1px solid var(--border)}.footer button{width:100%;background:var(--card);color:#fff;border:1px solid var(--border);
+                    border-radius:8px;padding:9px;cursor:pointer}
+                .toast{position:fixed;right:12px;top:12px;z-index:2;background:#7a22b4;color:#fff;padding:10px 13px;border-radius:8px;
+                    box-shadow:0 8px 20px #0009;font-size:12px}.toast.error{background:#b91c1c}
+                .muted{text-align:center;opacity:.65;padding:12px;font-size:12px}.copied{border-color:#10b981}
+            `;
+            shadow.appendChild(style);
+        }
+
+        function buildShell() {
+            root = document.createElement("div");
+            root.id = CONFIG.rootId;
+            shadow = root.attachShadow({ mode: "open" });
+            addStyles();
+
+            const panel = Core.createElement("section", "panel");
+            panel.innerHTML = `
+                <header class="header" id="drag-handle">
+                    <div><h2>Generador de Plantillas</h2><p>lowi.es — Maestro Principal</p></div>
+                    <button class="close" id="close" aria-label="Cerrar">×</button>
+                </header>
+                <nav class="tabs" aria-label="Secciones">
+                    <button class="tab-button active" data-tab="templates">Plantillas</button>
+                    <button class="tab-button" data-tab="history">Historial</button>
+                    <button class="tab-button" data-tab="vault">Baúl</button>
+                </nav>
+                <main class="body" id="body">
+                    <section class="view active" data-view="templates" id="templates-view"></section>
+                    <section class="view" data-view="history" id="history-view">
+                        <div class="calendar">
+                            <label for="history-date">FILTRO Y LIMPIEZA</label>
+                            <div class="danger-row">
+                                <input id="history-date" type="date">
+                                <button class="clear" id="clear-history" type="button" title="Limpiar historial"
+                                    aria-label="Limpiar historial"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        </div>
+                        <div class="stats">
+                            <div class="stat total"><span class="stat-label">Total copiadas</span><strong id="total-count">0</strong></div>
+                            <div class="stat"><span class="stat-label"><i class="fa-solid fa-bolt"></i> Fibra</span><strong id="fiber-count">0</strong></div>
+                            <div class="stat tv-stat"><span class="stat-label"><i class="fa-solid fa-tv"></i> TV</span><strong id="tv-count">0</strong></div>
+                        </div>
+                        <div id="history-list"></div>
+                    </section>
+                    <section class="view" data-view="vault" id="vault-view">
+                        <div class="note-editor">
+                            <input id="note-title" type="text" maxlength="120" placeholder="Título (opcional)">
+                            <textarea id="note-content" maxlength="10000" placeholder="Escribe una nota..."></textarea>
+                            <button class="button" id="save-note" type="button">Guardar nota</button>
+                        </div>
+                        <div id="notes-list"></div>
+                    </section>
+                </main>
+                <footer class="footer"><button id="toggle-panel" type="button">Ocultar interfaz</button></footer>
+            `;
+            shadow.appendChild(panel);
+            const toast = Core.createElement("div", "toast", "");
+            toast.id = "toast";
+            toast.hidden = true;
+            shadow.appendChild(toast);
+            document.body.appendChild(root);
+
+            selectedDate = shadow.getElementById("history-date");
+            selectedDate.value = Core.todayLocal();
+            bindShellEvents(panel);
+            setupDrag(shadow.getElementById("drag-handle"), panel);
+        }
+
+        function bindShellEvents(panel) {
+            shadow.getElementById("close").addEventListener("click", () => root.remove());
+            shadow.getElementById("toggle-panel").addEventListener("click", event => {
+                const body = shadow.getElementById("body");
+                const nav = shadow.querySelector(".tabs");
+                const hidden = body.hidden;
+                body.hidden = !hidden;
+                nav.hidden = !hidden;
+                panel.style.maxHeight = hidden ? "calc(100vh - 40px)" : "75px";
+                event.currentTarget.textContent = hidden ? "Ocultar interfaz" : "Mostrar interfaz";
+            });
+            shadow.querySelectorAll(".tab-button").forEach(button => {
+                button.addEventListener("click", () => {
+                    shadow.querySelectorAll(".tab-button").forEach(tab => tab.classList.remove("active"));
+                    shadow.querySelectorAll(".view").forEach(view => view.classList.remove("active"));
+                    button.classList.add("active");
+                    shadow.querySelector(`[data-view="${button.dataset.tab}"]`).classList.add("active");
+                    if (button.dataset.tab === "history") renderHistory();
+                    if (button.dataset.tab === "vault") renderNotes();
+                });
+            });
+            selectedDate.addEventListener("change", () => renderHistory());
+            shadow.getElementById("clear-history").addEventListener("click", clearHistory);
+            shadow.getElementById("save-note").addEventListener("click", saveNote);
+        }
+
+        function setupDrag(handle, panel) {
+            let pointerX = 0;
+            let pointerY = 0;
+            let dragging = false;
+            handle.addEventListener("pointerdown", event => {
+                if (event.target.closest("button,input,textarea")) return;
+                dragging = true;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                handle.setPointerCapture(event.pointerId);
+            });
+            handle.addEventListener("pointermove", event => {
+                if (!dragging) return;
+                const dx = event.clientX - pointerX;
+                const dy = event.clientY - pointerY;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                const rect = panel.getBoundingClientRect();
+                panel.style.right = "auto";
+                panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + dx))}px`;
+                panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 50, rect.top + dy))}px`;
+            });
+            const stop = () => { dragging = false; };
+            handle.addEventListener("pointerup", stop);
+            handle.addEventListener("pointercancel", stop);
+        }
+
+        function createTemplateView() {
+            const container = shadow.getElementById("templates-view");
+            if (!state.templates) {
+                container.appendChild(Core.createElement("p", "muted", "No se pudieron cargar las plantillas."));
+                return;
+            }
+            if (!state.services.length) {
+                container.appendChild(Core.createElement("p", "muted",
+                    "No se localizó información del servicio de Internet en la pantalla."));
+                return;
+            }
+
+            state.services.forEach((service, serviceIndex) => {
+                Object.entries(state.templates).forEach(([category, groups], categoryIndex) => {
+                    if (!groups || typeof groups !== "object" || Array.isArray(groups)) return;
+                    const categoryId = `category-${serviceIndex}-${categoryIndex}`;
+                    const categoryElement = Core.createElement("section", "category");
+                    const isTv = /tv|tele/i.test(category);
+                    const trigger = Core.createElement("button", "accordion");
+                    trigger.type = "button";
+                    trigger.setAttribute("aria-expanded", "false");
+                    const categoryHeading = Core.createElement("span", "category-heading");
+                    const categoryIcon = Core.createElement("span", "icon-circle-main");
+                    categoryIcon.appendChild(Core.createElement("i", `fa-solid ${isTv ? "fa-tv" : "fa-wifi"}`));
+                    const categoryLabel = Core.createElement("span", "",
+                        `${category}${state.services.length > 1 ? ` (${service.title})` : ""}`);
+                    categoryHeading.append(categoryIcon, categoryLabel);
+                    trigger.append(categoryHeading, Core.createElement("i", "fa-solid fa-chevron-down chevron"));
+                    const content = Core.createElement("div", "accordion-content");
+                    content.id = categoryId;
+                    trigger.addEventListener("click", () => {
+                        content.classList.toggle("open");
+                        const expanded = content.classList.contains("open");
+                        trigger.setAttribute("aria-expanded", String(expanded));
+                    });
+
+                    Object.entries(groups).forEach(([group, templates], groupIndex) => {
+                        if (!templates || typeof templates !== "object" || Array.isArray(templates)) return;
+                        const subgroup = Core.createElement("section", "subgroup");
+                        const groupTrigger = Core.createElement("button", "group-trigger");
+                        groupTrigger.type = "button";
+                        groupTrigger.setAttribute("aria-expanded", "false");
+                        const groupHeading = Core.createElement("span", "group-heading");
+                        const groupIcon = Core.createElement("span", `sub-cat-circle ${isTv ? "tv" : "fibra"}`);
+                        groupIcon.appendChild(Core.createElement("i",
+                            `fa-solid ${isTv ? "fa-tv" : "fa-bolt"}`));
+                        groupHeading.append(groupIcon, Core.createElement("span", "", group));
+                        groupTrigger.append(groupHeading,
+                            Core.createElement("i", "fa-solid fa-chevron-down chevron"));
+                        const subgroupContent = Core.createElement("div", "subgroup-content");
+                        subgroupContent.id = `group-${serviceIndex}-${categoryIndex}-${groupIndex}`;
+                        groupTrigger.addEventListener("click", () => {
+                            subgroupContent.classList.toggle("open");
+                            groupTrigger.setAttribute("aria-expanded",
+                                String(subgroupContent.classList.contains("open")));
+                        });
+
+                        Object.entries(templates).forEach(([templateName, template]) => {
+                            const button = Core.createElement("button", "template");
+                            button.type = "button";
+                            const templateLabel = Core.createElement("span", "template-label", templateName);
+                            const copyLabel = Core.createElement("span", "template-copy");
+                            copyLabel.append(Core.createElement("i", "fa-regular fa-copy"), " Copiar");
+                            button.append(templateLabel, copyLabel);
+                            button.addEventListener("click", () =>
+                                copyTemplate(button, service, category, group, templateName, template));
+                            subgroupContent.appendChild(button);
+                        });
+                        subgroup.append(groupTrigger, subgroupContent);
+                        content.appendChild(subgroup);
+                    });
+                    categoryElement.append(trigger, content);
+                    container.appendChild(categoryElement);
+                });
+            });
+        }
+
+        function resolveTemplate(category, group, name, original, service) {
+            const result = Array.isArray(original) ? [...original] : ["", "", "", ""];
+            while (result.length < 4) result.push("");
+            const technology = Extractor.getTechnology(service.text);
+            const markers = TEMPLATE_MARKERS;
+            const dynamic = markers[result[1]];
+
+            if (dynamic === "incommunicated") {
+                if (technology === "HFC") {
+                    result[1] = "router con luces intermitentes, sin acceso remoto al CPE; se valida cableado sin daños";
+                    result[2] = "posible daño en acometida HFC";
+                } else {
+                    const hasAlarm = Extractor.hasOntAlarm(service.text);
+                    result[1] = hasAlarm
+                        ? "ONT en rojo en alarm, sin acceso remoto; se valida cableado sin daños y sin acceso a CPE"
+                        : "router con ONT integrada sin sincronismo; cableado validado y correctamente conectado";
+                    result[2] = hasAlarm ? "posible daño en tramo óptico" : "posible daño en fibra";
+                }
+            } else if (dynamic === "cutsResolved") {
+                result[1] = technology === "HFC"
+                    ? "Se revisan cortes en THOT de los últimos 7 días, se reinicia de fábrica y se ajusta cableado y bandas; conexión estable"
+                    : "Se revisan cortes en Schaman, se reinicia de fábrica y se ajusta cableado; señal estable en ambas bandas Wi-Fi";
+            } else if (dynamic === "cutsTechnician") {
+                result[1] = technology === "HFC"
+                    ? "Se validan cortes en THOT; reinicio de fábrica sin mejora tras prueba de conexión"
+                    : "Cortes validados en Schaman; reinicio de fábrica sin mejora";
+                result[2] = technology === "HFC"
+                    ? "Señal degradada tras saturación del CPE"
+                    : "Posible daño en CPE";
+            } else if (dynamic === "cutsLevelTwo") {
+                result[1] = technology === "HFC"
+                    ? "Se validan cortes breves persistentes en THOT; se reinicia de fábrica y se escala a nivel 2"
+                    : "Cortes persistentes validados en Schaman; las pruebas de vídeo y red no resuelven la incidencia";
+            } else if (dynamic === "thresholdResolved") {
+                result[1] = technology === "HFC"
+                    ? "Se validan parámetros fuera de umbrales en THOT, se reinicia de fábrica y parámetros SNMP, flaps y QoS; pruebas correctas"
+                    : "Se validan parámetros fuera de umbrales en Schaman, se reinicia de fábrica y se separan bandas; pruebas correctas";
+                result[3] = technology === "HFC"
+                    ? "Se reinicia de fábrica, se ajustan parámetros SNMP y bandas, y se confirma con el cliente la estabilidad"
+                    : "Se deja resuelto";
+            } else if (dynamic === "thresholdNotResolved") {
+                result[1] = technology === "HFC"
+                    ? "Parámetros fuera de umbrales en THOT; reinicio de fábrica y parámetros sin mejora"
+                    : "Parámetros fuera de umbrales en Schaman";
+            } else if (dynamic === "thresholdSolution") {
+                result[3] = technology === "HFC"
+                    ? "Se reinicia de fábrica, se ajustan parámetros SNMP y bandas, y se confirma con el cliente la estabilidad"
+                    : "Se reinicia de fábrica, se separan bandas y se comprueba con el cliente que no persisten anomalías";
+            }
+
+            return { fields: result, technology };
+        }
+
+        async function copyTemplate(button, service, category, group, name, template) {
+            try {
+                const { fields, technology } = resolveTemplate(category, group, name, template, service);
+                const client = Extractor.getValue(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"]);
+                const documentId = Extractor.getDocument();
+                const customerId = Extractor.getValue(["AMDOCS ID:", "ID Cliente:", "ID:"]);
+                const address = Extractor.getAddress(service.text);
+                const mobiles = Extractor.getMobileNumbers();
+                const speed = service.text.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i)?.[1] || "600Mbps";
+                const date = new Intl.DateTimeFormat("es-ES", {
+                    day: "numeric", month: "long", year: "numeric"
+                }).format(new Date());
+                const text = [
+                    `Nombre: ${client}`,
+                    `DNI/NIE: ${documentId}`,
+                    `ID: ${customerId}`,
+                    `Dirección: ${address}`,
+                    `Móvil: ${mobiles}`,
+                    `• Qué dice el cliente que le sucede: ${fields[0] || "N/A"}`,
+                    `• Pruebas realizadas: ${fields[1] || "N/A"}`,
+                    `• Diagnóstico: ${fields[2] || "N/A"}`,
+                    `• Solución: ${fields[3] || "N/A"}`,
+                    "• Avería: #AVERIA / NA",
+                    `Tecnología: ${technology}`,
+                    `Velocidad: ${speed}`,
+                    `Fecha: ${date}`
+                ].join("\n");
+
+                await Core.copyText(text);
+                const entry = {
+                    cliente: client, dni: documentId, subCat: group,
+                    clase: category.toLowerCase().includes("tv") ||
+                        category.toLowerCase().includes("tele") ? "tv" : "fibra",
+                    plantilla: name, agenteId: state.agentId
+                };
+                if (state.agentId && !LocalHistory.add(entry)) {
+                    notify("Copiado, pero no se pudo guardar el historial local.", true);
+                }
+                button.classList.add("copied");
+                window.setTimeout(() => button.classList.remove("copied"), 1200);
+                if (!state.agentId) {
+                    notify("Copiado. No se guardó el historial porque no se pudo identificar al agente.", true);
+                } else {
+                    notify(`Copiado: ${name}`);
+                }
+                if (state.db && state.agentId) {
+                    try {
+                        const result = await state.db.from("logs_soporte").insert([{
+                            agente_id: state.agentId,
+                            cliente: client,
+                            dni: documentId,
+                            sub_cat: group,
+                            clase: entry.clase,
+                            plantilla: name,
+                            fecha_str: Core.todayLocal(),
+                            hora_str: new Intl.DateTimeFormat("es-ES", {
+                                hour: "2-digit", minute: "2-digit"
+                            }).format(new Date())
+                        }]);
+                        DataClient.assertSuccess(result);
+                    } catch (error) {
+                        console.error("La plantilla se copió, pero no se sincronizó el historial.", error);
+                        notify(`Copiado; falló la sincronización del historial: ${error.message}`, true);
+                    }
+                }
+            } catch (error) {
+                console.error("No se pudo generar/copiar la plantilla.", error);
+                notify(`No se pudo completar la operación: ${error.message}`, true);
+            }
+        }
+
+        function showEmpty(container, message) {
+            container.replaceChildren(Core.createElement("p", "muted", message));
+        }
+
+        function renderHistoryEntries(container, records) {
+            container.replaceChildren();
+            if (!records.length) {
+                showEmpty(container, "No hay registros para este día.");
+                return;
+            }
+            const groups = new Map();
+            records.forEach(record => {
+                const name = record.sub_cat || "General";
+                if (!groups.has(name)) groups.set(name, []);
+                groups.get(name).push(record);
+            });
+            let groupIndex = 0;
+            for (const [name, items] of groups) {
+                const section = Core.createElement("section", "history-group");
+                const trigger = Core.createElement("button", "history-trigger");
+                trigger.type = "button";
+                const isTvGroup = items[0]?.clase === "tv";
+                const historyName = Core.createElement("span", "history-name");
+                historyName.append(
+                    Core.createElement("span", `history-dot ${isTvGroup ? "tv" : "fibra"}`),
+                    Core.createElement("span", "history-name-label", name)
+                );
+                trigger.append(historyName, Core.createElement("span", "history-badge", String(items.length)));
+                const content = Core.createElement("div", "history-content");
+                content.id = `history-group-${groupIndex++}`;
+                trigger.setAttribute("aria-expanded", "false");
+                trigger.addEventListener("click", () => {
+                    content.classList.toggle("open");
+                    trigger.setAttribute("aria-expanded", String(content.classList.contains("open")));
+                });
+                items.forEach(item => {
+                    const entry = Core.createElement("article", `history-entry ${item.clase === "tv" ? "tv" : "fibra"}`);
+                    const entryHeader = Core.createElement("div", "history-entry-header");
+                    const customer = Core.createElement("span", "history-customer");
+                    customer.append(
+                        Core.createElement("i", "fa-solid fa-user"),
+                        ` ${item.cliente || "N/A"} (${item.dni || "N/A"})`
+                    );
+                    const time = Core.createElement("span", "history-time");
+                    time.append(
+                        Core.createElement("i", "fa-regular fa-clock"),
+                        ` ${item.hora_str || ""}`
+                    );
+                    entryHeader.append(
+                        customer,
+                        time
+                    );
+                    entry.appendChild(entryHeader);
+                    entry.appendChild(Core.createElement("p", "", item.plantilla || ""));
+                    content.appendChild(entry);
+                });
+                section.append(trigger, content);
+                container.appendChild(section);
+            }
+        }
+
+        async function renderHistory() {
+            const container = shadow.getElementById("history-list");
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
+                shadow.getElementById("total-count").textContent = "0";
+                shadow.getElementById("tv-count").textContent = "0";
+                shadow.getElementById("fiber-count").textContent = "0";
+                showEmpty(container, "Selecciona una fecha válida para consultar el historial.");
+                return;
+            }
+            if (!state.agentId) {
+                shadow.getElementById("total-count").textContent = "0";
+                shadow.getElementById("tv-count").textContent = "0";
+                shadow.getElementById("fiber-count").textContent = "0";
+                showEmpty(container, "Historial deshabilitado para evitar mezclar datos: no se pudo identificar al agente.");
+                return;
+            }
+            showEmpty(container, "Cargando historial...");
+            let records;
+            try {
+                if (state.db && state.agentId) {
+                    const result = await state.db.from("logs_soporte")
+                        .select("cliente,dni,sub_cat,clase,plantilla,hora_str,created_at")
+                        .eq("agente_id", state.agentId)
+                        .eq("fecha_str", selectedDate.value)
+                        .order("created_at", { ascending: false });
+                    records = DataClient.assertSuccess(result) || [];
+                } else {
+                    records = LocalHistory.forDate(selectedDate.value, state.agentId);
+                }
+                const tvCount = records.filter(record => record.clase === "tv").length;
+                shadow.getElementById("total-count").textContent = String(records.length);
+                shadow.getElementById("tv-count").textContent = String(tvCount);
+                shadow.getElementById("fiber-count").textContent = String(records.length - tvCount);
+                renderHistoryEntries(container, records);
+            } catch (error) {
+                console.error("Error cargando historial.", error);
+                showEmpty(container, `Error al sincronizar el historial: ${error.message}`);
+            }
+        }
+
+        async function clearHistory(event) {
+            const button = event.currentTarget;
+            if (button.dataset.confirming !== "true") {
+                button.dataset.confirming = "true";
+                button.classList.add("confirming");
+                button.textContent = "¿Borrar?";
+                window.setTimeout(() => {
+                    if (button.dataset.confirming === "true") {
+                        delete button.dataset.confirming;
+                        button.classList.remove("confirming");
+                        button.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                    }
+                }, 4000);
+                return;
+            }
+            delete button.dataset.confirming;
+            button.classList.remove("confirming");
+            button.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
+                notify("Selecciona una fecha válida antes de borrar el historial.", true);
+                return;
+            }
+            if (!state.agentId) {
+                notify("No se puede borrar el historial sin identificar al agente.", true);
+                return;
+            }
+            try {
+                if (state.db && state.agentId) {
+                    const result = await state.db.from("logs_soporte").delete()
+                        .eq("agente_id", state.agentId).eq("fecha_str", selectedDate.value);
+                    DataClient.assertSuccess(result);
+                }
+                if (!LocalHistory.removeByDate(selectedDate.value, state.agentId)) {
+                    throw new Error("No se pudo actualizar el historial local.");
+                }
+                notify("Historial borrado.");
+                await renderHistory();
+            } catch (error) {
+                console.error("No se pudo borrar el historial.", error);
+                notify(`Error al borrar historial: ${error.message}`, true);
+            }
+        }
+
+        function resetNoteEditor() {
+            shadow.getElementById("note-title").value = "";
+            shadow.getElementById("note-content").value = "";
+            const saveButton = shadow.getElementById("save-note");
+            delete saveButton.dataset.editId;
+            saveButton.textContent = "Guardar nota";
+        }
+
+        async function saveNote() {
+            if (!state.db || !state.agentId) {
+                notify("El baúl requiere identificar al agente y conectar con Supabase.", true);
+                return;
+            }
+            const title = shadow.getElementById("note-title").value.trim() || "Sin Título";
+            const content = shadow.getElementById("note-content").value.trim();
+            if (!content) {
+                notify("Escribe el contenido de la nota antes de guardarla.", true);
+                return;
+            }
+            const button = shadow.getElementById("save-note");
+            const editId = button.dataset.editId;
+            button.disabled = true;
+            button.textContent = "Procesando...";
+            try {
+                const result = editId
+                    ? await state.db.from("g_agentes_notas").update({ titulo: title, contenido: content })
+                        .eq("id", editId).eq("agente_nombre", state.agentId)
+                    : await state.db.from("g_agentes_notas").insert([{
+                        agente_nombre: state.agentId, titulo: title, contenido: content
+                    }]);
+                DataClient.assertSuccess(result);
+                resetNoteEditor();
+                notify(editId ? "Nota actualizada." : "Nota guardada.");
+                await renderNotes();
+            } catch (error) {
+                console.error("No se pudo guardar la nota.", error);
+                notify(`Error al guardar la nota: ${error.message}`, true);
+            } finally {
+                button.disabled = false;
+                if (button.dataset.editId) button.textContent = "Actualizar nota";
+                else button.textContent = "Guardar nota";
+            }
+        }
+
+        async function renderNotes() {
+            const container = shadow.getElementById("notes-list");
+            if (!state.db || !state.agentId) {
+                showEmpty(container, "Baúl deshabilitado: no se pudo identificar al agente o conectar con Supabase.");
+                return;
+            }
+            showEmpty(container, "Cargando notas...");
+            try {
+                const result = await state.db.from("g_agentes_notas").select("id,titulo,contenido")
+                    .eq("agente_nombre", state.agentId).order("id", { ascending: false });
+                const notes = DataClient.assertSuccess(result) || [];
+                container.replaceChildren();
+                if (!notes.length) {
+                    showEmpty(container, "El baúl está vacío.");
+                    return;
+                }
+                notes.forEach(note => {
+                    const item = Core.createElement("article", "note");
+                    item.appendChild(Core.createElement("div", "note-title", note.titulo || "Sin Título"));
+                    item.appendChild(Core.createElement("div", "note-text", note.contenido || ""));
+                    const actions = Core.createElement("div", "note-actions");
+                    const edit = Core.createElement("button", "", "Editar");
+                    const copy = Core.createElement("button", "", "Copiar");
+                    const remove = Core.createElement("button", "", "Eliminar");
+                    [edit, copy, remove].forEach(button => { button.type = "button"; });
+
+                    edit.addEventListener("click", () => {
+                        shadow.getElementById("note-title").value = note.titulo || "";
+                        shadow.getElementById("note-content").value = note.contenido || "";
+                        const saveButton = shadow.getElementById("save-note");
+                        saveButton.dataset.editId = String(note.id);
+                        saveButton.textContent = "Actualizar nota";
+                        shadow.getElementById("note-title").focus();
+                        notify("Nota cargada en el editor.");
+                    });
+                    copy.addEventListener("click", async () => {
+                        try {
+                            await Core.copyText(note.contenido || "");
+                            notify("Nota copiada.");
+                        } catch (error) {
+                            console.error(error);
+                            notify(error.message, true);
+                        }
+                    });
+                    remove.addEventListener("click", () => confirmDeleteNote(note.id, remove));
+                    actions.append(edit, copy, remove);
+                    item.appendChild(actions);
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error("No se pudieron cargar las notas.", error);
+                showEmpty(container, `Error al cargar notas: ${error.message}`);
+            }
+        }
+
+        async function confirmDeleteNote(noteId, button) {
+            if (button.dataset.confirming !== "true") {
+                button.dataset.confirming = "true";
+                button.dataset.originalText = button.textContent;
+                button.classList.add("confirming");
+                button.textContent = "¿Borrar?";
+                window.setTimeout(() => {
+                    if (button.dataset.confirming === "true") {
+                        delete button.dataset.confirming;
+                        button.classList.remove("confirming");
+                        button.textContent = button.dataset.originalText || "Eliminar";
+                    }
+                }, 4000);
+                return;
+            }
+            delete button.dataset.confirming;
+            button.disabled = true;
+            try {
+                const result = await state.db.from("g_agentes_notas").delete()
+                    .eq("id", noteId).eq("agente_nombre", state.agentId);
+                DataClient.assertSuccess(result);
+                const saveButton = shadow.getElementById("save-note");
+                if (saveButton.dataset.editId === String(noteId)) resetNoteEditor();
+                notify("Nota eliminada.");
+                await renderNotes();
+            } catch (error) {
+                console.error("No se pudo eliminar la nota.", error);
+                notify(`Error al eliminar la nota: ${error.message}`, true);
+                button.disabled = false;
+                button.classList.remove("confirming");
+                button.textContent = button.dataset.originalText || "Eliminar";
+            }
+        }
+
+        async function start() {
+            const text = Extractor.pageText();
+            state.services = Extractor.getInternetServices(text);
+            state.agentId = Identity.getAgentId();
+            try {
+                state.templates = await Core.fetchJson(CONFIG.templatesFile);
+                if (!state.templates || typeof state.templates !== "object" || Array.isArray(state.templates)) {
+                    throw new TypeError("PL.json no contiene un objeto de plantillas válido.");
+                }
+            } catch (error) {
+                console.error("Error cargando PL.json.", error);
+            }
+
+            if (state.agentId) {
+                try {
+                    state.db = await DataClient.createClient();
+                } catch (error) {
+                    console.error("Supabase no está disponible.", error);
+                }
+            } else {
+                console.warn("No se identificó un agente; se deshabilitarán las funciones en la nube.");
+            }
+
+            document.getElementById(CONFIG.rootId)?.remove();
+            buildShell();
+            createTemplateView();
+        }
+
+        return { start };
+    })();
+
+    const Bootstrap = (() => {
+        async function start() {
+            if (!document.body) {
+                document.addEventListener("DOMContentLoaded", start, { once: true });
+                return;
+            }
+            const hostname = window.location.hostname.toLowerCase();
+            const isEnabler = hostname === "enabler.es" || hostname.endsWith(".enabler.es");
+            if (isEnabler) {
+                await JiraModule.start();
+                return;
+            }
+            await LowiModule.start();
+        }
+        return { start };
+    })();
+
+    Bootstrap.start().catch(error => {
+        console.error("Error inesperado al iniciar InfoCli.", error);
+        window.alert(`No se pudo iniciar InfoCli: ${error.message}`);
+    });
+})();
