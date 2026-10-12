@@ -1,1021 +1,1804 @@
 (() => {
-    /* ========================================================================= */
-    /* ================= 1. INYECTAR FONT AWESOME Y CONFIGS ==================== */
-    /* ========================================================================= */
-    if (!document.querySelector('link[data-fa]')) {
-        const fa = document.createElement("link");
-        fa.rel = "stylesheet";
-        fa.href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css";
-        fa.dataset.fa = "true";
-        document.head.appendChild(fa);
-    }
+    "use strict";
 
-    const REPO = 'https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/';
-    const urlAct = window.location.href;
+    // Configuración compartida: URLs, claves y límites usados por los módulos.
+    const CONFIG = Object.freeze({
+        repositoryUrl: "https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/",
+        supabaseUrl: "https://gjchhoraaukfaumzcwnd.supabase.co",
+        supabaseKey: "sb_publishable_3AVUNcIiNxzTMAhDnvon1Q_GMBwjSW3",
+        historyStorageKey: "g_automation_logs",
+        historyLimit: 500,
+        rootId: "g-automation-root",
+        supabaseScriptUrl: "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
+        templatesFile: "PL.json",
+        incidentsFile: "averias.json"
+    });
 
-    /* ========================================================================= */
-    /* ================= 2. UTILIDADES COMUNES JIRA (MOTOR) ==================== */
-    /* ========================================================================= */
-    const xp = x => document.evaluate(x, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    const wait = t => new Promise(r => setTimeout(r, t));
-    const di = e => { if (!e) return; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new Event("change", { bubbles: true })); };
-    
-    const fmt = d => {
-        const m = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return `${String(d.getDate()).padStart(2, "0")}/${m[d.getMonth()]}/${String(d.getFullYear()).slice(2)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-    };
-    
-    const nextLab = d => {
-        if (d.getDay() === 5) d.setDate(d.getDate() + 3);
-        else if (d.getDay() === 6) d.setDate(d.getDate() + 2);
-        else d.setDate(d.getDate() + 1);
-        return d;
-    };
+    // Utilidades comunes de DOM, red, fechas, eventos y portapapeles.
+    const Core = (() => {
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const todayLocal = (date = new Date()) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, "0");
+            const day = String(date.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        };
 
-    async function selectRS(input, pasos = 0) {
-        if (!input) return;
-        input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-        await wait(350); 
-        input.value = " "; 
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        await wait(200); 
-        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
-        await wait(250);
-        for (let i = 0; i < pasos; i++) {
-            input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-            await wait(150);
+        const escapeText = value => String(value ?? "");
+        const dispatchChange = element => {
+            if (!element) return;
+            element.dispatchEvent(new Event("input", { bubbles: true }));
+            element.dispatchEvent(new Event("change", { bubbles: true }));
+        };
+
+        async function fetchJson(path) {
+            const response = await fetch(`${CONFIG.repositoryUrl}${path}?v=${Date.now()}`, {
+                cache: "no-store"
+            });
+            if (!response.ok) {
+                throw new Error(`No se pudo cargar ${path} (HTTP ${response.status}).`);
+            }
+            return response.json();
         }
-        input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-        await wait(400);
-    }
 
-    async function rellenarCamposComunesYFechas() {
-        const now = new Date();
-        const fdt = xp('//*[@id="customfield_16825"]'); if (fdt) fdt.value = fmt(now);
-        
-        const startDate = nextLab(new Date(now)); startDate.setHours(8, 0, 0, 0);
-        const fi = xp('//*[@id="customfield_16823"]'); if (fi) fi.value = fmt(startDate);
-        
-        const endDate = new Date(startDate); endDate.setHours(16, 0, 0, 0);
-        const ff2 = xp('//*[@id="customfield_16824"]'); if (ff2) ff2.value = fmt(endDate);
-        
-        const ok = xp('//*[@id="customfield_16833"]'); if (ok) { ok.value = "OK"; di(ok); }
-
-        const tp = document.getElementById("customfield_16820");
-        const ta = document.getElementById("customfield_16821");
-        if (tp && ta && tp.value) { ta.value = tp.value; di(ta); }
-    }
-
-    /* ========================================================================= */
-    /* ============ 3. FUNCIONES DE EXTRACCIÓN TUYAS ORIGINALES ================ */
-    /* ========================================================================= */
-    function getVal(etiquetas) {
-        const todoElTexto = document.body.innerText || "";
-        for (const etiqueta of etiquetas) {
-            if (todoElTexto.includes(etiqueta)) {
-                const partes = todoElTexto.split(etiqueta);
-                if (partes.length > 1) {
-                    return partes[1].split("\n")[0].trim().replace(/^[:\s-]+/, "");
+        async function copyText(text) {
+            if (navigator.clipboard?.writeText) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return;
+                } catch (error) {
+                    console.warn("Clipboard API no disponible; se probará el método alternativo.", error);
                 }
             }
-        }
-        return "N/A";
-    }
 
-    const extraerDocumentoIdentidad = () => {
-        let doc = getVal(["DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"]);
-        if (doc === "N/A") {
-            const txt = document.body.innerText;
-            const match = txt.match(/(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i);
-            if (match) doc = match[1];
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            textarea.setAttribute("readonly", "");
+            Object.assign(textarea.style, {
+                position: "fixed",
+                opacity: "0",
+                pointerEvents: "none"
+            });
+            document.body.appendChild(textarea);
+            textarea.select();
+            const copied = document.execCommand("copy");
+            textarea.remove();
+            if (!copied) throw new Error("El navegador no permitió copiar al portapapeles.");
         }
-        return doc !== "N/A" ? doc.toUpperCase().replace(/[\s-]/g, "") : "N/A";
-    };
 
-    const extraerMoviles = () => {
-        const t = document.body.innerText, found = [], regex = /(?:^|\D)([67]\d{2}\s?\d{3}\s?\d{3})(?:\D|$)/g;
-        let m; while ((m = regex.exec(t)) !== null) {
-            let n = m[1].replace(/\s+/g, ''); if (!found.includes(n)) found.push(n);
+        function createElement(tag, className, text) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = escapeText(text);
+            return element;
         }
-        return found.length ? found.join(" | ") : "N/A";
-    };
 
-    const extraerDireccion = (t) => {
-        let s = ["Dirección de installation:", "Direccion:", "Dirección de instalación:"], e = ["Tipo de huella:", "Tarifa:", "Internet principal"];
-        for (let x of s) {
-            let i = t.indexOf(x); if (i > -1) {
-                let r = t.slice(i + x.length);
-                for (let y of e) { let p = r.indexOf(y); if (p > -1) r = r.slice(0, p); }
-                return r.trim();
+        return { wait, todayLocal, dispatchChange, fetchJson, copyText, createElement, escapeText };
+    })();
+
+    // Identifica al agente actual a partir de los datos del ticket Jira.
+    const Identity = (() => {
+        function getAgentId() {
+            const link = document.querySelector('a[href*="customfield_16881="]');
+            if (!link) return null;
+
+            try {
+                const url = new URL(link.href, window.location.href);
+                const email = url.searchParams.get("customfield_16881")?.trim().toLowerCase();
+                if (!email || !email.includes("@")) return null;
+                return email.split("@")[0].replace(/\./g, "_");
+            } catch (error) {
+                console.error("No se pudo identificar al agente desde el enlace del ticket.", error);
+                return null;
             }
         }
-        return "N/A";
-    };
+        return { getAgentId };
+    })();
 
-    const detectarTecnologiaScript1 = (bloqueTexto) => {
-        const clean = bloqueTexto.toUpperCase();
-        if (clean.includes("NEBAL")) return "NEBAL";
-        if (clean.includes("NEBAF")) return "NEBAF";
-        if (clean.includes("HFC")) return "HFC";
-        return "FTTH";
-    };
+    // Extrae datos del cliente y del servicio desde el texto visible de la página.
+    const Extractor = (() => {
+        const NOT_FOUND = "N/A";
 
-    const detectarONT = (bloqueTexto) => {
-        const clean = bloqueTexto.toUpperCase();
-        return clean.includes("ONT") && (clean.includes("ALARM") || clean.includes("LOS RED") || clean.includes("EXTERNA"));
-    };
+        function pageText() {
+            return document.body?.innerText || "";
+        }
 
-    const saveToHistory = (clienteNombre, dni, nombreGrupo, tipoClase, plantillaNombre) => {
-        let currentLogs = JSON.parse(localStorage.getItem("g_automation_logs")) || [];
-        currentLogs.unshift({
-            timestamp: Date.now(), fechaStr: new Date().toISOString().split('T')[0], 
-            horaStr: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }),
-            cliente: clienteNombre, dni: dni, subCat: nombreGrupo || "General", clase: tipoClase || "fibra", plantilla: plantillaNombre
-        });
-        localStorage.setItem("g_automation_logs", JSON.stringify(currentLogs));
-    };
+        function getValue(labels, text = pageText()) {
+            for (const label of labels) {
+                const index = text.indexOf(label);
+                if (index < 0) continue;
+                const value = text.slice(index + label.length).split("\n", 1)[0]
+                    .trim().replace(/^[:\s-]+/, "");
+                if (value) return value;
+            }
+            return NOT_FOUND;
+        }
 
-    /* ========================================================================= */
-    /* ========================== BLOQUE ENABLER.ES ============================ */
-    /* ========================================================================= */
-    if (urlAct.includes("enabler.es")) {
-        (async function ejecutarEnabler() {
-            const oldRoot = document.getElementById("g-automation-root");
-            if (oldRoot) oldRoot.remove();
+        function getDocument() {
+            let documentId = getValue([
+                "DNI/NIE/Pasaporte:", "DNI/NIE:", "DNI:", "NIE:", "Documento:", "Pasaporte:"
+            ]);
+            if (documentId === NOT_FOUND) {
+                const match = pageText().match(/(?:^|\s|[^\w])([XYZ\d]\d{7}[A-Z])(?:$|\s|[^\w])/i);
+                if (match) documentId = match[1];
+            }
+            return documentId === NOT_FOUND
+                ? NOT_FOUND
+                : documentId.toUpperCase().replace(/[\s-]/g, "");
+        }
 
-            let averias = null;
+        function getMobileNumbers() {
+            const regex = /(?:^|\D)([67]\d{2}\s?\d{3}\s?\d{3})(?:\D|$)/g;
+            const numbers = new Set();
+            let match;
+            while ((match = regex.exec(pageText())) !== null) {
+                numbers.add(match[1].replace(/\s+/g, ""));
+            }
+            return numbers.size ? [...numbers].join(" | ") : NOT_FOUND;
+        }
+
+        function getAddress(text) {
+            const labels = ["Dirección de instalación:", "Direccion:", "Dirección de installation:"];
+            const terminators = ["Tipo de huella:", "Tarifa:", "Internet principal"];
+            for (const label of labels) {
+                const index = text.indexOf(label);
+                if (index < 0) continue;
+                let address = text.slice(index + label.length);
+                const end = terminators.map(term => address.indexOf(term))
+                    .filter(position => position >= 0)
+                    .reduce((min, position) => Math.min(min, position), address.length);
+                address = address.slice(0, end).trim();
+                if (address) return address;
+            }
+            return NOT_FOUND;
+        }
+
+        function getTechnology(text) {
+            const normalized = text.toUpperCase();
+            if (normalized.includes("NEBAL")) return "NEBAL";
+            if (normalized.includes("NEBAF")) return "NEBAF";
+            if (normalized.includes("HFC")) return "HFC";
+            return "FTTH";
+        }
+
+        function hasOntAlarm(text) {
+            const normalized = text.toUpperCase();
+            return normalized.includes("ONT") &&
+                ["ALARM", "LOS RED", "EXTERNA"].some(token => normalized.includes(token));
+        }
+
+        function getInternetServices(text) {
+            const primaryIndex = text.indexOf("Internet principal");
+            const additionalIndex = text.indexOf("Internet adicional");
+            return [
+                {
+                    title: "Principal",
+                    text: primaryIndex >= 0
+                        ? text.slice(primaryIndex, additionalIndex > primaryIndex ? additionalIndex : undefined)
+                        : ""
+                },
+                {
+                    title: "Adicional",
+                    text: additionalIndex >= 0 ? text.slice(additionalIndex) : ""
+                }
+            ].filter(service => service.text.trim());
+        }
+
+        return { NOT_FOUND, pageText, getValue, getDocument, getMobileNumbers, getAddress,
+            getTechnology, hasOntAlarm, getInternetServices };
+    })();
+
+    // Persiste y consulta localmente el historial de plantillas copiadas.
+    const LocalHistory = (() => {
+        function read() {
             try {
-                averias = await fetch(`${REPO}averias.json?v=${Date.now()}`).then(r => r.ok ? r.json() : null);
-            } catch (e) { console.error(e); }
-            if (!averias) { alert("❌ Error: No se pudo mapear el archivo."); return; }
+                const stored = localStorage.getItem(CONFIG.historyStorageKey);
+                if (!stored) return [];
+                const parsed = JSON.parse(stored);
+                if (!Array.isArray(parsed)) throw new TypeError("El historial guardado no es una lista.");
+                return parsed.filter(item => item && typeof item === "object");
+            } catch (error) {
+                console.error("No se pudo leer el historial local.", error);
+                return [];
+            }
+        }
 
-            const host = document.createElement("div"); host.id = "g-automation-root"; document.body.appendChild(host);
+        function write(entries) {
+            try {
+                localStorage.setItem(CONFIG.historyStorageKey, JSON.stringify(entries));
+                return true;
+            } catch (error) {
+                console.error("No se pudo guardar el historial local.", error);
+                return false;
+            }
+        }
+
+        function add(entry) {
+            const timestamp = Date.now();
+            const entries = read();
+            entries.unshift({
+                timestamp,
+                fechaStr: Core.todayLocal(),
+                horaStr: new Intl.DateTimeFormat("es-ES", {
+                    hour: "2-digit", minute: "2-digit"
+                }).format(new Date(timestamp)),
+                ...entry
+            });
+            return write(entries.slice(0, CONFIG.historyLimit));
+        }
+
+        function removeByDate(date, agentId) {
+            if (!agentId) return false;
+            const filtered = read().filter(entry => {
+                return !(entry.agenteId === agentId && entry.fechaStr === date);
+            });
+            return write(filtered);
+        }
+
+        function forDate(date, agentId) {
+            if (!agentId) return [];
+            return read().filter(entry => {
+                return entry.agenteId === agentId && entry.fechaStr === date;
+            }).map(entry => ({
+                cliente: entry.cliente,
+                dni: entry.dni,
+                sub_cat: entry.subCat || "General",
+                clase: entry.clase || "fibra",
+                plantilla: entry.plantilla,
+                hora_str: entry.horaStr || ""
+            }));
+        }
+
+        return { add, removeByDate, forDate };
+    })();
+
+    // Carga el SDK y centraliza la creación y validación de consultas Supabase.
+    const DataClient = (() => {
+        let clientPromise;
+
+        function loadSupabase() {
+            if (window.supabase?.createClient) return Promise.resolve(window.supabase);
+            if (clientPromise) return clientPromise;
+
+            clientPromise = new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[src="${CONFIG.supabaseScriptUrl}"]`);
+                const script = existing || document.createElement("script");
+                const timeout = window.setTimeout(() => {
+                    reject(new Error("Tiempo agotado al cargar el cliente de Supabase."));
+                }, 15000);
+
+                const onLoad = () => {
+                    window.clearTimeout(timeout);
+                    if (window.supabase?.createClient) resolve(window.supabase);
+                    else reject(new Error("Supabase se cargó sin exponer createClient."));
+                };
+                const onError = () => {
+                    window.clearTimeout(timeout);
+                    reject(new Error("No se pudo cargar el cliente de Supabase."));
+                };
+
+                script.addEventListener("load", onLoad, { once: true });
+                script.addEventListener("error", onError, { once: true });
+                if (!existing) {
+                    script.src = CONFIG.supabaseScriptUrl;
+                    script.async = true;
+                    document.head.appendChild(script);
+                }
+            }).catch(error => {
+                clientPromise = null;
+                throw error;
+            });
+            return clientPromise;
+        }
+
+        async function createClient() {
+            const supabase = await loadSupabase();
+            return supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseKey);
+        }
+
+        function assertSuccess(result) {
+            if (result.error) throw result.error;
+            return result.data;
+        }
+
+        return { createClient, assertSuccess };
+    })();
+
+    // Define y construye los iconos SVG usados por las interfaces.
+    const Icons = (() => {
+        const shapes = Object.freeze({
+            wifi: [
+                ["path", { d: "M5 12.55a11 11 0 0 1 14.08 0" }],
+                ["path", { d: "M1.42 9a16 16 0 0 1 21.16 0" }],
+                ["path", { d: "M8.53 16.11a6 6 0 0 1 6.95 0" }],
+                ["circle", { cx: "12", cy: "20", r: "1", fill: "currentColor", stroke: "none" }]
+            ],
+            tv: [
+                ["rect", { x: "2", y: "3", width: "20", height: "15", rx: "2" }],
+                ["path", { d: "M8 21h8M12 18v3" }]
+            ],
+            bolt: [["path", { d: "M13 2 3 14h7l-1 8 12-12h-7l-1-8Z", fill: "currentColor", stroke: "none" }]],
+            chevron: [["path", { d: "m6 9 6 6 6-6" }]],
+            trash: [
+                ["path", { d: "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" }],
+                ["path", { d: "M10 11v5M14 11v5" }]
+            ],
+            close: [["path", { d: "m18 6-12 12M6 6l12 12" }]],
+            copy: [
+                ["rect", { x: "8", y: "8", width: "13", height: "13", rx: "2" }],
+                ["path", { d: "M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" }]
+            ],
+            user: [
+                ["circle", { cx: "12", cy: "8", r: "4" }],
+                ["path", { d: "M4 21a8 8 0 0 1 16 0" }]
+            ],
+            clock: [
+                ["circle", { cx: "12", cy: "12", r: "10" }],
+                ["path", { d: "M12 6v6l4 2" }]
+            ],
+            headset: [
+                ["path", { d: "M3 14v-3a9 9 0 0 1 18 0v3" }],
+                ["rect", { x: "2", y: "13", width: "4", height: "7", rx: "2" }],
+                ["rect", { x: "18", y: "13", width: "4", height: "7", rx: "2" }],
+                ["path", { d: "M18 20a6 6 0 0 1-6 3h-2" }]
+            ]
+        });
+
+        function create(name, className = "icon-svg") {
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("viewBox", "0 0 24 24");
+            svg.setAttribute("width", "1em");
+            svg.setAttribute("height", "1em");
+            svg.setAttribute("fill", "none");
+            svg.setAttribute("stroke", "currentColor");
+            svg.setAttribute("stroke-width", "2");
+            svg.setAttribute("stroke-linecap", "round");
+            svg.setAttribute("stroke-linejoin", "round");
+            svg.setAttribute("aria-hidden", "true");
+            svg.setAttribute("focusable", "false");
+            if (className) svg.setAttribute("class", className);
+
+            for (const [tagName, attributes] of shapes[name] || []) {
+                const shape = document.createElementNS("http://www.w3.org/2000/svg", tagName);
+                for (const [key, value] of Object.entries(attributes)) shape.setAttribute(key, value);
+                svg.appendChild(shape);
+            }
+            return svg;
+        }
+
+        return { create };
+    })();
+
+    // Inyector de Jira: panel de averías, automatización de campos y copia del TT.
+    const JiraModule = (() => {
+        const formatDateTime = date => {
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            return `${String(date.getDate()).padStart(2, "0")}/${months[date.getMonth()]}/` +
+                `${String(date.getFullYear()).slice(-2)} ${String(date.getHours()).padStart(2, "0")}:` +
+                `${String(date.getMinutes()).padStart(2, "0")}`;
+        };
+
+        function nextBusinessDay(date) {
+            const day = date.getDay();
+            date.setDate(date.getDate() + (day === 5 ? 3 : day === 6 ? 2 : 1));
+            return date;
+        }
+
+        async function selectReactOption(selectors, steps, fieldName) {
+            if (!Number.isInteger(steps) || steps < 0) {
+                throw new Error("La configuración contiene un índice de opción inválido.");
+            }
+
+            const deadline = Date.now() + 5000;
+            let input = null;
+            while (Date.now() < deadline) {
+                for (const selector of selectors) {
+                    const candidate = document.querySelector(selector);
+                    if (candidate instanceof HTMLInputElement) {
+                        input = candidate;
+                        break;
+                    }
+                }
+                if (input) break;
+                await Core.wait(100);
+            }
+            if (!input) {
+                throw new Error(`No se encontró el desplegable "${fieldName}". Comprueba que el formulario de Jira haya terminado de cargar.`);
+            }
+
+            input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+            await Core.wait(350);
+            input.value = " ";
+            Core.dispatchChange(input);
+            await Core.wait(200);
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
+            await Core.wait(250);
+            for (let index = 0; index < steps; index++) {
+                input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+                await Core.wait(150);
+            }
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+            await Core.wait(400);
+        }
+
+        function setFieldValue(id, value, notify = false) {
+            const field = document.getElementById(id);
+            if (!field) throw new Error(`No se encontró el campo Jira "${id}".`);
+            field.value = value;
+            if (notify) Core.dispatchChange(field);
+        }
+
+        function fillCommonFields() {
+            const now = new Date();
+            const start = nextBusinessDay(new Date(now));
+            start.setHours(8, 0, 0, 0);
+            const end = new Date(start);
+            end.setHours(16, 0, 0, 0);
+
+            setFieldValue("customfield_16825", formatDateTime(now), true);
+            setFieldValue("customfield_16823", formatDateTime(start), true);
+            setFieldValue("customfield_16824", formatDateTime(end), true);
+            setFieldValue("customfield_16833", "OK", true);
+
+            const product = document.getElementById("customfield_16820");
+            const description = document.getElementById("customfield_16821");
+            if (product?.value && description) {
+                description.value = product.value;
+                Core.dispatchChange(description);
+            }
+        }
+
+        function makeToast(message, isError = false) {
+            const oldToast = document.querySelector(".g-automation-toast");
+            oldToast?.remove();
+            const toast = Core.createElement("div", "g-automation-toast", message);
+            Object.assign(toast.style, {
+                position: "fixed", top: "20px", right: "20px", zIndex: "10000001",
+                background: isError ? "#b91c1c" : "#7A22B4", color: "#fff",
+                padding: "11px 18px", borderRadius: "8px", fontSize: "12px",
+                fontWeight: "700", boxShadow: "0 5px 15px rgba(0,0,0,.4)"
+            });
+            document.body.appendChild(toast);
+            window.setTimeout(() => toast.remove(), 3000);
+        }
+
+        function createPanel(incidents) {
+            const host = document.createElement("div");
+            host.id = CONFIG.rootId;
             const shadow = host.attachShadow({ mode: "open" });
-
-            const style = document.createElement("style");
+            const style = Core.createElement("style");
             style.textContent = `
-                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-                :host { --bg-main: #130919; --bg-card: #1c0f24; --border-purple: rgba(185, 118, 247, 0.12); font-family: 'Inter', sans-serif; }
-                * { box-sizing: border-box; margin: 0; padding: 0; }
-                .widget-panel { position: fixed; z-index: 9999999; width: 340px; max-height: calc(100vh - 40px); top: 20px; right: 20px; background-color: var(--bg-main); border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 20px; box-shadow: 0 24px 50px -12px rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; overflow: hidden; color: #ffffff; }
-                .header { padding: 20px 20px 10px 20px; display: flex; align-items: center; justify-content: space-between; cursor: move; }
-                .header h2 { font-size: 16px; font-weight: 700; color: #ffffff; }
-                .header p { font-size: 11px; color: #b976f7; opacity: 0.7; margin-top: 2px; }
-                .close-btn { background: transparent; border: none; color: rgba(255, 255, 255, 0.4); cursor: pointer; font-size: 14px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
-                .close-btn:hover { color: #ffffff; }
-                .body-container { flex: 1; overflow-y: auto; padding: 16px; }
-                .accordion-item { background-color: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 16px; padding: 12px; }
-                .g-action-btn { background: #7A22B4; color: #FFF; border: none; padding: 10px 14px; margin-bottom: 8px; border-radius: 12px; cursor: pointer; font-size: 12px; font-weight: 600; width: 100%; display: flex; align-items: center; justify-content: space-between; }
-                .g-action-btn:hover { background: #912FD4; }
-                .g-jira-btn-container { display: flex; gap: 8px; margin-top: 8px; }
-                .g-copy-tt-btn { flex: 1; background: #5c188c; border: none; padding: 10px; color: white; font-size: 11px; font-weight: 700; border-radius: 8px; cursor: pointer; text-transform: uppercase; }
-                .g-copy-tt-btn:hover { background: #7A22B4; }
-                .footer { padding: 14px; border-top: 1px solid rgba(185, 118, 247, 0.12); }
-                .hide-btn { width: 100%; padding: 10px; font-size: 12px; color: #ffffff; background: #1c0f24; border: 1px solid rgba(185, 118, 247, 0.2); cursor: pointer; border-radius: 8px; }
+                :host{font-family:Arial,sans-serif;color:#fff}
+                *{box-sizing:border-box;margin:0;padding:0}
+                .panel{position:fixed;z-index:9999999;top:20px;right:20px;width:340px;max-height:calc(100vh - 40px);
+                    display:flex;flex-direction:column;background:#130919;border:1px solid rgba(185,118,247,.2);
+                    border-radius:20px;box-shadow:0 24px 50px -12px rgba(0,0,0,.9);overflow:hidden}
+                .header,.footer{display:flex;align-items:center;justify-content:space-between;background:#130919}
+                .header{padding:20px 20px 10px;cursor:move}
+                h2{font-size:16px;font-weight:700;color:#fff}.subtitle{font-size:11px;color:#b976f7;opacity:.7;margin-top:2px}
+                button{font:inherit;cursor:pointer}.header-actions{display:flex;align-items:center;gap:5px}
+                .header-actions button{width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+                    padding:0;background:transparent;border:0;border-radius:7px;color:rgba(255,255,255,.4);font-size:16px}
+                .header-actions button:hover{background:#7a22b4;color:#fff}
+                #restore-panel[hidden]{display:none}
+                .body{flex:1;overflow-y:auto;padding:16px}
+                .incident-list{padding:12px;background:#1c0f24;border:1px solid rgba(185,118,247,.12);border-radius:16px}
+                .incident-items{display:flex;flex-direction:column;gap:4px}
+                .incident{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+                    margin-bottom:4px;padding:10px 14px;border:0;border-radius:12px;color:#fff;background:#7a22b4;
+                    text-align:left;font-size:12px;font-weight:600}
+                .incident:last-child{margin-bottom:0}
+                .incident:hover{background:#912fd4}
+                .incident-label{min-width:0;text-align:center;flex:1}
+                .incident-icon{flex:none}
+                .copy{width:100%;margin-top:8px;padding:10px;border:0;border-radius:8px;background:#5c188c;color:#fff;
+                    font-size:11px;font-weight:700;text-transform:uppercase}
+                .copy:hover{background:#7a22b4}
+                .footer{padding:14px;border-top:1px solid rgba(185,118,247,.12)}
+                .toggle{width:100%;padding:10px;border:1px solid rgba(185,118,247,.2);border-radius:8px;
+                    background:#1c0f24;color:#fff;font-size:12px}
+                .toggle:hover{background:#7a22b4}
             `;
             shadow.appendChild(style);
 
-            const toast = (m) => {
-                const old = document.querySelector(".g-nt"); if (old) old.remove();
-                const n = document.createElement("div");
-                n.style = "position:fixed; top:20px; right:20px; background:#7A22B4; padding:11px 18px; border-radius:8px; color:#FFF; z-index:10000001; font-size:12px; font-weight:bold; box-shadow:0 5px 15px rgba(0,0,0,0.4);";
-                n.className = "g-nt"; n.innerHTML = `✓ | ${m}`; document.body.appendChild(n);
-                setTimeout(() => n.remove(), 2000);
-            };
+            const panel = Core.createElement("section", "panel");
+            const header = Core.createElement("header", "header");
+            header.id = "g-drag-handle";
+            const title = document.createElement("div");
+            const heading = Core.createElement("h2", "", "Robot Inyector Jira");
+            const subtitle = Core.createElement("p", "subtitle", "enabler.es — Modo Index");
+            title.append(heading, subtitle);
+            const headerActions = Core.createElement("div", "header-actions");
+            const restore = Core.createElement("button", "", "+");
+            restore.type = "button";
+            restore.id = "restore-panel";
+            restore.hidden = true;
+            restore.title = "Mostrar interfaz";
+            restore.setAttribute("aria-label", "Mostrar interfaz");
+            const close = Core.createElement("button", "close", "×");
+            close.type = "button";
+            close.setAttribute("aria-label", "Cerrar panel");
+            headerActions.append(restore, close);
+            header.append(title, headerActions);
 
-            const widget = document.createElement("div"); widget.className = "widget-panel";
-            let averiasHTML = `<div style="display:flex; flex-direction:column; gap:4px;">`;
-            averias.forEach((t, idx) => {
-                averiasHTML += `<button class="g-action-btn" data-averia-idx="${idx}"><span>${t.label}</span><span>🤖</span></button>`;
+            const body = Core.createElement("main", "body");
+            body.id = "g-body-view";
+            const list = Core.createElement("div", "incident-list");
+            const incidentItems = Core.createElement("div", "incident-items");
+            incidents.forEach((incident, index) => {
+                const button = Core.createElement("button", "incident");
+                button.type = "button";
+                button.dataset.incidentIndex = String(index);
+                button.append(
+                    Core.createElement("span", "incident-label", incident.label),
+                    Core.createElement("span", "incident-icon", "🤖")
+                );
+                incidentItems.appendChild(button);
             });
-            averiasHTML += `</div>`;
+            list.appendChild(incidentItems);
+            body.appendChild(list);
+            const copy = Core.createElement("button", "copy", "📋 Copiar TT");
+            copy.type = "button";
+            copy.id = "g-copy-tt";
+            body.appendChild(copy);
 
-            widget.innerHTML = `
-                <div class="header" id="g-drag-handle">
-                    <div><h2>Robot Inyector Jira</h2><p>enabler.es — Modo Index</p></div>
-                    <button class="close-btn" id="g-close-panel">✕</button>
-                </div>
-                <div class="body-container" id="g-body-view">
-                    <div class="accordion-item">${averiasHTML}</div>
-                    <div class="g-jira-btn-container">
-                        <button class="g-copy-tt-btn" id="g-copy-tt">📋 Copiar TT</button>
-                    </div>
-                </div>
-                <div class="footer"><button class="hide-btn" id="g-toggle-visibility">👁️‍🗨️ Ocultar Interfaz</button></div>
-            `;
-            shadow.appendChild(widget);
+            const footer = Core.createElement("footer", "footer");
+            const toggle = Core.createElement("button", "toggle", "Ocultar interfaz");
+            toggle.type = "button";
+            footer.appendChild(toggle);
+            panel.append(header, body, footer);
+            shadow.appendChild(panel);
+            document.body.appendChild(host);
 
-            shadow.querySelectorAll(".g-action-btn").forEach(btn => {
-                btn.onclick = async () => {
-                    const targetAveria = averias[btn.getAttribute("data-averia-idx")];
-                    if(!targetAveria) return;
-                    host.remove(); 
-                    toast("Inyectando mediante secuencia numérica...");
-
-                    try {
-                        const p = targetAveria.pasos;
-                        const sum = document.getElementById("summary");
-                        if (sum) { sum.value = targetAveria.label; di(sum); }
-
-                        await selectRS(document.querySelector("[id^='react-select-customfield_16817'] input"), p.GRUPO);
-                        await selectRS(document.querySelector("#insight-atlas-select-16800 input"), p.TIPO);
-                        await selectRS(document.querySelector("#insight-atlas-select-16801 input"), p.SUBTIPO_L1);
-                        await selectRS(document.querySelector("#insight-atlas-select-16802 input"), p.SUBTIPO_L2);
-                        await selectRS(document.querySelector('#cd-1 input[id^="react-select"]'), p.EXTRA_CIERRE);
-
-                        await rellenarCamposComunesYFechas();
-                        toast("Completado con éxito ✔");
-                    } catch (err) { console.error(err); toast("Error en inyección."); }
-                };
-            });
-
-            shadow.getElementById("g-copy-tt").onclick = () => {
-                const el = document.querySelector(".aui-nav-breadcrumbs li:last-child");
-                if (!el) return alert("No se encontró el código TT en la vista actual.");
-                const tt = el.textContent.trim();
-                navigator.clipboard.writeText(tt).then(() => toast("TT Copiado con éxito: " + tt));
+            close.addEventListener("click", () => host.remove());
+            const setInterfaceVisible = visible => {
+                body.hidden = !visible;
+                panel.style.maxHeight = visible ? "calc(100vh - 40px)" : "75px";
+                toggle.textContent = visible ? "👁️‍🗨️ Ocultar Interfaz" : "👁️ Mostrar Interfaz";
+                restore.hidden = visible;
             };
-
-            shadow.getElementById("g-close-panel").onclick = () => host.remove();
-            
-            let isHidden = false;
-            const bodyV = shadow.getElementById("g-body-view");
-            const toggleV = shadow.getElementById("g-toggle-visibility");
-            
-            toggleV.onclick = () => {
-                if (!isHidden) {
-                    bodyV.style.display = "none";
-                    widget.style.maxHeight = "75px";
-                    toggleV.textContent = "👁️ Mostrar Interfaz";
-                    isHidden = true;
-                } else {
-                    bodyV.style.display = "block";
-                    widget.style.maxHeight = "calc(100vh - 40px)";
-                    toggleV.textContent = "👁️‍🗨️ Ocultar Interfaz";
-                    isHidden = false;
+            toggle.addEventListener("click", () => {
+                setInterfaceVisible(body.hidden);
+            });
+            restore.addEventListener("click", () => setInterfaceVisible(true));
+            copy.addEventListener("click", async () => {
+                const breadcrumb = document.querySelector(".aui-nav-breadcrumbs li:last-child");
+                const ticket = breadcrumb?.textContent?.trim();
+                if (!ticket) {
+                    makeToast("No se encontró el código TT en la vista actual.", true);
+                    return;
                 }
-            };
-
-            let p1 = 0, p2 = 0, p3 = 0, p4 = 0;
-            const handle = shadow.getElementById("g-drag-handle");
-            handle.onmousedown = (e) => {
-                if (e.target.closest('button') || e.target.closest('input')) return;
-                e.preventDefault();
-                p3 = e.clientX; p4 = e.clientY;
-                document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
-                document.onmousemove = (ev) => {
-                    ev.preventDefault();
-                    p1 = p3 - ev.clientX; p2 = p4 - ev.clientY;
-                    p3 = ev.clientX; p4 = ev.clientY;
-                    widget.style.top = (widget.offsetTop - p2) + "px";
-                    widget.style.right = (window.innerWidth - widget.offsetLeft - widget.offsetWidth + p1) + "px";
-                };
-            };
-        })();
-        return; 
-    }
-
-    /* ========================================================================= */
-    /* ================= NO ENABLER: FLUJO MAESTRO PRINCIPAL =================== */
-    /* ========================================================================= */
-    (async function ejecutarMaestroPrincipal() {
-        const bt = document.body.innerText;
-        const iP = bt.indexOf("Internet principal");
-        const iA = bt.indexOf("Internet adicional");
-        const serviciosActivos = [
-            { t: "Principal", texto: iP > -1 ? bt.slice(iP, iA > -1 ? iA : undefined) : "" },
-            { t: "Adicional", texto: iA > -1 ? bt.slice(iA) : "" }
-        ].filter(s => s.texto.trim());
-
-        if (!serviciosActivos.length) {
-            alert("⚠️ No se localizó información del servicio de Internet en la pantalla de Lowi.");
-            return;
-        }
-
-        window._cachedTemplates = {};
-        let plantillasHTML = `<div>`;
-
-        if (!window.supabase) {
-            const sb = document.createElement("script");
-            sb.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-            document.head.appendChild(sb);
-            await new Promise(r => setTimeout(r, 1000));
-        }
-
-        const SUPABASE_URL = "https://gjchhoraaukfaumzcwnd.supabase.co"; 
-        const SUPABASE_ANON_KEY = "sb_publishable_3AVUNcIiNxzTMAhDnvon1Q_GMBwjSW3";
-        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        const obtenerAgenteIdAutomatico = () => {
-            try {
-                const botonTicket = document.querySelector('a[href*="customfield_16881="]');
-                if (botonTicket) {
-                    const urlString = botonTicket.getAttribute('href');
-                    const urlParams = new URLSearchParams(urlString.substring(urlString.indexOf('?')));
-                    const emailAgente = urlParams.get('customfield_16881');
-                    if (emailAgente) {
-                        return emailAgente.split('@')[0].trim().replace(/\./g, '_');
+                try {
+                    await Core.copyText(ticket);
+                    makeToast(`TT copiado: ${ticket}`);
+                } catch (error) {
+                    console.error(error);
+                    makeToast(error.message, true);
+                }
+            });
+            shadow.querySelectorAll(".incident").forEach(button => {
+                button.addEventListener("click", async () => {
+                    const incident = incidents[Number(button.dataset.incidentIndex)];
+                    if (!incident?.pasos) {
+                        makeToast("La avería no tiene una configuración válida.", true);
+                        return;
                     }
-                }
-            } catch (e) { console.error("Error extrayendo ID:", e); }
-            return "Agente_Local";
-        };
-
-        const AGENTE_ID_UNICO = obtenerAgenteIdAutomatico();
-
-        const oldRoot = document.getElementById("g-automation-root");
-        if (oldRoot) oldRoot.remove();
-
-        let plantillas = null;
-        try {
-            plantillas = await fetch(`${REPO}PL.json?v=${Date.now()}`).then(r => r.ok ? r.json() : null);
-        } catch (e) { console.error("Error cargando PL.json:", e); }
-
-        const host = document.createElement("div"); 
-        host.id = "g-automation-root"; 
-        document.body.appendChild(host);
-        const shadow = host.attachShadow({ mode: "open" });
-
-        const shadowLink = document.createElement("link");
-        shadowLink.rel = "stylesheet";
-        shadowLink.href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css";
-        shadow.appendChild(shadowLink);
-
-        const style = document.createElement("style");
-        style.textContent = `
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            :host {
-                --bg-main: #130919;
-                --bg-card: #1c0f24;
-                --bg-row: #23142d;
-                --border-purple: rgba(185, 118, 247, 0.12);
-                --purple-electric: #7a22b4;
-                font-family: 'Inter', sans-serif;
-            }
-            * { box-sizing: border-box; margin: 0; padding: 0; }
-            .widget-panel { position: fixed; z-index: 9999999; width: 340px; max-height: calc(100vh - 40px); top: 20px; right: 20px; background-color: var(--bg-main); border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 20px; box-shadow: 0 24px 50px -12px rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; overflow: hidden; color: #ffffff; }
-            .header { padding: 20px 20px 10px 20px; background: #130919; display: flex; align-items: center; justify-content: space-between; cursor: move; }
-            .header h2 { font-size: 16px; font-weight: 700; color: #ffffff; letter-spacing: -0.3px; }
-            .header p { font-size: 11px; color: #b976f7; opacity: 0.7; margin-top: 2px; font-weight: 500; }
-            .close-btn { background: transparent; border: none; color: rgba(255, 255, 255, 0.4); cursor: pointer; font-size: 14px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
-            .close-btn:hover { color: #ffffff; }
-            
-            .tabs-container { display: flex; border-bottom: 1px solid rgba(185, 118, 247, 0.15); background: #130919; }
-            .tab-button { flex: 1; padding: 12px; background: transparent; border: none; color: rgba(255, 255, 255, 0.4); font-size: 13px; font-weight: 600; cursor: pointer; text-align: center; position: relative; transition: all 0.2s ease; }
-            .tab-button:hover { color: rgba(255,255,255,0.8); }
-            .tab-button.active { color: #ffffff; }
-            .tab-button.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: #b976f7; box-shadow: 0 -4px 10px #b976f7; }
-            
-            .body-container { flex: 1; overflow-y: auto; padding: 16px; position: relative; }
-            .body-container::-webkit-scrollbar { width: 6px; }
-            .body-container::-webkit-scrollbar-track { background: transparent; }
-            .body-container::-webkit-scrollbar-thumb { background: #7a22b4; border-radius: 10px; }
-            
-            .tab-view { display: none; }
-            .tab-view.active { display: block; }
-            
-            .accordion-item { background-color: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 16px; margin-bottom: 12px; overflow: hidden; }
-            .accordion-trigger { width: 100%; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
-            .accordion-content { display: none; padding: 0 12px 12px 12px; }
-            .accordion-content.open { display: block; }
-            
-            .icon-circle-main { width: 32px; height: 32px; background: rgba(122, 34, 180, 0.2); border: 1px solid rgba(185, 118, 247, 0.3); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; color: #b976f7; flex-shrink: 0; font-size: 14px; }
-            
-            .sub-accordion { margin-top: 8px; border-radius: 12px; background: #1c0f24; border: 1px solid rgba(185, 118, 247, 0.08); overflow: hidden; }
-            .group-label-trigger { width: 100%; padding: 14px 16px; font-size: 14px; font-weight: 600; color: #ffffff; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
-            .sub-accordion-content { display: none; padding: 4px 10px 12px 10px; }
-            .sub-accordion-content.open { display: block; }
-            
-            .sub-cat-circle { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0; font-size: 12px; }
-            .sub-cat-circle.fibra { color: #00d0ff !important; background: rgba(0, 150, 255, 0.15); border: 1px solid rgba(0, 150, 255, 0.3); }
-            .sub-cat-circle.tv { color: #f59e0b !important; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); }
-            .sub-cat-circle i { color: inherit !important; display: inline-block; }
-
-            .template-row { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; background: #23142d; border: 1px solid rgba(185, 118, 247, 0.1); border-radius: 12px; color: #ffffff; font-size: 13px; cursor: pointer; margin-bottom: 8px; text-align: left; transition: all 0.2s ease; font-weight: 500; }
-            .template-row:hover { border-color: rgba(185, 118, 247, 0.4); background-color: rgba(185, 118, 247, 0.1); }
-            .template-text { flex: 1; font-weight: 600; line-height: 1.4; word-break: break-word; }
-            .copy-action-btn { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #b976f7; padding: 4px 8px; background: transparent; border: none; flex-shrink: 0; text-transform: uppercase; }
-            
-            .template-row.copied-state { border: 1px solid #ffffff !important; box-shadow: 0 0 12px rgba(255, 255, 255, 0.2); }
-            .template-row.copied-state .copy-action-btn { color: #10b981 !important; }
-            
-            .calendar-box { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 14px; padding: 12px; margin-bottom: 14px; }
-            .calendar-box label { font-size: 11px; text-transform: uppercase; color: #b976f7; letter-spacing: 0.5px; font-weight: 700; display: block; margin-bottom: 6px; }
-            .filter-action-row { display: flex; align-items: center; gap: 8px; }
-            .calendar-input { flex: 1; background: #130919; border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 8px; padding: 8px 12px; color: #ffffff; font-size: 13px; outline: none; cursor: pointer; font-family: inherit; }
-            .calendar-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-            
-            .clear-btn { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #ef4444; cursor: pointer; }
-            .clear-btn:hover { background: rgba(239, 68, 68, 0.2); color: #ff6b6b; }
-            .clear-btn.confirming { background: #ef4444; color: #ffffff; width: auto; padding: 0 12px; font-size: 11px; font-weight: bold; }
-
-            .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 14px; }
-            .stat-card { background: rgba(28, 16, 38, 0.4); border: 1px solid rgba(185, 118, 247, 0.08); border-radius: 10px; padding: 10px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-            .stat-card.total-box { grid-column: span 2; background: linear-gradient(135deg, rgba(122, 34, 180, 0.2) 0%, rgba(28,16,38,0.4) 100%); border: 1px solid rgba(185, 118, 247, 0.2); padding: 14px; }
-            .stat-card h4 { font-size: 11px; color: rgba(255,255,255,0.5); font-weight: 500; text-transform: uppercase; }
-            .stat-card p { font-size: 18px; font-weight: 700; margin-top: 2px; }
-            .stat-card.total-box p { color: #b976f7; font-size: 22px; }
-            .stat-card.sub-stat p { font-weight: 700; }
-            .stat-card.sub-stat p.val-fibra { color: #00f0ff; }
-            .stat-card.sub-stat p.val-tv { color: #f59e0b; }
-            
-            .history-group-wrapper { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 12px; overflow: hidden; margin-bottom: 8px; }
-            .history-group-trigger { width: 100%; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; background: transparent; border: none; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; text-align: left; }
-            
-            .history-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; display: inline-block; }
-            .history-dot.fibra { background-color: #00d0ff; box-shadow: 0 0 8px #00d0ff; }
-            .history-dot.tv { background-color: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
-            
-            .history-group-badge { background: #7a22b4; color: #ffffff; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; min-width: 22px; text-align: center; }
-            .history-group-content { display: none; padding: 4px 12px 12px 12px; background: rgba(19, 9, 25, 0.2); border-top: 1px solid rgba(185, 118, 247, 0.05); }
-            .history-group-content.open { display: block; }
-            
-            .log-item { background: var(--bg-row); padding: 12px; border-radius: 10px; font-size: 11px; display: flex; flex-direction: column; gap: 4px; margin-top: 8px; border-left: 3px solid #00d0ff; }
-            .log-item.tv { border-left-color: #f59e0b; }
-            .log-header { display: flex; justify-content: space-between; font-weight: 600; color: #ffffff; font-size: 12px; }
-            .log-time { color: rgba(255,255,255,0.4); font-size: 10px; }
-            .log-body { color: rgba(255,255,255,0.6); font-size: 11px; margin-top: 2px; }
-            
-            /* ========================================================================= */
-            /* ========================== ESTILOS BAÚL ================================= */
-            /* ========================================================================= */
-            .vault-container { display: flex; flex-direction: column; gap: 12px; }
-            .vault-input-box { background: var(--bg-card); border: 1px solid var(--border-purple); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-            .vault-textarea { width: 100%; background: #130919; border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 8px; padding: 10px; color: #ffffff; font-size: 12px; outline: none; resize: none; min-height: 60px; font-family: inherit; }
-            .vault-textarea:focus { border-color: rgba(185, 118, 247, 0.5); }
-            .vault-add-btn { background: #7A22B4; color: #FFF; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.2s; }
-            .vault-add-btn:hover { background: #912FD4; }
-            .vault-list { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-            .vault-item { background: var(--bg-row); border: 1px solid rgba(185, 118, 247, 0.08); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; position: relative; }
-            .vault-text { font-size: 12px; color: rgba(255,255,255,0.85); line-height: 1.4; word-break: break-word; white-space: pre-wrap; }
-            .vault-actions { display: flex; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px; }
-            .vault-action-btn { background: transparent; border: none; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px; padding: 4px 6px; border-radius: 4px; transition: all 0.2s; }
-            .vault-btn-copy { color: #b976f7; }
-            .vault-btn-copy:hover { background: rgba(185, 118, 247, 0.1); }
-            .vault-btn-delete { color: #ef4444; }
-            .vault-btn-delete:hover { background: rgba(239, 68, 68, 0.1); }
-            .vault-btn-delete.confirming { background: #ef4444; color: #ffffff !important; padding: 4px 8px; border-radius: 6px; font-weight: bold; }
-
-            .footer { padding: 14px; border-top: 1px solid rgba(185, 118, 247, 0.12); background: #130919; text-align: center; }
-            .hide-btn { width: 100%; padding: 10px; font-size: 12px; color: #ffffff; background: #1c0f24; border: 1px solid rgba(185, 118, 247, 0.2); cursor: pointer; border-radius: 8px; font-weight: 600; }
-        `;
-        shadow.appendChild(style);
-
-        const toast = (m) => {
-            const old = document.querySelector(".g-nt"); if (old) old.remove();
-            const n = document.createElement("div");
-            n.style = "position:fixed; top:20px; right:20px; background:#7A22B4; padding:11px 18px; border-radius:8px; color:#FFF; z-index:10000001; font-size:12px; font-weight:bold; box-shadow:0 5px 15px rgba(0,0,0,0.4);";
-            n.className = "g-nt"; n.innerHTML = `✓ | ${m}`; document.body.appendChild(n);
-            setTimeout(() => n.remove(), 2000);
-        };
-
-        if (plantillas) {
-            serviciosActivos.forEach((serv, sIdx) => {
-                Object.keys(plantillas).forEach((categoria, catIdx) => {
-                    const idUnicoBloque = `cat-${sIdx}-${catIdx}`;
-                    const catLower = categoria.toLowerCase();
-                    const esTv = catLower.includes("tv") || catLower.includes("tele");
-                    const iconHeader = esTv ? `<i class="fa-solid fa-tv"></i>` : `<i class="fa-solid fa-wifi"></i>`;
-                    
-                    plantillasHTML += `
-                        <div class="accordion-item">
-                            <button class="accordion-trigger" data-trigger="${idUnicoBloque}">
-                                <div style="display:flex; align-items:center;">
-                                    <div class="icon-circle-main">${iconHeader}</div>
-                                    <span style="font-weight:600; font-size:14px;">${categoria} ${serviciosActivos.length > 1 ? `(${serv.t})` : ''}</span>
-                                </div>
-                                <i class="fa-solid fa-chevron-down" style="font-size:11px;opacity:0.5;"></i>
-                            </button>
-                            <div class="accordion-content" id="${idUnicoBloque}">
-                    `;
-
-                    Object.keys(plantillas[categoria]).forEach((nombreGrupo, grpIdx) => {
-                        const subId = `sub_${sIdx}_${catIdx}_${grpIdx}`;
-                        const subCatClass = esTv ? "tv" : "fibra";
-                        const subCatIcon = esTv ? `<i class="fa-solid fa-tv"></i>` : `<i class="fa-solid fa-bolt"></i>`;
-
-                        plantillasHTML += `
-                            <div class="sub-accordion">
-                                <button class="group-label-trigger" data-subtrigger="${subId}">
-                                    <div style="display:flex; align-items:center;">
-                                        <div class="sub-cat-circle ${subCatClass}">${subCatIcon}</div>
-                                        <span>${nombreGrupo}</span>
-                                    </div>
-                                    <i class="fa-solid fa-chevron-down" style="font-size:11px;opacity:0.4;"></i>
-                                </button>
-                                <div class="sub-accordion-content" id="${subId}">
-                        `;
-
-                        Object.keys(plantillas[categoria][nombreGrupo]).forEach(clavePlantilla => {
-                            const uniqueId = `tmpl_${sIdx}_${catIdx}_${Math.random().toString(36).substr(2, 9)}`;
-                            window._cachedTemplates[uniqueId] = { 
-                                categoriaRaiz: categoria,
-                                grupo: nombreGrupo, 
-                                clave: clavePlantilla, 
-                                servicio: serv,
-                                clase: esTv ? "tv" : "fibra"
-                            };
-
-                            plantillasHTML += `
-                                <button class="template-row" data-id="${uniqueId}">
-                                    <span class="template-text">${clavePlantilla}</span>
-                                    <span class="copy-action-btn"><i class="fa-regular fa-copy"></i> Copiar</span>
-                                </button>
-                            `;
-                        });
-                        plantillasHTML += `</div></div>`;
-                    });
-                    plantillasHTML += `</div></div>`;
+                    button.disabled = true;
+                    try {
+                        const summary = document.getElementById("summary");
+                        if (!summary) throw new Error("No se encontró el resumen del ticket.");
+                        summary.value = incident.label;
+                        Core.dispatchChange(summary);
+                        const steps = incident.pasos;
+                        const selectors = [
+                            [["[id^='react-select-customfield_16817'] input", "#customfield_16817 input",
+                                "input[id^='react-select-customfield_16817']"], steps.GRUPO, "Grupo"],
+                            [["#insight-atlas-select-16800 input"], steps.TIPO, "Tipo"],
+                            [["#insight-atlas-select-16801 input"], steps.SUBTIPO_L1, "Subtipo nivel 1"],
+                            [["#insight-atlas-select-16802 input"], steps.SUBTIPO_L2, "Subtipo nivel 2"],
+                            [['#cd-1 input[id^="react-select"]', "#cd-1 input"], steps.EXTRA_CIERRE, "Extra cierre"]
+                        ];
+                        for (const [fieldSelectors, index, fieldName] of selectors) {
+                            await selectReactOption(fieldSelectors, index, fieldName);
+                        }
+                        fillCommonFields();
+                        makeToast("Ticket completado.");
+                    } catch (error) {
+                        console.error("Error durante la inyección en Jira.", error);
+                        makeToast(error.message || "Error durante la inyección.", true);
+                    } finally {
+                        button.disabled = false;
+                    }
                 });
             });
-        } else {
-            plantillasHTML += `<p style="font-size:12px;opacity:0.5;text-align:center;">No se cargó el archivo PL.json</p>`;
+            setupDrag(header, panel);
         }
-        plantillasHTML += `</div>`;
 
-        const widget = document.createElement("div"); widget.className = "widget-panel";
-        widget.innerHTML = `
-            <div class="header" id="g-drag-handle">
-                <div><h2>Generador de Plantillas</h2><p>lowi.es — Maestro Principal</p></div>
-                <button class="close-btn" id="g-close-panel">✕</button>
-            </div>
-            <div class="tabs-container">
-                <button class="tab-button active" id="tab-btn-pl">Plantillas</button>
-                <button class="tab-button" id="tab-btn-hist">Historial</button>
-                <button class="tab-button" id="tab-btn-vault">Baúl</button>
-            </div>
-            <div class="body-container" id="g-body-view">
-                <div class="tab-view active" id="view-templates">${plantillasHTML}</div>
-                
-                <div class="tab-view" id="view-history">
-                    <div class="calendar-box">
-                        <label>Filtro y Limpieza</label>
-                        <div class="filter-action-row">
-                            <input type="date" class="calendar-input" id="hist-date-picker">
-                            <button class="clear-btn" id="hist-clear-btn" title="Limpiar Historial"><i class="fa-solid fa-trash-can"></i></button>
-                        </div>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-card total-box"><h4>Total Copiadas</h4><p id="stat-total-count">0</p></div>
-                        <div class="stat-card sub-stat"><h4>⚡ Fibra</h4><p class="val-fibra" id="stat-fibra-count">0</p></div>
-                        <div class="stat-card sub-stat"><h4>📺 TV</h4><p class="val-tv" id="stat-tv-count">0</p></div>
-                    </div>
-                    <div class="log-list" id="hist-logs-container"></div>
-                </div>
+        function setupDrag(handle, panel) {
+            let pointerX = 0;
+            let pointerY = 0;
+            let dragging = false;
+            handle.addEventListener("pointerdown", event => {
+                if (event.target.closest("button")) return;
+                dragging = true;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                handle.setPointerCapture(event.pointerId);
+            });
+            handle.addEventListener("pointermove", event => {
+                if (!dragging) return;
+                const dx = event.clientX - pointerX;
+                const dy = event.clientY - pointerY;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                const rect = panel.getBoundingClientRect();
+                panel.style.right = "auto";
+                panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + dx))}px`;
+                panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 50, rect.top + dy))}px`;
+            });
+            const stopDragging = () => { dragging = false; };
+            handle.addEventListener("pointerup", stopDragging);
+            handle.addEventListener("pointercancel", stopDragging);
+        }
 
-                <div class="tab-view" id="view-vault"></div>
-            </div>
-            <div class="footer"><button class="hide-btn" id="g-close-panel-b">👁 Ocultar Interfaz</button></div>
-        `;
-        shadow.appendChild(widget);
+        async function start() {
+            try {
+                const incidents = await Core.fetchJson(CONFIG.incidentsFile);
+                if (!Array.isArray(incidents)) throw new TypeError("averias.json no contiene una lista.");
+                document.getElementById(CONFIG.rootId)?.remove();
+                createPanel(incidents.filter(item => item && typeof item.label === "string" && item.pasos));
+            } catch (error) {
+                console.error("No se pudo inicializar el módulo Jira.", error);
+                window.alert(`No se pudo iniciar el inyector de Jira: ${error.message}`);
+            }
+        }
 
-        // Estructura interna dinámica del baúl (Con input de título y variables de modo de guardado)
-        const viewVaultContainer = shadow.getElementById("view-vault");
-        if (viewVaultContainer) {
-            viewVaultContainer.innerHTML = `
-                <div class="vault-container">
-                    <div class="vault-input-box">
-                        <input type="text" id="vault-title-input" placeholder="Título de la nota (opcional)..." 
-                            style="width: 100%; background: #130919; border: 1px solid rgba(185, 118, 247, 0.2); border-radius: 8px; padding: 8px 10px; color: #ffffff; font-size: 12px; outline: none; font-family: inherit; margin-bottom: 4px;">
-                        <textarea class="vault-textarea" id="vault-input" placeholder="Escribe una nota rápida aquí..."></textarea>
-                        <button class="vault-add-btn" id="vault-save-btn" data-mode="create" data-edit-id=""><i class="fa-solid fa-plus"></i> Guardar Nota</button>
-                    </div>
-                    <div class="vault-list" id="vault-items-container"></div>
-                </div>
+        return { start };
+    })();
+
+    // Interfaz y funciones Lowi: plantillas, historial, rellamadas y baúl.
+    const LowiModule = (() => {
+        const state = { templates: null, services: [], agentId: null, db: null, toastTimer: null };
+        let root;
+        let shadow;
+        let selectedDate;
+
+        // Identificadores que activan textos dinámicos de plantillas.
+        const TEMPLATE_MARKERS = Object.freeze({
+            DINAMICO_INCOMUNICADO: "incommunicado",
+            DINAMICO_CORTES_RESUELTO: "cutsResolved",
+            DINAMICO_CORTES_TECNICO: "cutsTechnician",
+            DINAMICO_CORTES_NV2: "cutsLevelTwo",
+            DINAMICO_FUERA_RESUELTO: "thresholdResolved",
+            DINAMICO_FUERA_NO: "thresholdNotResolved",
+            DINAMICO_FUERA_RESUELTO_SOL: "thresholdSolution"
+        });
+
+        function notify(message, isError = false) {
+            const toast = shadow.getElementById("toast");
+            if (!toast) return;
+            toast.textContent = message;
+            toast.classList.toggle("error", isError);
+            toast.hidden = false;
+            window.clearTimeout(state.toastTimer);
+            state.toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2600);
+        }
+
+        // Estructura visual, navegación y eventos comunes del widget Lowi.
+        function addStyles() {
+            const style = Core.createElement("style");
+            style.textContent = `
+                :host{--bg:#130919;--card:#1c0f24;--border:rgba(185,118,247,.18);font:13px Arial,sans-serif;color:#fff}
+                *{box-sizing:border-box}
+                .panel{position:fixed;z-index:9999999;top:20px;right:20px;width:350px;max-height:calc(100vh - 40px);
+                    display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border:1px solid var(--border);
+                    border-radius:18px;box-shadow:0 20px 50px #000b}
+                .header,.footer{padding:14px 16px;background:var(--bg);display:flex;align-items:center;justify-content:space-between}
+                .header{cursor:move;border-bottom:1px solid var(--border)}
+                .header h2{font-size:15px;margin:0 0 4px}.header p{font-size:11px;color:#b976f7;margin:0}
+                button,input,textarea{font:inherit}.button{color:#fff;border:0;border-radius:8px;padding:9px 11px;background:#7a22b4;cursor:pointer}
+                .header-actions{display:flex;align-items:center;gap:5px}
+                .header-actions button{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+                    padding:0;border:0;border-radius:7px;background:transparent;color:#fff;cursor:pointer;font-size:17px}
+                .header-actions button:hover{background:#7a22b4}
+                #restore-panel[hidden]{display:none}
+                .tabs{display:flex;border-bottom:1px solid var(--border)}
+                .tab-button{flex:1;padding:11px 6px;background:transparent;border:0;color:#aaa;cursor:pointer;font-weight:600}
+                .tab-button.active{color:white;border-bottom:2px solid #b976f7}
+                .tabs{min-width:0}
+                .tab-button{min-width:0;padding-left:4px;padding-right:4px;font-size:12px}
+                .body{padding:12px;overflow:auto}.view{display:none}.view.active{display:block}
+                .category,.subgroup,.history-group,.note{border:1px solid var(--border);border-radius:11px;background:var(--card);overflow:hidden;margin-bottom:9px}
+                .accordion,.group-trigger,.history-trigger{width:100%;padding:12px;text-align:left;background:transparent;border:0;color:#fff;cursor:pointer;font-weight:600}
+                .accordion,.group-trigger{display:flex;align-items:center;justify-content:space-between;font-size:13px}
+                .accordion:hover,.group-trigger:hover{background:rgba(185,118,247,.04)}
+                .category-heading,.group-heading{display:flex;align-items:center;min-width:0}
+                .category-heading span,.group-heading span{overflow-wrap:anywhere}
+                .icon-svg{display:inline-block;width:1em;height:1em;vertical-align:-.12em;flex:none}
+                .icon-circle-main{width:30px;height:30px;display:flex;align-items:center;justify-content:center;flex:none;
+                    margin-right:10px;border-radius:50%;color:#b976f7;background:rgba(122,34,180,.2);border:1px solid rgba(185,118,247,.3)}
+                .sub-cat-circle{width:27px;height:27px;display:flex;align-items:center;justify-content:center;flex:none;
+                    margin-right:10px;border-radius:50%;font-size:11px}
+                .sub-cat-circle.fibra{color:#00d0ff;background:rgba(0,150,255,.15);border:1px solid rgba(0,150,255,.3)}
+                .sub-cat-circle.tv{color:#f59e0b;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.3)}
+                .chevron{font-size:10px;opacity:.5;margin-left:8px;transition:transform .15s ease}
+                .accordion[aria-expanded="true"]>.chevron,.group-trigger[aria-expanded="true"]>.chevron{transform:rotate(180deg)}
+                .accordion-content,.subgroup-content,.history-content{display:none;padding:0 9px 9px}.open{display:block}
+                .accordion-content{padding:0 10px 10px}
+                .subgroup{margin-top:7px;background:#1c0f24}
+                .group-trigger{padding:10px 12px}
+                .template{font-size:12px}
+                .template{width:100%;display:flex;justify-content:space-between;gap:8px;align-items:center;text-align:left;
+                    padding:11px;background:#23142d;border:1px solid var(--border);border-radius:9px;color:#fff;cursor:pointer;margin-top:7px}
+                .template:hover{border-color:#b976f7;background:rgba(185,118,247,.08)}
+                .template-label{font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+                .template-copy{color:#b976f7;font-size:10px;font-weight:700;text-transform:uppercase;white-space:nowrap}
+                .calendar,.stat,.note-editor{padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card);margin-bottom:10px}
+                .calendar{border-radius:14px;padding:12px;margin-bottom:14px}
+                .calendar label{display:block;color:#b976f7;font-size:11px;font-weight:700;letter-spacing:.5px;
+                    text-transform:uppercase;margin-bottom:6px}
+                input[type=date],input[type=text],textarea{width:100%;background:var(--bg);color:#fff !important;
+                    -webkit-text-fill-color:#fff;caret-color:#d8b4fe;border:1px solid var(--border);
+                    border-radius:7px;padding:9px}
+                input[type=date]::placeholder,input[type=text]::placeholder,textarea::placeholder{color:#aaa !important;
+                    -webkit-text-fill-color:#aaa;opacity:1}
+                input[type=date]:focus,input[type=text]:focus,textarea:focus{outline:2px solid rgba(185,118,247,.65);
+                    outline-offset:1px;border-color:#b976f7}
+                input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+                .danger-row{display:flex;align-items:center;gap:8px}
+                .danger-row input{flex:1;min-width:0}
+                .clear{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex:none;
+                    color:#ef4444;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.2)}
+                .calendar .clear{padding:0}
+                .clear:hover{background:rgba(239,68,68,.2);color:#ff6b6b}
+                .clear.confirming{width:auto;padding:0 12px;background:#ef4444;color:#fff;font-size:11px;font-weight:700}
+                .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+                .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+                    background:rgba(28,16,38,.4);border-color:rgba(185,118,247,.08);margin:0}
+                .stat.total{grid-column:span 2;background:linear-gradient(135deg,rgba(122,34,180,.2),rgba(28,16,38,.4));
+                    border-color:rgba(185,118,247,.2);padding:14px}
+                .stat-label{font-size:11px;color:rgba(255,255,255,.5);font-weight:500;text-transform:uppercase}
+                .stat strong{display:block;color:#b976f7;font-size:18px;margin-top:2px}
+                .stat.total strong{font-size:22px}
+                #fiber-count{color:#00f0ff}.stat.tv-stat strong{color:#f59e0b}
+                .history-group{border-radius:12px;margin-bottom:8px}
+                .history-trigger{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;
+                    text-align:left;font-size:13px}
+                .history-trigger:hover{background:rgba(185,118,247,.04)}
+                .history-name{display:flex;align-items:center;min-width:0}
+                .history-name-label{overflow-wrap:anywhere}
+                .history-dot{width:8px;height:8px;flex:none;border-radius:50%;margin-right:10px;display:inline-block}
+                .history-dot.fibra{background:#00d0ff;box-shadow:0 0 8px #00d0ff}
+                .history-dot.tv{background:#f59e0b;box-shadow:0 0 8px #f59e0b}
+                .icon-circle-main .icon-svg{width:15px;height:15px}
+                .sub-cat-circle .icon-svg{width:13px;height:13px}
+                .chevron{width:11px;height:11px}
+                .template-copy .icon-svg{width:12px;height:12px}
+                .stat-label .icon-svg{width:11px;height:11px}
+                .history-customer .icon-svg,.history-time .icon-svg,.recall-agent .icon-svg{width:12px;height:12px}
+                .history-badge{min-width:22px;padding:2px 8px;border-radius:20px;background:#7a22b4;color:#fff;
+                    text-align:center;font-size:11px;font-weight:700}
+                .history-content{display:none;padding:4px 12px 12px;background:rgba(19,9,25,.2);
+                    border-top:1px solid rgba(185,118,247,.05)}
+                .history-content.open{display:block}
+                .history-entry{display:flex;flex-direction:column;gap:4px;margin-top:8px;padding:10px;
+                    border-radius:10px;background:#23142d;border-left:3px solid #00d0ff;font-size:11px}
+                .history-entry.tv{border-left-color:#f59e0b}
+                .history-entry-header{display:flex;justify-content:space-between;gap:6px;align-items:center;
+                    color:#fff;font-size:12px;font-weight:600}
+                .history-customer{overflow-wrap:anywhere}
+                .history-time{flex:none;color:rgba(255,255,255,.45);font-size:10px;font-weight:400}
+                .history-entry p{white-space:pre-wrap;overflow-wrap:anywhere;color:rgba(255,255,255,.65);
+                    font-size:11px;margin:2px 0 0}
+                .recall-summary{padding:11px 12px;border:1px solid var(--border);border-radius:10px;
+                    background:rgba(28,16,38,.4);margin-bottom:10px;color:rgba(255,255,255,.65);font-size:11px;line-height:1.5}
+                .recall-summary strong{color:#b976f7}
+                .recall-filter{padding:10px;border:1px solid var(--border);border-radius:12px;
+                    background:var(--card);margin-bottom:10px}
+                .recall-filter label{display:block;color:#b976f7;font-size:10px;font-weight:700;
+                    letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
+                .recall-filter-row{display:flex;align-items:center;gap:7px}
+                .recall-filter-row input{flex:1;min-width:0}
+                .recall-filter-clear{width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+                    padding:0;border:1px solid var(--border);border-radius:7px;background:transparent;color:#b976f7;cursor:pointer}
+                .recall-filter-clear:hover{background:rgba(185,118,247,.12)}
+                .recall-entry{padding:11px 12px;border:1px solid var(--border);border-left:3px solid #b976f7;
+                    border-radius:10px;background:var(--card);margin-bottom:8px}
+                .recall-customer{font-size:13px;font-weight:700;overflow-wrap:anywhere}
+                .recall-dni{color:#b976f7;font-size:12px;font-weight:700;margin-top:4px}
+                .recall-dates{display:grid;gap:5px;margin-top:9px;color:rgba(255,255,255,.7);font-size:11px}
+                .recall-agent{display:flex;align-items:center;gap:6px;margin-top:8px;color:rgba(255,255,255,.55);font-size:11px}
+                .note-editor{padding:12px}
+                .note-editor textarea{min-height:130px;resize:vertical;margin:7px 0;color:#fff !important;
+                    -webkit-text-fill-color:#fff;line-height:1.5}
+                .note-editor input[type=text]{min-height:40px;color:#fff !important;-webkit-text-fill-color:#fff}
+                .note-editor-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+                .note-editor-actions .button{min-width:112px}
+                .cancel-edit[hidden]{display:none}
+                .editing-note-label{display:none;margin-bottom:7px;color:#e9d5ff;font-size:11px;font-weight:700}
+                .note-editor.is-editing .editing-note-label{display:block}
+                .note-editor.is-editing{border-color:rgba(245,158,11,.6);box-shadow:0 0 0 1px rgba(245,158,11,.15)}
+                .note-title{font-weight:700;color:#d8b4fe;margin-bottom:5px;overflow-wrap:anywhere}
+                .note-text{color:#f3edf8;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0;line-height:1.5}
+                .note.is-editing{border-color:#f59e0b;box-shadow:0 0 0 1px rgba(245,158,11,.25)}
+                .notes-toolbar{display:flex;justify-content:flex-end;gap:6px;margin:0 0 8px}
+                .note-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+                .note-heading .note-title{flex:1;min-width:0}
+                .note-content[hidden]{display:none}
+                .view[data-view="vault"] button{padding:9px 11px;border:0;border-radius:8px;background:#7a22b4;color:#fff;
+                    font:inherit;cursor:pointer;transition:background .15s ease}
+                .view[data-view="vault"] button:hover{background:#8b2bc5}
+                .view[data-view="vault"] button:focus-visible{outline:2px solid #d8b4fe;outline-offset:2px}
+                .note-actions{display:flex;gap:5px;flex-wrap:wrap}
+                .confirming{background:#b91c1c!important}
+                .footer{border-top:1px solid var(--border)}.footer button{width:100%;background:var(--card);color:#fff;border:1px solid var(--border);
+                    border-radius:8px;padding:9px;cursor:pointer}
+                .footer button:hover{background:#7a22b4}
+                .toast{position:fixed;right:12px;top:12px;z-index:2;background:#7a22b4;color:#fff;padding:10px 13px;border-radius:8px;
+                    box-shadow:0 8px 20px #0009;font-size:12px}.toast.error{background:#b91c1c}
+                .muted{text-align:center;opacity:.65;padding:12px;font-size:12px}.copied{border-color:#10b981}
             `;
+            shadow.appendChild(style);
         }
 
-        shadow.querySelectorAll(".accordion-trigger").forEach(t => {
-            t.onclick = () => shadow.getElementById(t.getAttribute("data-trigger")).classList.toggle("open");
-        });
-        shadow.querySelectorAll(".group-label-trigger").forEach(t => {
-            t.onclick = () => shadow.getElementById(t.getAttribute("data-subtrigger")).classList.toggle("open");
-        });
+        function buildShell() {
+            root = document.createElement("div");
+            root.id = CONFIG.rootId;
+            shadow = root.attachShadow({ mode: "open" });
+            addStyles();
 
-        const tabPl = shadow.getElementById("tab-btn-pl"); 
-        const tabHist = shadow.getElementById("tab-btn-hist");
-        const tabVault = shadow.getElementById("tab-btn-vault");
-        
-        const viewPl = shadow.getElementById("view-templates"); 
-        const viewHist = shadow.getElementById("view-history");
-        const viewVault = shadow.getElementById("view-vault");
+            const panel = Core.createElement("section", "panel");
+            panel.innerHTML = `
+                <header class="header" id="drag-handle">
+                    <div><h2>Generador de Plantillas</h2><p>lowi.es — Maestro Principal</p></div>
+                    <div class="header-actions">
+                        <button id="restore-panel" type="button" aria-label="Mostrar interfaz" title="Mostrar interfaz" hidden>+</button>
+                        <button class="close" id="close" type="button" aria-label="Cerrar" title="Cerrar">×</button>
+                    </div>
+                </header>
+                <nav class="tabs" aria-label="Secciones">
+                    <button class="tab-button active" data-tab="templates">Plantillas</button>
+                    <button class="tab-button" data-tab="history">Historial</button>
+                    <button class="tab-button" data-tab="recall">Rellamantes</button>
+                    <button class="tab-button" data-tab="vault">Baúl</button>
+                </nav>
+                <main class="body" id="body">
+                    <section class="view active" data-view="templates" id="templates-view"></section>
+                    <section class="view" data-view="history" id="history-view">
+                        <div class="calendar">
+                            <label for="history-date">FILTRO Y LIMPIEZA</label>
+                            <div class="danger-row">
+                                <input id="history-date" type="date">
+                                <button class="clear" id="clear-history" type="button" title="Limpiar historial"
+                                        aria-label="Limpiar historial"></button>
+                            </div>
+                        </div>
+                        <div class="stats">
+                            <div class="stat total"><span class="stat-label">Total copiadas</span><strong id="total-count">0</strong></div>
+                            <div class="stat"><span class="stat-label" id="fiber-label">Fibra</span><strong id="fiber-count">0</strong></div>
+                            <div class="stat tv-stat"><span class="stat-label" id="tv-label">TV</span><strong id="tv-count">0</strong></div>
+                        </div>
+                        <div id="history-list"></div>
+                    </section>
+                    <section class="view" data-view="recall" id="recall-view">
+                        <div class="recall-filter">
+                            <label for="recall-date">FILTRAR POR FECHA DE RELLAMADA</label>
+                            <div class="recall-filter-row">
+                                <input id="recall-date" type="date" aria-label="Filtrar por fecha de rellamada">
+                                <button class="recall-filter-clear" id="clear-recall-date" type="button"
+                                    title="Quitar filtro de fecha" aria-label="Quitar filtro de fecha">
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+                        <div id="recall-list"></div>
+                    </section>
+                    <section class="view" data-view="vault" id="vault-view">
+                        <div class="note-editor" id="note-editor">
+                            <div class="editing-note-label" id="editing-note-label" aria-live="polite"></div>
+                            <input id="note-title" type="text" maxlength="120" placeholder="Título (opcional)">
+                            <textarea id="note-content" maxlength="10000" placeholder="Escribe una nota..."></textarea>
+                            <div class="note-editor-actions">
+                                <button class="button" id="save-note" type="button">Guardar nota</button>
+                                <button class="cancel-edit" id="cancel-note-edit" type="button" hidden>Cancelar edición</button>
+                            </div>
+                        </div>
+                        <div id="notes-list"></div>
+                    </section>
+                </main>
+                <footer class="footer"><button id="toggle-panel" type="button">Ocultar interfaz</button></footer>
+            `;
+            shadow.appendChild(panel);
+            shadow.getElementById("close").replaceChildren(Icons.create("close"));
+            shadow.getElementById("clear-history").appendChild(Icons.create("trash"));
+            shadow.getElementById("fiber-label").prepend(Icons.create("bolt"), " ");
+            shadow.getElementById("tv-label").prepend(Icons.create("tv"), " ");
+            shadow.getElementById("clear-recall-date").replaceChildren(Icons.create("close"));
+            const toast = Core.createElement("div", "toast", "");
+            toast.id = "toast";
+            toast.hidden = true;
+            shadow.appendChild(toast);
+            document.body.appendChild(root);
 
-        const datePicker = shadow.getElementById("hist-date-picker"); datePicker.value = new Date().toISOString().split('T')[0];
-
-        tabPl.onclick = () => { resetTabs(); tabPl.classList.add("active"); viewPl.classList.add("active"); };
-        tabHist.onclick = () => { resetTabs(); tabHist.classList.add("active"); viewHist.classList.add("active"); renderHistorialSincronizado(); };
-        tabVault.onclick = () => { resetTabs(); tabVault.classList.add("active"); viewVault.classList.add("active"); renderNotasBaul(); };
-        
-        datePicker.onchange = () => renderHistorialSincronizado();
-
-        function resetTabs() {
-            [tabPl, tabHist, tabVault].forEach(t => t.classList.remove("active"));
-            [viewPl, viewHist, viewVault].forEach(v => v.classList.remove("active"));
+            selectedDate = shadow.getElementById("history-date");
+            selectedDate.value = Core.todayLocal();
+            shadow.getElementById("recall-date").value = "";
+            bindShellEvents(panel);
+            setupDrag(shadow.getElementById("drag-handle"), panel);
         }
 
-        const clearBtn = shadow.getElementById("hist-clear-btn");
-        let isConfirmingClear = false;
+        function bindShellEvents(panel) {
+            shadow.getElementById("close").addEventListener("click", () => root.remove());
+            const body = shadow.getElementById("body");
+            const nav = shadow.querySelector(".tabs");
+            const toggleButton = shadow.getElementById("toggle-panel");
+            const restoreButton = shadow.getElementById("restore-panel");
+            const setInterfaceVisible = visible => {
+                body.hidden = !visible;
+                nav.hidden = !visible;
+                panel.style.maxHeight = visible ? "calc(100vh - 40px)" : "75px";
+                toggleButton.textContent = visible ? "Ocultar interfaz" : "Mostrar interfaz";
+                restoreButton.hidden = visible;
+            };
+            shadow.getElementById("toggle-panel").addEventListener("click", event => {
+                setInterfaceVisible(body.hidden);
+            });
+            restoreButton.addEventListener("click", () => setInterfaceVisible(true));
+            shadow.querySelectorAll(".tab-button").forEach(button => {
+                button.addEventListener("click", () => {
+                    shadow.querySelectorAll(".tab-button").forEach(tab => tab.classList.remove("active"));
+                    shadow.querySelectorAll(".view").forEach(view => view.classList.remove("active"));
+                    button.classList.add("active");
+                    shadow.querySelector(`[data-view="${button.dataset.tab}"]`).classList.add("active");
+                    if (button.dataset.tab === "history") renderHistory();
+                    if (button.dataset.tab === "recall") renderRecallers();
+                    if (button.dataset.tab === "vault") renderNotes();
+                });
+            });
+            selectedDate.addEventListener("change", () => renderHistory());
+            shadow.getElementById("recall-date").addEventListener("change", renderRecallers);
+            shadow.getElementById("clear-recall-date").addEventListener("click", () => {
+                shadow.getElementById("recall-date").value = "";
+                renderRecallers();
+            });
+            shadow.getElementById("clear-history").addEventListener("click", clearHistory);
+            shadow.getElementById("save-note").addEventListener("click", saveNote);
+            shadow.getElementById("note-content").addEventListener("input", resizeNoteEditor);
+            shadow.getElementById("cancel-note-edit").addEventListener("click", () => {
+                resetNoteEditor();
+                notify("Edición cancelada.");
+            });
+        }
 
-        clearBtn.onclick = async () => {
-            const fechaSeleccionada = datePicker.value;
-            if (!isConfirmingClear) {
-                isConfirmingClear = true;
-                clearBtn.classList.add("confirming");
-                clearBtn.innerHTML = "¿Borrar?";
-                setTimeout(() => {
-                    if (isConfirmingClear) {
-                        isConfirmingClear = false;
-                        clearBtn.classList.remove("confirming");
-                        clearBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i>`;
+        function setupDrag(handle, panel) {
+            let pointerX = 0;
+            let pointerY = 0;
+            let dragging = false;
+            handle.addEventListener("pointerdown", event => {
+                if (event.target.closest("button,input,textarea")) return;
+                dragging = true;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                handle.setPointerCapture(event.pointerId);
+            });
+            handle.addEventListener("pointermove", event => {
+                if (!dragging) return;
+                const dx = event.clientX - pointerX;
+                const dy = event.clientY - pointerY;
+                pointerX = event.clientX;
+                pointerY = event.clientY;
+                const rect = panel.getBoundingClientRect();
+                panel.style.right = "auto";
+                panel.style.left = `${Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + dx))}px`;
+                panel.style.top = `${Math.max(0, Math.min(window.innerHeight - 50, rect.top + dy))}px`;
+            });
+            const stop = () => { dragging = false; };
+            handle.addEventListener("pointerup", stop);
+            handle.addEventListener("pointercancel", stop);
+        }
+
+        // Vista de plantillas: categorías, grupos y botones para copiar tipificaciones.
+        function createTemplateView() {
+            const container = shadow.getElementById("templates-view");
+            if (!state.templates) {
+                container.appendChild(Core.createElement("p", "muted", "No se pudieron cargar las plantillas."));
+                return;
+            }
+            if (!state.services.length) {
+                container.appendChild(Core.createElement("p", "muted",
+                    "No se localizó información del servicio de Internet en la pantalla."));
+                return;
+            }
+
+            state.services.forEach((service, serviceIndex) => {
+                Object.entries(state.templates).forEach(([category, groups], categoryIndex) => {
+                    if (!groups || typeof groups !== "object" || Array.isArray(groups)) return;
+                    const categoryId = `category-${serviceIndex}-${categoryIndex}`;
+                    const categoryElement = Core.createElement("section", "category");
+                    const isTv = /tv|tele/i.test(category);
+                    const trigger = Core.createElement("button", "accordion");
+                    trigger.type = "button";
+                    trigger.setAttribute("aria-expanded", "false");
+                    const categoryHeading = Core.createElement("span", "category-heading");
+                    const categoryIcon = Core.createElement("span", "icon-circle-main");
+                    categoryIcon.appendChild(Icons.create(isTv ? "tv" : "wifi"));
+                    const categoryLabel = Core.createElement("span", "",
+                        `${category}${state.services.length > 1 ? ` (${service.title})` : ""}`);
+                    categoryHeading.append(categoryIcon, categoryLabel);
+                    trigger.append(categoryHeading, Icons.create("chevron", "icon-svg chevron"));
+                    const content = Core.createElement("div", "accordion-content");
+                    content.id = categoryId;
+                    trigger.addEventListener("click", () => {
+                        content.classList.toggle("open");
+                        const expanded = content.classList.contains("open");
+                        trigger.setAttribute("aria-expanded", String(expanded));
+                    });
+
+                    Object.entries(groups).forEach(([group, templates], groupIndex) => {
+                        if (!templates || typeof templates !== "object" || Array.isArray(templates)) return;
+                        const subgroup = Core.createElement("section", "subgroup");
+                        const groupTrigger = Core.createElement("button", "group-trigger");
+                        groupTrigger.type = "button";
+                        groupTrigger.setAttribute("aria-expanded", "false");
+                        const groupHeading = Core.createElement("span", "group-heading");
+                        const groupIcon = Core.createElement("span", `sub-cat-circle ${isTv ? "tv" : "fibra"}`);
+                        groupIcon.appendChild(Icons.create(isTv ? "tv" : "bolt"));
+                        groupHeading.append(groupIcon, Core.createElement("span", "", group));
+                        groupTrigger.append(groupHeading, Icons.create("chevron", "icon-svg chevron"));
+                        const subgroupContent = Core.createElement("div", "subgroup-content");
+                        subgroupContent.id = `group-${serviceIndex}-${categoryIndex}-${groupIndex}`;
+                        groupTrigger.addEventListener("click", () => {
+                            subgroupContent.classList.toggle("open");
+                            groupTrigger.setAttribute("aria-expanded",
+                                String(subgroupContent.classList.contains("open")));
+                        });
+
+                        Object.entries(templates).forEach(([templateName, template]) => {
+                            const button = Core.createElement("button", "template");
+                            button.type = "button";
+                            const templateLabel = Core.createElement("span", "template-label", templateName);
+                            const copyLabel = Core.createElement("span", "template-copy");
+                            copyLabel.append(Icons.create("copy"), " Copiar");
+                            button.append(templateLabel, copyLabel);
+                            button.addEventListener("click", () =>
+                                copyTemplate(button, service, category, group, templateName, template));
+                            subgroupContent.appendChild(button);
+                        });
+                        subgroup.append(groupTrigger, subgroupContent);
+                        content.appendChild(subgroup);
+                    });
+                    categoryElement.append(trigger, content);
+                    container.appendChild(categoryElement);
+                });
+            });
+        }
+
+        // Resuelve los textos fijos o dinámicos que componen una tipificación.
+        function resolveTemplate(category, group, name, original, service) {
+            const result = Array.isArray(original) ? [...original] : ["", "", "", ""];
+            while (result.length < 4) result.push("");
+            const technology = Extractor.getTechnology(service.text);
+            const markers = TEMPLATE_MARKERS;
+            const dynamic = markers[result[1]];
+
+            if (dynamic === "incommunicated") {
+                if (technology === "HFC") {
+                    result[1] = "router con luces intermitentes, sin acceso remoto al CPE; se valida cableado sin daños";
+                    result[2] = "posible daño en acometida HFC";
+                } else {
+                    const hasAlarm = Extractor.hasOntAlarm(service.text);
+                    result[1] = hasAlarm
+                        ? "ONT en rojo en alarm, sin acceso remoto; se valida cableado sin daños y sin acceso a CPE"
+                        : "router con ONT integrada sin sincronismo; cableado validado y correctamente conectado";
+                    result[2] = hasAlarm ? "posible daño en tramo óptico" : "posible daño en fibra";
+                }
+            } else if (dynamic === "cutsResolved") {
+                result[1] = technology === "HFC"
+                    ? "Se revisan cortes en THOT de los últimos 7 días, se reinicia de fábrica y se ajusta cableado y bandas; conexión estable"
+                    : "Se revisan cortes en Schaman, se reinicia de fábrica y se ajusta cableado; señal estable en ambas bandas Wi-Fi";
+            } else if (dynamic === "cutsTechnician") {
+                result[1] = technology === "HFC"
+                    ? "Se validan cortes en THOT; reinicio de fábrica sin mejora tras prueba de conexión"
+                    : "Cortes validados en Schaman; reinicio de fábrica sin mejora";
+                result[2] = technology === "HFC"
+                    ? "Señal degradada tras saturación del CPE"
+                    : "Posible daño en CPE";
+            } else if (dynamic === "cutsLevelTwo") {
+                result[1] = technology === "HFC"
+                    ? "Se validan cortes breves persistentes en THOT; se reinicia de fábrica y se escala a nivel 2"
+                    : "Cortes persistentes validados en Schaman; las pruebas de vídeo y red no resuelven la incidencia";
+            } else if (dynamic === "thresholdResolved") {
+                result[1] = technology === "HFC"
+                    ? "Se validan parámetros fuera de umbrales en THOT, se reinicia de fábrica y parámetros SNMP, flaps y QoS; pruebas correctas"
+                    : "Se validan parámetros fuera de umbrales en Schaman, se reinicia de fábrica y se separan bandas; pruebas correctas";
+                result[3] = technology === "HFC"
+                    ? "Se reinicia de fábrica, se ajustan parámetros SNMP y bandas, y se confirma con el cliente la estabilidad"
+                    : "Se deja resuelto";
+            } else if (dynamic === "thresholdNotResolved") {
+                result[1] = technology === "HFC"
+                    ? "Parámetros fuera de umbrales en THOT; reinicio de fábrica y parámetros sin mejora"
+                    : "Parámetros fuera de umbrales en Schaman";
+            } else if (dynamic === "thresholdSolution") {
+                result[3] = technology === "HFC"
+                    ? "Se reinicia de fábrica, se ajustan parámetros SNMP y bandas, y se confirma con el cliente la estabilidad"
+                    : "Se reinicia de fábrica, se separan bandas y se comprueba con el cliente que no persisten anomalías";
+            }
+
+            return { fields: result, technology };
+        }
+
+        // Copia la tipificación, actualiza el historial local y sincroniza con Supabase.
+        async function copyTemplate(button, service, category, group, name, template) {
+            try {
+                const { fields, technology } = resolveTemplate(category, group, name, template, service);
+                const client = Extractor.getValue(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"]);
+                const documentId = Extractor.getDocument();
+                const customerId = Extractor.getValue(["AMDOCS ID:", "ID Cliente:", "ID:"]);
+                const address = Extractor.getAddress(service.text);
+                const mobiles = Extractor.getMobileNumbers();
+                const speed = service.text.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i)?.[1] || "600Mbps";
+                const date = new Intl.DateTimeFormat("es-ES", {
+                    day: "numeric", month: "long", year: "numeric"
+                }).format(new Date());
+                const text = [
+                    `Nombre: ${client}`,
+                    `DNI/NIE: ${documentId}`,
+                    `ID: ${customerId}`,
+                    `Dirección: ${address}`,
+                    `Móvil: ${mobiles}`,
+                    `• Qué dice el cliente que le sucede: ${fields[0] || "N/A"}`,
+                    `• Pruebas realizadas: ${fields[1] || "N/A"}`,
+                    `• Diagnóstico: ${fields[2] || "N/A"}`,
+                    `• Solución: ${fields[3] || "N/A"}`,
+                    "• Avería: #AVERIA / NA",
+                    `Tecnología: ${technology}`,
+                    `Velocidad: ${speed}`,
+                    `Fecha: ${date}`
+                ].join("\n");
+
+                await Core.copyText(text);
+                const entry = {
+                    cliente: client, dni: documentId, subCat: group,
+                    clase: category.toLowerCase().includes("tv") ||
+                        category.toLowerCase().includes("tele") ? "tv" : "fibra",
+                    plantilla: name, agenteId: state.agentId
+                };
+                if (state.agentId && !LocalHistory.add(entry)) {
+                    notify("Copiado, pero no se pudo guardar el historial local.", true);
+                }
+                button.classList.add("copied");
+                window.setTimeout(() => button.classList.remove("copied"), 1200);
+                if (!state.agentId) {
+                    notify("Copiado. No se guardó el historial porque no se pudo identificar al agente.", true);
+                } else {
+                    notify(`Copiado: ${name}`);
+                }
+                if (state.db && state.agentId) {
+                    try {
+                        const result = await state.db.from("logs_soporte").insert([{
+                            agente_id: state.agentId,
+                            cliente: client,
+                            dni: documentId,
+                            sub_cat: group,
+                            clase: entry.clase,
+                            plantilla: name,
+                            fecha_str: Core.todayLocal(),
+                            hora_str: new Intl.DateTimeFormat("es-ES", {
+                                hour: "2-digit", minute: "2-digit"
+                            }).format(new Date())
+                        }]);
+                        DataClient.assertSuccess(result);
+                    } catch (error) {
+                        console.error("La plantilla se copió, pero no se sincronizó el historial.", error);
+                        notify(`Copiado; falló la sincronización del historial: ${error.message}`, true);
+                    }
+                }
+            } catch (error) {
+                console.error("No se pudo generar/copiar la plantilla.", error);
+                notify(`No se pudo completar la operación: ${error.message}`, true);
+            }
+        }
+
+        function showEmpty(container, message) {
+            container.replaceChildren(Core.createElement("p", "muted", message));
+        }
+
+        // Historial: renderizado agrupado, métricas, filtro de fecha y limpieza.
+        function renderHistoryEntries(container, records) {
+            container.replaceChildren();
+            if (!records.length) {
+                showEmpty(container, "No hay registros para este día.");
+                return;
+            }
+            const groups = new Map();
+            records.forEach(record => {
+                const name = record.sub_cat || "General";
+                if (!groups.has(name)) groups.set(name, []);
+                groups.get(name).push(record);
+            });
+            let groupIndex = 0;
+            for (const [name, items] of groups) {
+                const section = Core.createElement("section", "history-group");
+                const trigger = Core.createElement("button", "history-trigger");
+                trigger.type = "button";
+                const isTvGroup = items[0]?.clase === "tv";
+                const historyName = Core.createElement("span", "history-name");
+                historyName.append(
+                    Core.createElement("span", `history-dot ${isTvGroup ? "tv" : "fibra"}`),
+                    Core.createElement("span", "history-name-label", name)
+                );
+                trigger.append(historyName, Core.createElement("span", "history-badge", String(items.length)));
+                const content = Core.createElement("div", "history-content");
+                content.id = `history-group-${groupIndex++}`;
+                trigger.setAttribute("aria-expanded", "false");
+                trigger.addEventListener("click", () => {
+                    content.classList.toggle("open");
+                    trigger.setAttribute("aria-expanded", String(content.classList.contains("open")));
+                });
+                items.forEach(item => {
+                    const entry = Core.createElement("article", `history-entry ${item.clase === "tv" ? "tv" : "fibra"}`);
+                    const entryHeader = Core.createElement("div", "history-entry-header");
+                    const customer = Core.createElement("span", "history-customer");
+                    customer.append(
+                        Icons.create("user"),
+                        ` ${item.cliente || "N/A"} (${item.dni || "N/A"})`
+                    );
+                    const time = Core.createElement("span", "history-time");
+                    time.append(
+                        Icons.create("clock"),
+                        ` ${item.hora_str || ""}`
+                    );
+                    entryHeader.append(
+                        customer,
+                        time
+                    );
+                    entry.appendChild(entryHeader);
+                    entry.appendChild(Core.createElement("p", "", item.plantilla || ""));
+                    content.appendChild(entry);
+                });
+                section.append(trigger, content);
+                container.appendChild(section);
+            }
+        }
+
+        // Rellamadas: búsqueda de registros y atribución secuencial dentro de siete días.
+        function normalizeDni(value) {
+            const normalized = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+            return normalized && normalized !== "NA" ? normalized : null;
+        }
+
+        function colombiaDate(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return null;
+            const parts = new Intl.DateTimeFormat("en-CA", {
+                timeZone: "America/Bogota",
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit"
+            }).formatToParts(date);
+            const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+            return `${values.year}-${values.month}-${values.day}`;
+        }
+
+        function dayDifference(fromDate, toDate) {
+            const from = Date.parse(`${fromDate}T00:00:00Z`);
+            const to = Date.parse(`${toDate}T00:00:00Z`);
+            return Number.isFinite(from) && Number.isFinite(to)
+                ? Math.round((to - from) / 86400000)
+                : null;
+        }
+
+        async function fetchAllRows(queryFactory) {
+            const pageSize = 500;
+            const rows = [];
+            for (let offset = 0; ; offset += pageSize) {
+                const result = await queryFactory().range(offset, offset + pageSize - 1);
+                const page = DataClient.assertSuccess(result) || [];
+                rows.push(...page);
+                if (page.length < pageSize) return rows;
+            }
+        }
+
+        async function getRelevantRecallLogs() {
+            const ownLogs = await fetchAllRows(() => state.db.from("logs_soporte")
+                .select("dni")
+                .eq("agente_id", state.agentId)
+                .not("dni", "is", null)
+                .order("id", { ascending: true }));
+            const dniValues = [...new Set(ownLogs
+                .filter(log => normalizeDni(log.dni))
+                .map(log => String(log.dni).trim()))];
+            if (!dniValues.length) return [];
+
+            const records = [];
+            const dniBatchSize = 50;
+            for (let index = 0; index < dniValues.length; index += dniBatchSize) {
+                const batch = dniValues.slice(index, index + dniBatchSize);
+                const rows = await fetchAllRows(() => state.db.from("logs_soporte")
+                    .select("id,created_at,agente_id,cliente,dni")
+                    .in("dni", batch)
+                    .order("created_at", { ascending: true })
+                    .order("id", { ascending: true }));
+                records.push(...rows);
+            }
+            return records;
+        }
+
+        function findRecallers(records) {
+            const byDni = new Map();
+            records.forEach(record => {
+                const dni = normalizeDni(record.dni);
+                const agentId = String(record.agente_id || "").trim();
+                const eventDate = colombiaDate(record.created_at);
+                if (!dni || !agentId || !eventDate) return;
+                if (!byDni.has(dni)) byDni.set(dni, []);
+                byDni.get(dni).push({ ...record, agente_id: agentId, eventDate });
+            });
+
+            const recallers = [];
+            for (const [dni, events] of byDni) {
+                events.sort((left, right) => {
+                    const timeDifference = new Date(left.created_at) - new Date(right.created_at);
+                    return timeDifference || Number(left.id) - Number(right.id);
+                });
+
+                let previousEpisode = null;
+                for (const event of events) {
+                    if (!previousEpisode) {
+                        previousEpisode = event;
+                        continue;
+                    }
+
+                    if (event.agente_id === previousEpisode.agente_id) {
+                        previousEpisode = event;
+                        continue;
+                    }
+
+                    const daysApart = dayDifference(previousEpisode.eventDate, event.eventDate);
+                    if (previousEpisode.agente_id === state.agentId &&
+                        daysApart !== null && daysApart >= 0 && daysApart < 7) {
+                        recallers.push({
+                            dni,
+                            cliente: previousEpisode.cliente || event.cliente || "N/A",
+                            initialDate: previousEpisode.created_at,
+                            initialDay: previousEpisode.eventDate,
+                            callbackDate: event.created_at,
+                            callbackDay: event.eventDate,
+                            callbackAgent: event.agente_id
+                        });
+                    }
+                    previousEpisode = event;
+                }
+            }
+
+            return recallers.sort((left, right) =>
+                new Date(right.callbackDate) - new Date(left.callbackDate) ||
+                left.cliente.localeCompare(right.cliente, "es")
+            );
+        }
+
+        function formatRecallDate(timestamp) {
+            const date = new Date(timestamp);
+            if (Number.isNaN(date.getTime())) return "Fecha no disponible";
+
+            const dateParts = new Intl.DateTimeFormat("en-GB", {
+                timeZone: "America/Bogota",
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric"
+            }).formatToParts(date);
+            const timeParts = new Intl.DateTimeFormat("en-US", {
+                timeZone: "America/Bogota",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true
+            }).formatToParts(date);
+            const dateValues = Object.fromEntries(dateParts.map(part => [part.type, part.value]));
+            const timeValues = Object.fromEntries(timeParts.map(part => [part.type, part.value]));
+            return `${dateValues.day}/${dateValues.month}/${dateValues.year} ` +
+                `${timeValues.hour}:${timeValues.minute} ${timeValues.dayPeriod.toUpperCase()}`;
+        }
+
+        function formatDateOnly(date) {
+            const [year, month, day] = date.split("-");
+            return `${day}/${month}/${year}`;
+        }
+
+        function renderRecallEntries(container, recallers, filterDate) {
+            container.replaceChildren();
+            if (!recallers.length) {
+                showEmpty(container, filterDate
+                    ? "No tienes rellamadas en la fecha seleccionada."
+                    : "No se encontraron rellamadas tuyas dentro de la ventana de 7 días.");
+                return;
+            }
+
+            const summary = Core.createElement("div", "recall-summary");
+            summary.append(
+                Core.createElement("strong", "", String(recallers.length)),
+                " cliente(s) atendido(s) después por otro agente dentro de los 7 días siguientes. ",
+                "Las tipificaciones consecutivas del mismo agente se consolidan usando la última.",
+                filterDate ? ` Fecha de rellamada: ${formatDateOnly(filterDate)}.` : ""
+            );
+            container.appendChild(summary);
+
+            recallers.forEach(recaller => {
+                const entry = Core.createElement("article", "recall-entry");
+                entry.append(
+                    Core.createElement("div", "recall-customer", recaller.cliente),
+                    Core.createElement("div", "recall-dni", `DNI/NIE: ${recaller.dni}`)
+                );
+                const dates = Core.createElement("div", "recall-dates");
+                dates.append(
+                    Core.createElement("div", "", `Tu atención: ${formatRecallDate(recaller.initialDate)}`),
+                    Core.createElement("div", "", `Rellamada: ${formatRecallDate(recaller.callbackDate)}`)
+                );
+                const agent = Core.createElement("div", "recall-agent");
+                agent.append(
+                    Icons.create("headset"),
+                    ` Atendió después: ${recaller.callbackAgent}`
+                );
+                entry.append(dates, agent);
+                container.appendChild(entry);
+            });
+        }
+
+        async function renderRecallers() {
+            const container = shadow.getElementById("recall-list");
+            if (!state.agentId) {
+                showEmpty(container, "No se pudo identificar al agente; no se pueden consultar sus rellamadas.");
+                return;
+            }
+            if (!state.db) {
+                showEmpty(container, "No hay conexión con Supabase. Las rellamadas requieren consultar tipificaciones del equipo.");
+                return;
+            }
+
+            showEmpty(container, "Buscando clientes atendidos por otro agente...");
+            try {
+                const records = await getRelevantRecallLogs();
+                const allRecallers = findRecallers(records);
+                const filterDate = shadow.getElementById("recall-date").value;
+                const recallers = filterDate
+                    ? allRecallers.filter(recaller => recaller.callbackDay === filterDate)
+                    : allRecallers;
+                renderRecallEntries(container, recallers, filterDate);
+            } catch (error) {
+                console.error("No se pudieron calcular las rellamadas.", error);
+                showEmpty(container,
+                    `No se pudieron consultar las tipificaciones necesarias. Verifica el acceso de lectura de logs_soporte para detectar cambios de agente. ${error.message}`);
+            }
+        }
+
+        // Coordina la lectura, el filtrado por fecha y el renderizado del historial.
+        async function renderHistory() {
+            const container = shadow.getElementById("history-list");
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
+                shadow.getElementById("total-count").textContent = "0";
+                shadow.getElementById("tv-count").textContent = "0";
+                shadow.getElementById("fiber-count").textContent = "0";
+                showEmpty(container, "Selecciona una fecha válida para consultar el historial.");
+                return;
+            }
+            if (!state.agentId) {
+                shadow.getElementById("total-count").textContent = "0";
+                shadow.getElementById("tv-count").textContent = "0";
+                shadow.getElementById("fiber-count").textContent = "0";
+                showEmpty(container, "Historial deshabilitado para evitar mezclar datos: no se pudo identificar al agente.");
+                return;
+            }
+            showEmpty(container, "Cargando historial...");
+            let records;
+            try {
+                if (state.db && state.agentId) {
+                    const result = await state.db.from("logs_soporte")
+                        .select("cliente,dni,sub_cat,clase,plantilla,hora_str,created_at")
+                        .eq("agente_id", state.agentId)
+                        .eq("fecha_str", selectedDate.value)
+                        .order("created_at", { ascending: false });
+                    records = DataClient.assertSuccess(result) || [];
+                } else {
+                    records = LocalHistory.forDate(selectedDate.value, state.agentId);
+                }
+                const tvCount = records.filter(record => record.clase === "tv").length;
+                shadow.getElementById("total-count").textContent = String(records.length);
+                shadow.getElementById("tv-count").textContent = String(tvCount);
+                shadow.getElementById("fiber-count").textContent = String(records.length - tvCount);
+                renderHistoryEntries(container, records);
+            } catch (error) {
+                console.error("Error cargando historial.", error);
+                showEmpty(container, `Error al sincronizar el historial: ${error.message}`);
+            }
+        }
+
+        async function clearHistory(event) {
+            const button = event.currentTarget;
+            if (button.dataset.confirming !== "true") {
+                button.dataset.confirming = "true";
+                button.classList.add("confirming");
+                button.textContent = "¿Borrar?";
+                window.setTimeout(() => {
+                    if (button.dataset.confirming === "true") {
+                        delete button.dataset.confirming;
+                        button.classList.remove("confirming");
+                        button.replaceChildren(Icons.create("trash"));
                     }
                 }, 4000);
                 return;
             }
-
-            isConfirmingClear = false;
-            clearBtn.classList.remove("confirming");
-            clearBtn.innerHTML = `<i class="fa-solid fa-trash-can"></i>`;
-
-            try {
-                await supabaseClient
-                    .from('logs_soporte')
-                    .delete()
-                    .eq('agente_id', AGENTE_ID_UNICO)
-                    .eq('fecha_str', fechaSeleccionada);
-
-                let localLogs = JSON.parse(localStorage.getItem("g_automation_logs")) || [];
-                localLogs = localLogs.filter(l => l.fechaStr !== fechaSeleccionada);
-                localStorage.setItem("g_automation_logs", JSON.stringify(localLogs));
-
-                toast("Historial borrado con éxito");
-                shadow.getElementById("stat-total-count").textContent = "0";
-                shadow.getElementById("stat-fibra-count").textContent = "0";
-                shadow.getElementById("stat-tv-count").textContent = "0";
-                shadow.getElementById("hist-logs-container").innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">Historial vaciado.</p>`;
-            } catch (err) { console.error(err); toast("Error al vaciar historial"); }
-        };
-
-        const renderHistorialSincronizado = async () => {
-            const container = shadow.getElementById("hist-logs-container");
-            container.innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.5;padding:10px;">Sincronizando con la nube...</p>`;
-            
-            try {
-                const { data: records, error } = await supabaseClient
-                    .from('logs_soporte')
-                    .select('*')
-                    .eq('agente_id', AGENTE_ID_UNICO)
-                    .eq('fecha_str', datePicker.value)
-                    .order('created_at', { ascending: false });
-
-                if (error) throw error;
-                
-                let fibraCount = 0; let tvCount = 0;
-                records.forEach(r => { if(r.clase === 'tv') tvCount++; else fibraCount++; });
-
-                shadow.getElementById("stat-total-count").textContent = records.length;
-                shadow.getElementById("stat-fibra-count").textContent = fibraCount;
-                shadow.getElementById("stat-tv-count").textContent = tvCount;
-                
-                if (records.length === 0) {
-                    container.innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">No hay registros para este día.</p>`;
-                    return;
-                }
-
-                const grupos = {};
-                records.forEach(item => {
-                    if (!grupos[item.sub_cat]) grupos[item.sub_cat] = [];
-                    grupos[item.sub_cat].push(item);
-                });
-
-                container.innerHTML = "";
-                Object.keys(grupos).forEach((nombreGrupo, gIdx) => {
-                    const wrapperId = `hist_grp_${gIdx}`;
-                    const itemsEnGrupo = grupos[nombreGrupo];
-                    const esGrupoTv = itemsEnGrupo[0]?.clase === 'tv';
-                    const dotColorClass = esGrupoTv ? 'tv' : 'fibra';
-                    
-                    let wrapperHTML = `
-                        <div class="history-group-wrapper">
-                            <button class="history-group-trigger" data-target="${wrapperId}">
-                                <div style="display:flex; align-items:center;">
-                                    <span class="history-dot ${dotColorClass}"></span>
-                                    <span>${nombreGrupo}</span>
-                                </div>
-                                <span class="history-group-badge">${itemsEnGrupo.length}</span>
-                            </button>
-                            <div class="history-group-content" id="${wrapperId}">
-                    `;
-
-                    itemsEnGrupo.forEach(log => {
-                        const claseClasificacion = log.clase === 'tv' ? 'tv' : 'fibra';
-                        wrapperHTML += `
-                            <div class="log-item ${claseClasificacion}">
-                                <div class="log-header">
-                                    <span>👤 ${log.cliente || 'N/A'} (${log.dni || 'N/A'})</span>
-                                    <span class="log-time"><i class="fa-regular fa-clock"></i> ${log.hora_str}</span>
-                                </div>
-                                <div class="log-body">${log.plantilla}</div>
-                            </div>
-                        `;
-                    });
-
-                    wrapperHTML += `</div></div>`;
-                    container.innerHTML += wrapperHTML;
-                });
-
-                container.querySelectorAll(".history-group-trigger").forEach(btn => {
-                    btn.onclick = () => shadow.getElementById(btn.getAttribute("data-target")).classList.toggle("open");
-                });
-
-            } catch(e) { 
-                console.error(e);
-                container.innerHTML = `<p style="color:#ef4444;font-size:11px;text-align:center;padding:10px;">❌ Error de sincronización.</p>`; 
+            delete button.dataset.confirming;
+            button.classList.remove("confirming");
+            button.replaceChildren(Icons.create("trash"));
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
+                notify("Selecciona una fecha válida antes de borrar el historial.", true);
+                return;
             }
-        };
-
-        /* ========================================================================= */
-        /* ==================== LÓGICA DE CONTROL DEL BAÚL ========================= */
-        /* ========================================================================= */
-        const vaultTitleInput = shadow.getElementById("vault-title-input");
-        const vaultInput = shadow.getElementById("vault-input");
-        const vaultSaveBtn = shadow.getElementById("vault-save-btn");
-        const vaultContainer = shadow.getElementById("vault-items-container");
-
-        vaultSaveBtn.onclick = async () => {
-            const contenidoNota = vaultInput.value.trim();
-            const tituloNota = vaultTitleInput.value.trim() || "Sin Título";
-            if (!contenidoNota) return;
-
-            const mode = vaultSaveBtn.getAttribute("data-mode");
-            vaultSaveBtn.disabled = true;
-            vaultSaveBtn.textContent = "Procesando...";
-
-            try {
-                if (mode === "edit") {
-                    const editId = vaultSaveBtn.getAttribute("data-edit-id");
-                    const { error } = await supabaseClient
-                        .from('g_agentes_notas')
-                        .update({ titulo: tituloNota, contenido: contenidoNota })
-                        .eq('id', editId);
-
-                    if (error) throw error;
-                    toast("Nota modificada con éxito");
-                } else {
-                    const { error } = await supabaseClient.from('g_agentes_notas').insert([{
-                        agente_nombre: AGENTE_ID_UNICO,
-                        titulo: tituloNota,
-                        contenido: contenidoNota
-                    }]);
-
-                    if (error) throw error;
-                    toast("Nota guardada en tu baúl");
-                }
-
-                vaultInput.value = "";
-                vaultTitleInput.value = "";
-                vaultSaveBtn.setAttribute("data-mode", "create");
-                vaultSaveBtn.setAttribute("data-edit-id", "");
-                vaultSaveBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Guardar Nota`;
-                vaultSaveBtn.style.background = "#7A22B4";
-
-                await renderNotasBaul();
-            } catch (err) {
-                console.error(err);
-                toast("Error al procesar la nota");
-            } finally {
-                vaultSaveBtn.disabled = false;
-                if (vaultSaveBtn.getAttribute("data-mode") === "create") {
-                    vaultSaveBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Guardar Nota`;
-                }
+            if (!state.agentId) {
+                notify("No se puede borrar el historial sin identificar al agente.", true);
+                return;
             }
-        };
-
-        async function renderNotasBaul() {
-            vaultContainer.innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.5;padding:10px;">Cargando tus notas...</p>`;
             try {
-                const { data: notas, error } = await supabaseClient
-                    .from('g_agentes_notas')
-                    .select('*')
-                    .eq('agente_nombre', AGENTE_ID_UNICO)
-                    .order('id', { ascending: false });
-
-                if (error) throw error;
-
-                if (!notas || notas.length === 0) {
-                    vaultContainer.innerHTML = `<p style="font-size:11px;text-align:center;opacity:0.4;padding:15px;">El baúl está vacío.</p>`;
-                    return;
+                if (state.db && state.agentId) {
+                    const result = await state.db.from("logs_soporte").delete()
+                        .eq("agente_id", state.agentId).eq("fecha_str", selectedDate.value);
+                    DataClient.assertSuccess(result);
                 }
-
-                vaultContainer.innerHTML = "";
-                notas.forEach(nota => {
-                    const itemDiv = document.createElement("div");
-                    itemDiv.className = "vault-item";
-                    
-                    itemDiv.innerHTML = `
-                        <div style="font-size: 13px; font-weight: 700; color: #b976f7; margin-bottom: 4px; border-bottom: 1px solid rgba(185, 118, 247, 0.1); padding-bottom: 2px;">${nota.titulo || "Sin Título"}</div>
-                        <div class="vault-text">${nota.contenido}</div>
-                        <div class="vault-actions">
-                            <button class="vault-action-btn vault-btn-edit-item" style="color: #f59e0b;"><i class="fa-solid fa-pen-to-square"></i> Editar</button>
-                            <button class="vault-action-btn vault-btn-copy" data-text="${nota.contenido.replace(/"/g, '&quot;')}"><i class="fa-regular fa-copy"></i> Copiar</button>
-                            <button class="vault-action-btn vault-btn-delete" data-confirmed="false"><i class="fa-solid fa-trash"></i> Eliminar</button>
-                        </div>
-                    `;
-
-                    itemDiv.querySelector(".vault-btn-copy").onclick = () => {
-                        navigator.clipboard.writeText(nota.contenido).then(() => {
-                            toast("Nota copiada al portapapeles");
-                        });
-                    };
-
-                    itemDiv.querySelector(".vault-btn-edit-item").onclick = () => {
-                        vaultTitleInput.value = nota.titulo || "";
-                        vaultInput.value = nota.contenido;
-                        vaultSaveBtn.setAttribute("data-mode", "edit");
-                        vaultSaveBtn.setAttribute("data-edit-id", nota.id);
-                        vaultSaveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> Actualizar Cambios`;
-                        vaultSaveBtn.style.background = "#d97706";
-                        vaultTitleInput.focus();
-                        toast("Nota cargada en el editor");
-                    };
-
-                    // Sistema Integrado de Confirmación para eliminar notas (Estilo Historial)
-                    const deleteBtn = itemDiv.querySelector(".vault-btn-delete");
-                    let timeoutConfirm = null;
-
-                    deleteBtn.onclick = async () => {
-                        const isConfirmed = deleteBtn.getAttribute("data-confirmed") === "true";
-
-                        if (!isConfirmed) {
-                            // Primer clic: Activar estado de confirmación
-                            deleteBtn.setAttribute("data-confirmed", "true");
-                            deleteBtn.classList.add("confirming");
-                            deleteBtn.innerHTML = "¿Borrar?";
-                            
-                            // Temporizador automático de 4 segundos para cancelar si no se pulsa de nuevo
-                            timeoutConfirm = setTimeout(() => {
-                                deleteBtn.setAttribute("data-confirmed", "false");
-                                deleteBtn.classList.remove("confirming");
-                                deleteBtn.innerHTML = `<i class="fa-solid fa-trash"></i> Eliminar`;
-                            }, 4000);
-                            return;
-                        }
-
-                        // Segundo clic: Ejecutar eliminación real en Supabase
-                        clearTimeout(timeoutConfirm);
-                        try {
-                            await supabaseClient.from('g_agentes_notas').delete().eq('id', nota.id);
-                            toast("Nota eliminada");
-                            
-                            if (vaultSaveBtn.getAttribute("data-edit-id") == nota.id) {
-                                vaultInput.value = "";
-                                vaultTitleInput.value = "";
-                                vaultSaveBtn.setAttribute("data-mode", "create");
-                                vaultSaveBtn.setAttribute("data-edit-id", "");
-                                vaultSaveBtn.innerHTML = `<i class="fa-solid fa-plus"></i> Guardar Nota`;
-                                vaultSaveBtn.style.background = "#7A22B4";
-                            }
-                            
-                            renderNotasBaul();
-                        } catch (err) {
-                            console.error(err);
-                            toast("No se pudo eliminar");
-                        }
-                    };
-
-                    vaultContainer.appendChild(itemDiv);
-                });
-            } catch (err) {
-                console.error(err);
-                vaultContainer.innerHTML = `<p style="color:#ef4444;font-size:11px;text-align:center;padding:10px;">❌ Error al cargar notas.</p>`;
+                if (!LocalHistory.removeByDate(selectedDate.value, state.agentId)) {
+                    throw new Error("No se pudo actualizar el historial local.");
+                }
+                notify("Historial borrado.");
+                await renderHistory();
+            } catch (error) {
+                console.error("No se pudo borrar el historial.", error);
+                notify(`Error al borrar historial: ${error.message}`, true);
             }
         }
 
-        /* ========================================================================= */
-        /* ============ CONSTRUCTOR INTELIGENTE CON REEMPLAZOS DINÁMICOS ============ */
-        /* ========================================================================= */
-        shadow.querySelectorAll(".template-row").forEach(btn => {
-            btn.onclick = async () => {
-                const cache = window._cachedTemplates[btn.getAttribute("data-id")];
-                if (!cache) return;
+        // Baúl de notas: edición, guardado, expansión y eliminación de notas del agente.
+        function resetNoteEditor() {
+            shadow.getElementById("note-title").value = "";
+            const contentInput = shadow.getElementById("note-content");
+            contentInput.value = "";
+            contentInput.style.height = "";
+            contentInput.style.overflowY = "";
+            shadow.getElementById("note-editor").classList.remove("is-editing");
+            shadow.getElementById("editing-note-label").textContent = "";
+            shadow.getElementById("cancel-note-edit").hidden = true;
+            shadow.querySelectorAll(".note.is-editing").forEach(note => note.classList.remove("is-editing"));
+            const saveButton = shadow.getElementById("save-note");
+            delete saveButton.dataset.editId;
+            saveButton.textContent = "Guardar nota";
+        }
 
-                const bloqueTexto = cache.servicio.texto;
-                const tech = detectarTecnologiaScript1(bloqueTexto);
-                
-                let c = ["", "", "", ""];
-                if (plantillas && plantillas[cache.categoriaRaiz]?.[cache.grupo]?.[cache.clave]) {
-                    c = [...plantillas[cache.categoriaRaiz][cache.grupo][cache.clave]];
-                }
+        function resizeNoteEditor() {
+            const textarea = shadow.getElementById("note-content");
+            textarea.style.height = "auto";
+            const maxHeight = Math.floor(window.innerHeight * 0.45);
+            const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+            textarea.style.height = `${Math.max(130, nextHeight)}px`;
+            textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+        }
 
-                if (c[1] === "DINAMICO_INCOMUNICADO") {
-                    if (tech === "HFC") {
-                        c[1] = "router con luces intermitentes, sin acceso remoto al cpe, se valida cableado sin daños";
-                        c[2] = "posible daño en acometida HFC";
-                    } else {
-                        const tieneOnt = detectarONT(bloqueTexto);
-                        c[1] = tieneOnt ? "ONT en rojo en alarm, sin acceso remoto, se valida el cableado no presenta daños y no hay acceso a cpe" : "router con ONT integrada sin sincronismo, se valida el cableado no presenta daños, conectado correctamente router";
-                        c[2] = tieneOnt ? "posible daño en tramo óptico" : "posible daño en fibra";
-                    }
-                }
-                if (c[1] === "DINAMICO_CORTES_RESUELTO") c[1] = tech === "HFC" ? "Se revisa en thot hay cortes in los últimos 7 días se hace reinicio de fábrica, ajuste de cableado and separación de bandas, conexión a red de internet ya es stable no hay cortes" : "Se reviso en Schaman hay cortes, reinicio de fábrica, ajuste de cableado, señal stable en ambas bandas wifi";
-                if (c[1] === "DINAMICO_CORTES_TECNICO") {
-                    c[1] = tech === "HFC" ? "Se valido en Thot bastantes cortes, reinicio de fábrica sin mejora tras prueba de conexión" : "Cortes in Schaman, reinicio de fábrica sin mejora";
-                    c[2] = tech === "HFC" ? "Señal degradada tras saturación del cpe" : "Posible daño en cpe";
-                }
-                if (c[1] === "DINAMICO_CORTES_NV2") c[1] = tech === "HFC" ? "Se valido en Thot cortes de poco tiempo persistententes, se aplico reinicio de fábrica, y se deja para validación de nivel 2" : "Cortes persistententes validados en Schaman, se hace pruebas con videos y en red pero sigue ocurriendo y sin mejora";
-                if (c[1] === "DINAMICO_FUERA_RESUELTO") {
-                    c[1] = tech === "HFC" ? "Se valida en THOT parámetros fuera de umbrales, se reinicia de fábrica, se reinician parámetros SNMP, flaps y QoS, separación de bandas, test correcto" : "Se revisa en Schaman parámetros fuera de umbrales, se hace reinicio de fábrica, separación de bandas, test correcto";
-                    c[3] = tech === "HFC" ? "Se reincia de fabrica, se reinician parámetros SNMP, se dividen bandas and se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parametros fuera de umbral" : "Se deja resuelto";
-                }
-                if (c[1] === "DINAMICO_FUERA_NO") c[1] = tech === "HFC" ? "Fuera de umbrales en THOT, reinicio de fábrica y reinicio de parámetros sin mejora" : "Fuera de umbrales en Schaman";
-                if (c[3] === "DINAMICO_FUERA_RESUELTO_SOL") c[3] = tech === "HFC" ? "Se reinicia de fábrica, se reinician parámetros SNMP, se dividen bandas y se comprueba con cliente que el internet ya no tiene cortes ni lentitud ni parámetros fuera de umbral" : "Se realiza reinicio de fábrica, se dividen bandas y se comprueba con cliente que el internet ya no presenta anomalías estructurales";
-
-                const clienteExtraido = getVal(["Nombre del cliente:", "Nombre:", "Cliente:", "Titular:"]);
-                const dniExtraido = extraerDocumentoIdentidad();
-                const idExtraido = getVal(["AMDOCS ID:", "ID Cliente:", "ID:"]);
-                const direccionExtraida = extraerDireccion(bloqueTexto);
-                const movilesExtraidos = extraerMoviles();
-
-                const vel = (bloqueTexto.match(/(\d+(?:[.,]\d+)?\s*(?:Mbps|Gbps))/i) || ["", "600Mbps"])[1];
-                const fechaEspanol = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
-
-                const textoFinalEstructurado = 
-`Nombre: ${clienteExtraido}
-DNI/NIE: ${dniExtraido}
-ID: ${idExtraido}
-Dirección: ${direccionExtraida}
-Móvil: ${movilesExtraidos}
-• Qué dice el cliente que le sucede: ${c[0] || "N/A"}
-• Pruebas realizadas: ${c[1] || "N/A"}
-• Diagnóstico: ${c[2] || "N/A"}
-• Solución: ${c[3] || "N/A"}
-• Avería: #AVERIA / NA
-Tecnología: ${tech}
-Velocidad: ${vel}
-Fecha: ${fechaEspanol}`;
-
-                try {
-                    await navigator.clipboard.writeText(textoFinalEstructurado);
-                } catch (err) {
-                    const textareaAux = document.createElement("textarea");
-                    textareaAux.value = textoFinalEstructurado;
-                    document.body.appendChild(textareaAux);
-                    textareaAux.select();
-                    document.execCommand("copy");
-                    textareaAux.remove();
-                }
-                
-                toast(`Copiado: ${cache.clave}`);
-
-                btn.classList.add("copied-state");
-                setTimeout(() => btn.classList.remove("copied-state"), 1200);
-
-                saveToHistory(clienteExtraido, dniExtraido, cache.grupo, cache.clase, cache.clave);
-
-                try {
-                    await supabaseClient.from('logs_soporte').insert([{
-                        agente_id: AGENTE_ID_UNICO,
-                        cliente: clienteExtraido,
-                        dni: dniExtraido,
-                        sub_cat: cache.grupo,
-                        clase: cache.clase,
-                        plantilla: cache.clave,
-                        fecha_str: new Date().toISOString().split('T')[0],
-                        hora_str: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-                    }]);
-                } catch(err) { console.error("Error guardando en nube:", err); }
-            };
-        });
-
-        shadow.getElementById("g-close-panel").onclick = () => host.remove();
-        
-        let panelOculto = false;
-        shadow.getElementById("g-close-panel-b").onclick = () => {
-            const bodyView = shadow.getElementById("g-body-view");
-            const tabsContainer = shadow.querySelector(".tabs-container");
-            if(!panelOculto){
-                bodyView.style.display = "none";
-                tabsContainer.style.display = "none";
-                widget.style.maxHeight = "75px";
-                shadow.getElementById("g-close-panel-b").textContent = "👁 Mostrar Interfaz";
-                panelOculto = true;
-            } else {
-                bodyView.style.display = "block";
-                tabsContainer.style.display = "flex";
-                widget.style.maxHeight = "calc(100vh - 40px)";
-                shadow.getElementById("g-close-panel-b").textContent = "👁 Ocultar Interfaz";
-                panelOculto = false;
+        async function saveNote() {
+            if (!state.db || !state.agentId) {
+                notify("El baúl requiere identificar al agente y conectar con Supabase.", true);
+                return;
             }
-        };
+            const title = shadow.getElementById("note-title").value.trim() || "Sin Título";
+            const content = shadow.getElementById("note-content").value.trim();
+            if (!content) {
+                notify("Escribe el contenido de la nota antes de guardarla.", true);
+                return;
+            }
+            const button = shadow.getElementById("save-note");
+            const editId = button.dataset.editId;
+            button.disabled = true;
+            button.textContent = "Procesando...";
+            try {
+                const result = editId
+                    ? await state.db.from("g_agentes_notas").update({ titulo: title, contenido: content })
+                        .eq("id", editId).eq("agente_nombre", state.agentId)
+                    : await state.db.from("g_agentes_notas").insert([{
+                        agente_nombre: state.agentId, titulo: title, contenido: content
+                    }]);
+                DataClient.assertSuccess(result);
+                resetNoteEditor();
+                notify(editId ? "Nota actualizada." : "Nota guardada.");
+                await renderNotes();
+            } catch (error) {
+                console.error("No se pudo guardar la nota.", error);
+                notify(`Error al guardar la nota: ${error.message}`, true);
+            } finally {
+                button.disabled = false;
+                if (button.dataset.editId) button.textContent = "Actualizar nota";
+                else button.textContent = "Guardar nota";
+            }
+        }
 
-        let p1 = 0, p2 = 0, p3 = 0, p4 = 0; const handle = shadow.getElementById("g-drag-handle");
-        handle.onmousedown = (e) => {
-            if (e.target.closest('button')) return; e.preventDefault();
-            p3 = e.clientX; p4 = e.clientY;
-            document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
-            document.onmousemove = (ev) => {
-                ev.preventDefault(); p1 = p3 - ev.clientX; p2 = p4 - ev.clientY; p3 = ev.clientX; p4 = ev.clientY;
-                widget.style.top = (widget.offsetTop - p2) + "px"; widget.style.right = (window.innerWidth - widget.offsetLeft - widget.offsetWidth + p1) + "px";
-            };
-        };
+        async function renderNotes() {
+            const container = shadow.getElementById("notes-list");
+            if (!state.db || !state.agentId) {
+                showEmpty(container, "Baúl deshabilitado: no se pudo identificar al agente o conectar con Supabase.");
+                return;
+            }
+            showEmpty(container, "Cargando notas...");
+            try {
+                const result = await state.db.from("g_agentes_notas").select("id,titulo,contenido")
+                    .eq("agente_nombre", state.agentId).order("id", { ascending: false });
+                const notes = DataClient.assertSuccess(result) || [];
+                container.replaceChildren();
+                if (!notes.length) {
+                    showEmpty(container, "El baúl está vacío.");
+                    return;
+                }
+                const toolbar = Core.createElement("div", "notes-toolbar");
+                const expandAll = Core.createElement("button", "", "Expandir todas");
+                const collapseAll = Core.createElement("button", "", "Colapsar todas");
+                expandAll.type = "button";
+                collapseAll.type = "button";
+                toolbar.append(expandAll, collapseAll);
+                container.appendChild(toolbar);
+
+                const setAllNotesExpanded = expanded => {
+                    container.querySelectorAll(".note-content").forEach(content => {
+                        content.hidden = !expanded;
+                        const toggle = content.closest(".note").querySelector(".note-toggle");
+                        toggle.textContent = expanded ? "Colapsar" : "Expandir";
+                        toggle.setAttribute("aria-expanded", String(expanded));
+                    });
+                };
+                expandAll.addEventListener("click", () => setAllNotesExpanded(true));
+                collapseAll.addEventListener("click", () => setAllNotesExpanded(false));
+
+                notes.forEach(note => {
+                    const item = Core.createElement("article", "note");
+                    item.dataset.noteId = String(note.id);
+                    const heading = Core.createElement("div", "note-heading");
+                    heading.appendChild(Core.createElement("div", "note-title", note.titulo || "Sin Título"));
+                    const content = Core.createElement("div", "note-content");
+                    content.appendChild(Core.createElement("div", "note-text", note.contenido || ""));
+                    const toggle = Core.createElement("button", "note-toggle", "Colapsar");
+                    toggle.type = "button";
+                    toggle.setAttribute("aria-expanded", "true");
+                    toggle.addEventListener("click", () => {
+                        content.hidden = !content.hidden;
+                        toggle.textContent = content.hidden ? "Expandir" : "Colapsar";
+                        toggle.setAttribute("aria-expanded", String(!content.hidden));
+                    });
+                    heading.appendChild(toggle);
+                    item.append(heading, content);
+                    const actions = Core.createElement("div", "note-actions");
+                    const edit = Core.createElement("button", "", "Editar");
+                    const copy = Core.createElement("button", "", "Copiar");
+                    const remove = Core.createElement("button", "", "Eliminar");
+                    [edit, copy, remove].forEach(button => { button.type = "button"; });
+
+                    edit.addEventListener("click", () => {
+                        shadow.querySelectorAll(".note.is-editing").forEach(activeNote => {
+                            activeNote.classList.remove("is-editing");
+                        });
+                        item.classList.add("is-editing");
+                        shadow.getElementById("note-title").value = note.titulo || "";
+                        const contentInput = shadow.getElementById("note-content");
+                        contentInput.value = note.contenido || "";
+                        resizeNoteEditor();
+                        const saveButton = shadow.getElementById("save-note");
+                        saveButton.dataset.editId = String(note.id);
+                        saveButton.textContent = "Actualizar nota";
+                        shadow.getElementById("note-editor").classList.add("is-editing");
+                        shadow.getElementById("editing-note-label").textContent =
+                            `Editando: ${note.titulo || "Sin Título"}`;
+                        shadow.getElementById("cancel-note-edit").hidden = false;
+                        shadow.getElementById("note-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        shadow.getElementById("note-title").focus();
+                        notify("Nota cargada en el editor.");
+                    });
+                    copy.addEventListener("click", async () => {
+                        try {
+                            await Core.copyText(note.contenido || "");
+                            notify("Nota copiada.");
+                        } catch (error) {
+                            console.error(error);
+                            notify(error.message, true);
+                        }
+                    });
+                    remove.addEventListener("click", () => confirmDeleteNote(note.id, remove));
+                    actions.append(edit, copy, remove);
+                    item.appendChild(actions);
+                    container.appendChild(item);
+                });
+            } catch (error) {
+                console.error("No se pudieron cargar las notas.", error);
+                showEmpty(container, `Error al cargar notas: ${error.message}`);
+            }
+        }
+
+        async function confirmDeleteNote(noteId, button) {
+            if (button.dataset.confirming !== "true") {
+                button.dataset.confirming = "true";
+                button.dataset.originalText = button.textContent;
+                button.classList.add("confirming");
+                button.textContent = "¿Borrar?";
+                window.setTimeout(() => {
+                    if (button.dataset.confirming === "true") {
+                        delete button.dataset.confirming;
+                        button.classList.remove("confirming");
+                        button.textContent = button.dataset.originalText || "Eliminar";
+                    }
+                }, 4000);
+                return;
+            }
+            delete button.dataset.confirming;
+            button.disabled = true;
+            try {
+                const result = await state.db.from("g_agentes_notas").delete()
+                    .eq("id", noteId).eq("agente_nombre", state.agentId);
+                DataClient.assertSuccess(result);
+                const saveButton = shadow.getElementById("save-note");
+                if (saveButton.dataset.editId === String(noteId)) resetNoteEditor();
+                notify("Nota eliminada.");
+                await renderNotes();
+            } catch (error) {
+                console.error("No se pudo eliminar la nota.", error);
+                notify(`Error al eliminar la nota: ${error.message}`, true);
+                button.disabled = false;
+                button.classList.remove("confirming");
+                button.textContent = button.dataset.originalText || "Eliminar";
+            }
+        }
+
+        async function start() {
+            const text = Extractor.pageText();
+            state.services = Extractor.getInternetServices(text);
+            state.agentId = Identity.getAgentId();
+            try {
+                state.templates = await Core.fetchJson(CONFIG.templatesFile);
+                if (!state.templates || typeof state.templates !== "object" || Array.isArray(state.templates)) {
+                    throw new TypeError("PL.json no contiene un objeto de plantillas válido.");
+                }
+            } catch (error) {
+                console.error("Error cargando PL.json.", error);
+            }
+
+            if (state.agentId) {
+                try {
+                    state.db = await DataClient.createClient();
+                } catch (error) {
+                    console.error("Supabase no está disponible.", error);
+                }
+            } else {
+                console.warn("No se identificó un agente; se deshabilitarán las funciones en la nube.");
+            }
+
+            document.getElementById(CONFIG.rootId)?.remove();
+            buildShell();
+            createTemplateView();
+        }
+
+        return { start };
     })();
+
+    // Punto de entrada: selecciona el módulo según el sitio donde se ejecuta el script.
+    const Bootstrap = (() => {
+        async function start() {
+            if (!document.body) {
+                document.addEventListener("DOMContentLoaded", start, { once: true });
+                return;
+            }
+            const hostname = window.location.hostname.toLowerCase();
+            const isEnabler = hostname === "enabler.es" || hostname.endsWith(".enabler.es");
+            if (isEnabler) {
+                await JiraModule.start();
+                return;
+            }
+            await LowiModule.start();
+        }
+        return { start };
+    })();
+
+    Bootstrap.start().catch(error => {
+        console.error("Error inesperado al iniciar InfoCli.", error);
+        window.alert(`No se pudo iniciar InfoCli: ${error.message}`);
+    });
 })();

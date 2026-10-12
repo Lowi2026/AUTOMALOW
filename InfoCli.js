@@ -1,6 +1,7 @@
 (() => {
     "use strict";
 
+    // Configuración compartida: URLs, claves y límites usados por los módulos.
     const CONFIG = Object.freeze({
         repositoryUrl: "https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/",
         supabaseUrl: "https://gjchhoraaukfaumzcwnd.supabase.co",
@@ -13,6 +14,7 @@
         incidentsFile: "averias.json"
     });
 
+    // Utilidades comunes de DOM, red, fechas, eventos y portapapeles.
     const Core = (() => {
         const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
         const todayLocal = (date = new Date()) => {
@@ -74,6 +76,7 @@
         return { wait, todayLocal, dispatchChange, fetchJson, copyText, createElement, escapeText };
     })();
 
+    // Identifica al agente actual a partir de los datos del ticket Jira.
     const Identity = (() => {
         function getAgentId() {
             const link = document.querySelector('a[href*="customfield_16881="]');
@@ -92,6 +95,7 @@
         return { getAgentId };
     })();
 
+    // Extrae datos del cliente y del servicio desde el texto visible de la página.
     const Extractor = (() => {
         const NOT_FOUND = "N/A";
 
@@ -184,6 +188,7 @@
             getTechnology, hasOntAlarm, getInternetServices };
     })();
 
+    // Persiste y consulta localmente el historial de plantillas copiadas.
     const LocalHistory = (() => {
         function read() {
             try {
@@ -247,6 +252,7 @@
         return { add, removeByDate, forDate };
     })();
 
+    // Carga el SDK y centraliza la creación y validación de consultas Supabase.
     const DataClient = (() => {
         let clientPromise;
 
@@ -298,6 +304,7 @@
         return { createClient, assertSuccess };
     })();
 
+    // Define y construye los iconos SVG usados por las interfaces.
     const Icons = (() => {
         const shapes = Object.freeze({
             wifi: [
@@ -362,6 +369,7 @@
         return { create };
     })();
 
+    // Inyector de Jira: panel de averías, automatización de campos y copia del TT.
     const JiraModule = (() => {
         const formatDateTime = date => {
             const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -377,12 +385,26 @@
             return date;
         }
 
-        async function selectReactOption(input, steps) {
-            if (!(input instanceof HTMLInputElement)) {
-                throw new Error("No se encontró uno de los campos desplegables de Jira.");
-            }
+        async function selectReactOption(selectors, steps, fieldName) {
             if (!Number.isInteger(steps) || steps < 0) {
                 throw new Error("La configuración contiene un índice de opción inválido.");
+            }
+
+            const deadline = Date.now() + 5000;
+            let input = null;
+            while (Date.now() < deadline) {
+                for (const selector of selectors) {
+                    const candidate = document.querySelector(selector);
+                    if (candidate instanceof HTMLInputElement) {
+                        input = candidate;
+                        break;
+                    }
+                }
+                if (input) break;
+                await Core.wait(100);
+            }
+            if (!input) {
+                throw new Error(`No se encontró el desplegable "${fieldName}". Comprueba que el formulario de Jira haya terminado de cargar.`);
             }
 
             input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
@@ -448,21 +470,35 @@
             const style = Core.createElement("style");
             style.textContent = `
                 :host{font-family:Arial,sans-serif;color:#fff}
-                *{box-sizing:border-box}
+                *{box-sizing:border-box;margin:0;padding:0}
                 .panel{position:fixed;z-index:9999999;top:20px;right:20px;width:340px;max-height:calc(100vh - 40px);
-                    display:flex;flex-direction:column;background:#130919;border:1px solid #4a2a5b;border-radius:16px;
-                    box-shadow:0 20px 40px #000b;overflow:hidden}
-                .header,.footer{padding:14px;background:#130919;display:flex;align-items:center;justify-content:space-between}
-                .header{cursor:move;border-bottom:1px solid #321c3b}
-                h2{font-size:15px;margin:0 0 4px}.subtitle{font-size:11px;color:#b976f7;margin:0}
-                button{font:inherit;cursor:pointer}.close{background:transparent;border:0;color:#fff;font-size:18px}
-                .body{padding:14px;overflow:auto}.incident-list{display:grid;gap:6px}
-                .incident{width:100%;padding:10px 12px;border:0;border-radius:8px;color:#fff;background:#7a22b4;
+                    display:flex;flex-direction:column;background:#130919;border:1px solid rgba(185,118,247,.2);
+                    border-radius:20px;box-shadow:0 24px 50px -12px rgba(0,0,0,.9);overflow:hidden}
+                .header,.footer{display:flex;align-items:center;justify-content:space-between;background:#130919}
+                .header{padding:20px 20px 10px;cursor:move}
+                h2{font-size:16px;font-weight:700;color:#fff}.subtitle{font-size:11px;color:#b976f7;opacity:.7;margin-top:2px}
+                button{font:inherit;cursor:pointer}.header-actions{display:flex;align-items:center;gap:5px}
+                .header-actions button{width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+                    padding:0;background:transparent;border:0;border-radius:7px;color:rgba(255,255,255,.4);font-size:16px}
+                .header-actions button:hover{background:#7a22b4;color:#fff}
+                #restore-panel[hidden]{display:none}
+                .body{flex:1;overflow-y:auto;padding:16px}
+                .incident-list{padding:12px;background:#1c0f24;border:1px solid rgba(185,118,247,.12);border-radius:16px}
+                .incident-items{display:flex;flex-direction:column;gap:4px}
+                .incident{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;
+                    margin-bottom:4px;padding:10px 14px;border:0;border-radius:12px;color:#fff;background:#7a22b4;
                     text-align:left;font-size:12px;font-weight:600}
+                .incident:last-child{margin-bottom:0}
                 .incident:hover{background:#912fd4}
-                .copy{width:100%;margin-top:10px;padding:10px;border:0;border-radius:8px;background:#5c188c;color:#fff}
-                .footer{border-top:1px solid #321c3b}.toggle{width:100%;padding:9px;border:1px solid #4a2a5b;
-                    border-radius:8px;background:#1c0f24;color:#fff}
+                .incident-label{min-width:0;text-align:center;flex:1}
+                .incident-icon{flex:none}
+                .copy{width:100%;margin-top:8px;padding:10px;border:0;border-radius:8px;background:#5c188c;color:#fff;
+                    font-size:11px;font-weight:700;text-transform:uppercase}
+                .copy:hover{background:#7a22b4}
+                .footer{padding:14px;border-top:1px solid rgba(185,118,247,.12)}
+                .toggle{width:100%;padding:10px;border:1px solid rgba(185,118,247,.2);border-radius:8px;
+                    background:#1c0f24;color:#fff;font-size:12px}
+                .toggle:hover{background:#7a22b4}
             `;
             shadow.appendChild(style);
 
@@ -473,20 +509,34 @@
             const heading = Core.createElement("h2", "", "Robot Inyector Jira");
             const subtitle = Core.createElement("p", "subtitle", "enabler.es — Modo Index");
             title.append(heading, subtitle);
+            const headerActions = Core.createElement("div", "header-actions");
+            const restore = Core.createElement("button", "", "+");
+            restore.type = "button";
+            restore.id = "restore-panel";
+            restore.hidden = true;
+            restore.title = "Mostrar interfaz";
+            restore.setAttribute("aria-label", "Mostrar interfaz");
             const close = Core.createElement("button", "close", "×");
             close.type = "button";
             close.setAttribute("aria-label", "Cerrar panel");
-            header.append(title, close);
+            headerActions.append(restore, close);
+            header.append(title, headerActions);
 
             const body = Core.createElement("main", "body");
             body.id = "g-body-view";
             const list = Core.createElement("div", "incident-list");
+            const incidentItems = Core.createElement("div", "incident-items");
             incidents.forEach((incident, index) => {
-                const button = Core.createElement("button", "incident", incident.label);
+                const button = Core.createElement("button", "incident");
                 button.type = "button";
                 button.dataset.incidentIndex = String(index);
-                list.appendChild(button);
+                button.append(
+                    Core.createElement("span", "incident-label", incident.label),
+                    Core.createElement("span", "incident-icon", "🤖")
+                );
+                incidentItems.appendChild(button);
             });
+            list.appendChild(incidentItems);
             body.appendChild(list);
             const copy = Core.createElement("button", "copy", "📋 Copiar TT");
             copy.type = "button";
@@ -502,12 +552,16 @@
             document.body.appendChild(host);
 
             close.addEventListener("click", () => host.remove());
+            const setInterfaceVisible = visible => {
+                body.hidden = !visible;
+                panel.style.maxHeight = visible ? "calc(100vh - 40px)" : "75px";
+                toggle.textContent = visible ? "👁️‍🗨️ Ocultar Interfaz" : "👁️ Mostrar Interfaz";
+                restore.hidden = visible;
+            };
             toggle.addEventListener("click", () => {
-                const hidden = body.hidden;
-                body.hidden = !hidden;
-                panel.style.maxHeight = hidden ? "calc(100vh - 40px)" : "75px";
-                toggle.textContent = hidden ? "Ocultar interfaz" : "Mostrar interfaz";
+                setInterfaceVisible(body.hidden);
             });
+            restore.addEventListener("click", () => setInterfaceVisible(true));
             copy.addEventListener("click", async () => {
                 const breadcrumb = document.querySelector(".aui-nav-breadcrumbs li:last-child");
                 const ticket = breadcrumb?.textContent?.trim();
@@ -538,14 +592,15 @@
                         Core.dispatchChange(summary);
                         const steps = incident.pasos;
                         const selectors = [
-                            ["[id^='react-select-customfield_16817'] input", steps.GRUPO],
-                            ["#insight-atlas-select-16800 input", steps.TIPO],
-                            ["#insight-atlas-select-16801 input", steps.SUBTIPO_L1],
-                            ["#insight-atlas-select-16802 input", steps.SUBTIPO_L2],
-                            ['#cd-1 input[id^="react-select"]', steps.EXTRA_CIERRE]
+                            [["[id^='react-select-customfield_16817'] input", "#customfield_16817 input",
+                                "input[id^='react-select-customfield_16817']"], steps.GRUPO, "Grupo"],
+                            [["#insight-atlas-select-16800 input"], steps.TIPO, "Tipo"],
+                            [["#insight-atlas-select-16801 input"], steps.SUBTIPO_L1, "Subtipo nivel 1"],
+                            [["#insight-atlas-select-16802 input"], steps.SUBTIPO_L2, "Subtipo nivel 2"],
+                            [['#cd-1 input[id^="react-select"]', "#cd-1 input"], steps.EXTRA_CIERRE, "Extra cierre"]
                         ];
-                        for (const [selector, index] of selectors) {
-                            await selectReactOption(document.querySelector(selector), index);
+                        for (const [fieldSelectors, index, fieldName] of selectors) {
+                            await selectReactOption(fieldSelectors, index, fieldName);
                         }
                         fillCommonFields();
                         makeToast("Ticket completado.");
@@ -602,12 +657,14 @@
         return { start };
     })();
 
+    // Interfaz y funciones Lowi: plantillas, historial, rellamadas y baúl.
     const LowiModule = (() => {
         const state = { templates: null, services: [], agentId: null, db: null, toastTimer: null };
         let root;
         let shadow;
         let selectedDate;
 
+        // Identificadores que activan textos dinámicos de plantillas.
         const TEMPLATE_MARKERS = Object.freeze({
             DINAMICO_INCOMUNICADO: "incommunicado",
             DINAMICO_CORTES_RESUELTO: "cutsResolved",
@@ -628,6 +685,7 @@
             state.toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2600);
         }
 
+        // Estructura visual, navegación y eventos comunes del widget Lowi.
         function addStyles() {
             const style = Core.createElement("style");
             style.textContent = `
@@ -640,7 +698,11 @@
                 .header{cursor:move;border-bottom:1px solid var(--border)}
                 .header h2{font-size:15px;margin:0 0 4px}.header p{font-size:11px;color:#b976f7;margin:0}
                 button,input,textarea{font:inherit}.button{color:#fff;border:0;border-radius:8px;padding:9px 11px;background:#7a22b4;cursor:pointer}
-                .close{background:transparent;color:#fff;border:0;cursor:pointer;font-size:17px}
+                .header-actions{display:flex;align-items:center;gap:5px}
+                .header-actions button{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+                    padding:0;border:0;border-radius:7px;background:transparent;color:#fff;cursor:pointer;font-size:17px}
+                .header-actions button:hover{background:#7a22b4}
+                #restore-panel[hidden]{display:none}
                 .tabs{display:flex;border-bottom:1px solid var(--border)}
                 .tab-button{flex:1;padding:11px 6px;background:transparent;border:0;color:#aaa;cursor:pointer;font-weight:600}
                 .tab-button.active{color:white;border-bottom:2px solid #b976f7}
@@ -676,8 +738,13 @@
                 .calendar{border-radius:14px;padding:12px;margin-bottom:14px}
                 .calendar label{display:block;color:#b976f7;font-size:11px;font-weight:700;letter-spacing:.5px;
                     text-transform:uppercase;margin-bottom:6px}
-                input[type=date],input[type=text],textarea{width:100%;background:var(--bg);color:#fff;border:1px solid var(--border);
+                input[type=date],input[type=text],textarea{width:100%;background:var(--bg);color:#fff !important;
+                    -webkit-text-fill-color:#fff;caret-color:#d8b4fe;border:1px solid var(--border);
                     border-radius:7px;padding:9px}
+                input[type=date]::placeholder,input[type=text]::placeholder,textarea::placeholder{color:#aaa !important;
+                    -webkit-text-fill-color:#aaa;opacity:1}
+                input[type=date]:focus,input[type=text]:focus,textarea:focus{outline:2px solid rgba(185,118,247,.65);
+                    outline-offset:1px;border-color:#b976f7}
                 input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
                 .danger-row{display:flex;align-items:center;gap:8px}
                 .danger-row input{flex:1;min-width:0}
@@ -742,13 +809,32 @@
                 .recall-dni{color:#b976f7;font-size:12px;font-weight:700;margin-top:4px}
                 .recall-dates{display:grid;gap:5px;margin-top:9px;color:rgba(255,255,255,.7);font-size:11px}
                 .recall-agent{display:flex;align-items:center;gap:6px;margin-top:8px;color:rgba(255,255,255,.55);font-size:11px}
-                .note-editor textarea{min-height:80px;resize:vertical;margin:5px 0}
-                .note-title{font-weight:700;color:#b976f7;margin-bottom:5px;overflow-wrap:anywhere}
-                .note-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0}
-                .note-actions{display:flex;gap:5px;flex-wrap:wrap}.note-actions button,.clear{padding:7px;border:1px solid var(--border);
-                    border-radius:7px;background:transparent;color:#fff;cursor:pointer}.confirming{background:#b91c1c!important}
+                .note-editor{padding:12px}
+                .note-editor textarea{min-height:130px;resize:vertical;margin:7px 0;color:#fff !important;
+                    -webkit-text-fill-color:#fff;line-height:1.5}
+                .note-editor input[type=text]{min-height:40px;color:#fff !important;-webkit-text-fill-color:#fff}
+                .note-editor-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+                .note-editor-actions .button{min-width:112px}
+                .cancel-edit[hidden]{display:none}
+                .editing-note-label{display:none;margin-bottom:7px;color:#e9d5ff;font-size:11px;font-weight:700}
+                .note-editor.is-editing .editing-note-label{display:block}
+                .note-editor.is-editing{border-color:rgba(245,158,11,.6);box-shadow:0 0 0 1px rgba(245,158,11,.15)}
+                .note-title{font-weight:700;color:#d8b4fe;margin-bottom:5px;overflow-wrap:anywhere}
+                .note-text{color:#f3edf8;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0;line-height:1.5}
+                .note.is-editing{border-color:#f59e0b;box-shadow:0 0 0 1px rgba(245,158,11,.25)}
+                .notes-toolbar{display:flex;justify-content:flex-end;gap:6px;margin:0 0 8px}
+                .note-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+                .note-heading .note-title{flex:1;min-width:0}
+                .note-content[hidden]{display:none}
+                .view[data-view="vault"] button{padding:9px 11px;border:0;border-radius:8px;background:#7a22b4;color:#fff;
+                    font:inherit;cursor:pointer;transition:background .15s ease}
+                .view[data-view="vault"] button:hover{background:#8b2bc5}
+                .view[data-view="vault"] button:focus-visible{outline:2px solid #d8b4fe;outline-offset:2px}
+                .note-actions{display:flex;gap:5px;flex-wrap:wrap}
+                .confirming{background:#b91c1c!important}
                 .footer{border-top:1px solid var(--border)}.footer button{width:100%;background:var(--card);color:#fff;border:1px solid var(--border);
                     border-radius:8px;padding:9px;cursor:pointer}
+                .footer button:hover{background:#7a22b4}
                 .toast{position:fixed;right:12px;top:12px;z-index:2;background:#7a22b4;color:#fff;padding:10px 13px;border-radius:8px;
                     box-shadow:0 8px 20px #0009;font-size:12px}.toast.error{background:#b91c1c}
                 .muted{text-align:center;opacity:.65;padding:12px;font-size:12px}.copied{border-color:#10b981}
@@ -766,7 +852,10 @@
             panel.innerHTML = `
                 <header class="header" id="drag-handle">
                     <div><h2>Generador de Plantillas</h2><p>lowi.es — Maestro Principal</p></div>
-                    <button class="close" id="close" aria-label="Cerrar">×</button>
+                    <div class="header-actions">
+                        <button id="restore-panel" type="button" aria-label="Mostrar interfaz" title="Mostrar interfaz" hidden>+</button>
+                        <button class="close" id="close" type="button" aria-label="Cerrar" title="Cerrar">×</button>
+                    </div>
                 </header>
                 <nav class="tabs" aria-label="Secciones">
                     <button class="tab-button active" data-tab="templates">Plantillas</button>
@@ -806,10 +895,14 @@
                         <div id="recall-list"></div>
                     </section>
                     <section class="view" data-view="vault" id="vault-view">
-                        <div class="note-editor">
+                        <div class="note-editor" id="note-editor">
+                            <div class="editing-note-label" id="editing-note-label" aria-live="polite"></div>
                             <input id="note-title" type="text" maxlength="120" placeholder="Título (opcional)">
                             <textarea id="note-content" maxlength="10000" placeholder="Escribe una nota..."></textarea>
-                            <button class="button" id="save-note" type="button">Guardar nota</button>
+                            <div class="note-editor-actions">
+                                <button class="button" id="save-note" type="button">Guardar nota</button>
+                                <button class="cancel-edit" id="cancel-note-edit" type="button" hidden>Cancelar edición</button>
+                            </div>
                         </div>
                         <div id="notes-list"></div>
                     </section>
@@ -837,15 +930,21 @@
 
         function bindShellEvents(panel) {
             shadow.getElementById("close").addEventListener("click", () => root.remove());
+            const body = shadow.getElementById("body");
+            const nav = shadow.querySelector(".tabs");
+            const toggleButton = shadow.getElementById("toggle-panel");
+            const restoreButton = shadow.getElementById("restore-panel");
+            const setInterfaceVisible = visible => {
+                body.hidden = !visible;
+                nav.hidden = !visible;
+                panel.style.maxHeight = visible ? "calc(100vh - 40px)" : "75px";
+                toggleButton.textContent = visible ? "Ocultar interfaz" : "Mostrar interfaz";
+                restoreButton.hidden = visible;
+            };
             shadow.getElementById("toggle-panel").addEventListener("click", event => {
-                const body = shadow.getElementById("body");
-                const nav = shadow.querySelector(".tabs");
-                const hidden = body.hidden;
-                body.hidden = !hidden;
-                nav.hidden = !hidden;
-                panel.style.maxHeight = hidden ? "calc(100vh - 40px)" : "75px";
-                event.currentTarget.textContent = hidden ? "Ocultar interfaz" : "Mostrar interfaz";
+                setInterfaceVisible(body.hidden);
             });
+            restoreButton.addEventListener("click", () => setInterfaceVisible(true));
             shadow.querySelectorAll(".tab-button").forEach(button => {
                 button.addEventListener("click", () => {
                     shadow.querySelectorAll(".tab-button").forEach(tab => tab.classList.remove("active"));
@@ -865,6 +964,11 @@
             });
             shadow.getElementById("clear-history").addEventListener("click", clearHistory);
             shadow.getElementById("save-note").addEventListener("click", saveNote);
+            shadow.getElementById("note-content").addEventListener("input", resizeNoteEditor);
+            shadow.getElementById("cancel-note-edit").addEventListener("click", () => {
+                resetNoteEditor();
+                notify("Edición cancelada.");
+            });
         }
 
         function setupDrag(handle, panel) {
@@ -894,6 +998,7 @@
             handle.addEventListener("pointercancel", stop);
         }
 
+        // Vista de plantillas: categorías, grupos y botones para copiar tipificaciones.
         function createTemplateView() {
             const container = shadow.getElementById("templates-view");
             if (!state.templates) {
@@ -969,6 +1074,7 @@
             });
         }
 
+        // Resuelve los textos fijos o dinámicos que componen una tipificación.
         function resolveTemplate(category, group, name, original, service) {
             const result = Array.isArray(original) ? [...original] : ["", "", "", ""];
             while (result.length < 4) result.push("");
@@ -1022,6 +1128,7 @@
             return { fields: result, technology };
         }
 
+        // Copia la tipificación, actualiza el historial local y sincroniza con Supabase.
         async function copyTemplate(button, service, category, group, name, template) {
             try {
                 const { fields, technology } = resolveTemplate(category, group, name, template, service);
@@ -1097,6 +1204,7 @@
             container.replaceChildren(Core.createElement("p", "muted", message));
         }
 
+        // Historial: renderizado agrupado, métricas, filtro de fecha y limpieza.
         function renderHistoryEntries(container, records) {
             container.replaceChildren();
             if (!records.length) {
@@ -1154,6 +1262,7 @@
             }
         }
 
+        // Rellamadas: búsqueda de registros y atribución secuencial dentro de siete días.
         function normalizeDni(value) {
             const normalized = String(value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
             return normalized && normalized !== "NA" ? normalized : null;
@@ -1362,6 +1471,7 @@
             }
         }
 
+        // Coordina la lectura, el filtrado por fecha y el renderizado del historial.
         async function renderHistory() {
             const container = shadow.getElementById("history-list");
             if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
@@ -1445,12 +1555,29 @@
             }
         }
 
+        // Baúl de notas: edición, guardado, expansión y eliminación de notas del agente.
         function resetNoteEditor() {
             shadow.getElementById("note-title").value = "";
-            shadow.getElementById("note-content").value = "";
+            const contentInput = shadow.getElementById("note-content");
+            contentInput.value = "";
+            contentInput.style.height = "";
+            contentInput.style.overflowY = "";
+            shadow.getElementById("note-editor").classList.remove("is-editing");
+            shadow.getElementById("editing-note-label").textContent = "";
+            shadow.getElementById("cancel-note-edit").hidden = true;
+            shadow.querySelectorAll(".note.is-editing").forEach(note => note.classList.remove("is-editing"));
             const saveButton = shadow.getElementById("save-note");
             delete saveButton.dataset.editId;
             saveButton.textContent = "Guardar nota";
+        }
+
+        function resizeNoteEditor() {
+            const textarea = shadow.getElementById("note-content");
+            textarea.style.height = "auto";
+            const maxHeight = Math.floor(window.innerHeight * 0.45);
+            const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+            textarea.style.height = `${Math.max(130, nextHeight)}px`;
+            textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
         }
 
         async function saveNote() {
@@ -1505,10 +1632,42 @@
                     showEmpty(container, "El baúl está vacío.");
                     return;
                 }
+                const toolbar = Core.createElement("div", "notes-toolbar");
+                const expandAll = Core.createElement("button", "", "Expandir todas");
+                const collapseAll = Core.createElement("button", "", "Colapsar todas");
+                expandAll.type = "button";
+                collapseAll.type = "button";
+                toolbar.append(expandAll, collapseAll);
+                container.appendChild(toolbar);
+
+                const setAllNotesExpanded = expanded => {
+                    container.querySelectorAll(".note-content").forEach(content => {
+                        content.hidden = !expanded;
+                        const toggle = content.closest(".note").querySelector(".note-toggle");
+                        toggle.textContent = expanded ? "Colapsar" : "Expandir";
+                        toggle.setAttribute("aria-expanded", String(expanded));
+                    });
+                };
+                expandAll.addEventListener("click", () => setAllNotesExpanded(true));
+                collapseAll.addEventListener("click", () => setAllNotesExpanded(false));
+
                 notes.forEach(note => {
                     const item = Core.createElement("article", "note");
-                    item.appendChild(Core.createElement("div", "note-title", note.titulo || "Sin Título"));
-                    item.appendChild(Core.createElement("div", "note-text", note.contenido || ""));
+                    item.dataset.noteId = String(note.id);
+                    const heading = Core.createElement("div", "note-heading");
+                    heading.appendChild(Core.createElement("div", "note-title", note.titulo || "Sin Título"));
+                    const content = Core.createElement("div", "note-content");
+                    content.appendChild(Core.createElement("div", "note-text", note.contenido || ""));
+                    const toggle = Core.createElement("button", "note-toggle", "Colapsar");
+                    toggle.type = "button";
+                    toggle.setAttribute("aria-expanded", "true");
+                    toggle.addEventListener("click", () => {
+                        content.hidden = !content.hidden;
+                        toggle.textContent = content.hidden ? "Expandir" : "Colapsar";
+                        toggle.setAttribute("aria-expanded", String(!content.hidden));
+                    });
+                    heading.appendChild(toggle);
+                    item.append(heading, content);
                     const actions = Core.createElement("div", "note-actions");
                     const edit = Core.createElement("button", "", "Editar");
                     const copy = Core.createElement("button", "", "Copiar");
@@ -1516,11 +1675,22 @@
                     [edit, copy, remove].forEach(button => { button.type = "button"; });
 
                     edit.addEventListener("click", () => {
+                        shadow.querySelectorAll(".note.is-editing").forEach(activeNote => {
+                            activeNote.classList.remove("is-editing");
+                        });
+                        item.classList.add("is-editing");
                         shadow.getElementById("note-title").value = note.titulo || "";
-                        shadow.getElementById("note-content").value = note.contenido || "";
+                        const contentInput = shadow.getElementById("note-content");
+                        contentInput.value = note.contenido || "";
+                        resizeNoteEditor();
                         const saveButton = shadow.getElementById("save-note");
                         saveButton.dataset.editId = String(note.id);
                         saveButton.textContent = "Actualizar nota";
+                        shadow.getElementById("note-editor").classList.add("is-editing");
+                        shadow.getElementById("editing-note-label").textContent =
+                            `Editando: ${note.titulo || "Sin Título"}`;
+                        shadow.getElementById("cancel-note-edit").hidden = false;
+                        shadow.getElementById("note-editor").scrollIntoView({ behavior: "smooth", block: "nearest" });
                         shadow.getElementById("note-title").focus();
                         notify("Nota cargada en el editor.");
                     });
@@ -1609,6 +1779,7 @@
         return { start };
     })();
 
+    // Punto de entrada: selecciona el módulo según el sitio donde se ejecuta el script.
     const Bootstrap = (() => {
         async function start() {
             if (!document.body) {
