@@ -1458,6 +1458,67 @@
             return `${day}/${month}/${year}`;
         }
 
+        async function renderCustomerRecallAlert() {
+            const documentId = normalizeDni(Extractor.getDocument());
+            if (!documentId || !state.agentId || !state.db) return;
+
+            try {
+                const records = await fetchAllRows(() => state.db.from("logs_soporte")
+                    .select("id,created_at,agente_id,cliente,dni")
+                    .eq("dni", documentId)
+                    .order("created_at", { ascending: true })
+                    .order("id", { ascending: true }));
+                const recallers = findRecallers(records);
+                if (!recallers.length) return;
+
+                const latestRecall = recallers[0];
+                const host = document.createElement("div");
+                host.setAttribute("aria-live", "assertive");
+                host.style.cssText = "all:initial;position:fixed;z-index:2147483647;left:16px;right:16px;bottom:16px;display:block;pointer-events:none";
+                const alertShadow = host.attachShadow({ mode: "open" });
+                const style = document.createElement("style");
+                style.textContent = `
+                    :host{all:initial}
+                    .alert{max-width:640px;margin:0 auto;display:flex;align-items:center;gap:12px;
+                        padding:13px 16px;border:1px solid #f59e0b;border-left:5px solid #f59e0b;
+                        border-radius:8px;background:#231b0d;color:#fff;box-shadow:0 8px 24px #0008;
+                        font:13px/1.45 Arial,sans-serif;pointer-events:auto}
+                    .message{flex:1;min-width:0;overflow-wrap:anywhere}
+                    .message strong{color:#fbbf24}
+                    .close{flex:none;width:28px;height:28px;border:0;border-radius:5px;background:transparent;
+                        color:#fff;font:20px Arial,sans-serif;cursor:pointer}
+                    .close:hover{background:#ffffff20}
+                    @media(max-width:480px){:host{left:8px!important;right:8px!important;bottom:8px!important}
+                        .alert{padding:10px 12px;font-size:12px}}
+                `;
+                const alert = document.createElement("div");
+                alert.className = "alert";
+                alert.setAttribute("role", "alert");
+                const message = document.createElement("div");
+                message.className = "message";
+                const count = recallers.length;
+                message.append(
+                    document.createTextNode("Este cliente ha rellamado "),
+                    Object.assign(document.createElement("strong"), {
+                        textContent: `${count} ${count === 1 ? "vez" : "veces"}`
+                    }),
+                    document.createTextNode(`. Última rellamada: ${formatRecallDate(latestRecall.callbackDate)}.`)
+                );
+                const close = document.createElement("button");
+                close.className = "close";
+                close.type = "button";
+                close.setAttribute("aria-label", "Cerrar alerta de rellamada");
+                close.title = "Cerrar alerta";
+                close.textContent = "×";
+                close.addEventListener("click", () => host.remove());
+                alert.append(message, close);
+                alertShadow.append(style, alert);
+                document.documentElement.appendChild(host);
+            } catch (error) {
+                console.error("No se pudo comprobar si el cliente ha rellamado.", error);
+            }
+        }
+
         function renderRecallEntries(container, recallers, filterDate) {
             container.replaceChildren();
             if (!recallers.length) {
@@ -1827,6 +1888,7 @@
             document.getElementById(CONFIG.rootId)?.remove();
             buildShell();
             createTemplateView();
+            renderCustomerRecallAlert();
         }
 
         return { start };
