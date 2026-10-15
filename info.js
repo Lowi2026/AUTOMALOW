@@ -690,7 +690,12 @@
             templates: null, services: [], agentId: null, db: null,
             isAdmin: false, recallers: null, recallAgentNames: null,
             supervisorAssignments: null, supervisors: [],
-            toastTimer: null, toastHost: null, toastElement: null
+            adminSupervisorName: null,
+            teamFollowupAlerts: [],
+            pendingManualReminderIds: new Set(),
+            toastTimer: null, toastHost: null, toastElement: null,
+            followupTimer: null, followupToastTimer: null, followupToastQueue: [],
+            followupAlerts: []
         };
         let root;
         let shadow;
@@ -707,7 +712,7 @@
             DINAMICO_FUERA_RESUELTO_SOL: "thresholdSolution"
         });
 
-        function notify(message, isError = false) {
+        function notify(message, isError = false, action = null) {
             if (!state.toastHost?.isConnected) {
                 const host = document.createElement("div");
                 host.setAttribute("aria-live", "polite");
@@ -726,7 +731,12 @@
                     :host{all:initial}
                     #toast{max-width:min(360px,calc(100vw - 24px));padding:10px 13px;border-radius:8px;
                         background:#7a22b4;color:#fff;box-shadow:0 8px 20px #0009;
-                        font:12px Arial,sans-serif;overflow-wrap:anywhere}
+                        font:12px Arial,sans-serif;overflow-wrap:anywhere;display:flex;align-items:center;gap:10px;
+                        pointer-events:auto}
+                    #toast-message{flex:1;min-width:0}
+                    #toast-action{flex:none;padding:6px 8px;border:1px solid #ffffff55;border-radius:6px;
+                        background:#ffffff18;color:#fff;font:600 11px Arial,sans-serif;cursor:pointer}
+                    #toast-action:hover{background:#ffffff30}
                     #toast.error{background:#b91c1c}
                     #toast[hidden]{display:none!important}
                 `;
@@ -739,11 +749,30 @@
                 state.toastElement = toast;
             }
             const toast = state.toastElement;
-            toast.textContent = message;
+            const messageElement = Core.createElement("span", "", message);
+            messageElement.id = "toast-message";
+            toast.replaceChildren(messageElement);
             toast.classList.toggle("error", isError);
+            if (action) {
+                const actionButton = Core.createElement("button", "", action.label);
+                actionButton.id = "toast-action";
+                actionButton.type = "button";
+                actionButton.addEventListener("click", async () => {
+                    actionButton.disabled = true;
+                    try {
+                        const completed = await action.onClick();
+                        if (completed) toast.hidden = true;
+                        else if (actionButton.isConnected) actionButton.disabled = false;
+                    } catch (error) {
+                        console.error("No se pudo completar la acción del aviso.", error);
+                        notify(`No se pudo completar la acción: ${error.message}`, true);
+                    }
+                });
+                toast.appendChild(actionButton);
+            }
             toast.hidden = false;
             window.clearTimeout(state.toastTimer);
-            state.toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2600);
+            state.toastTimer = window.setTimeout(() => { toast.hidden = true; }, action ? 12000 : 2600);
         }
 
         // Estructura visual, navegación y eventos comunes del widget Lowi.
@@ -752,7 +781,8 @@
             style.textContent = `
                 :host{--bg:#130919;--card:#1c0f24;--border:rgba(185,118,247,.18);font:13px Arial,sans-serif;color:#fff}
                 *{box-sizing:border-box}
-                .panel{position:fixed;z-index:9999999;top:20px;right:20px;width:350px;max-height:calc(100vh - 40px);
+                .panel{position:fixed;z-index:9999999;top:20px;right:10px;width:480px;max-width:calc(100vw - 20px);
+                    max-height:calc(100vh - 40px);
                     display:flex;flex-direction:column;overflow:hidden;background:var(--bg);border:1px solid var(--border);
                     border-radius:18px;box-shadow:0 20px 50px #000b}
                 .header,.footer{padding:14px 16px;background:var(--bg);display:flex;align-items:center;justify-content:space-between}
@@ -764,11 +794,14 @@
                     padding:0;border:0;border-radius:7px;background:transparent;color:#fff;cursor:pointer;font-size:17px}
                 .header-actions button:hover{background:#7a22b4}
                 #restore-panel[hidden]{display:none}
-                .tabs{display:flex;border-bottom:1px solid var(--border)}
+                .tabs{display:flex;min-width:0;border-bottom:1px solid var(--border)}
                 .tab-button{flex:1;padding:11px 6px;background:transparent;border:0;color:#aaa;cursor:pointer;font-weight:600}
                 .tab-button.active{color:white;border-bottom:2px solid #b976f7}
-                .tabs{min-width:0}
-                .tab-button{min-width:0;padding-left:4px;padding-right:4px;font-size:12px}
+                .tab-button{min-width:0;padding-left:4px;padding-right:4px;font-size:12px;white-space:nowrap}
+                .tab-button:focus-visible{outline:2px solid #d8b4fe;outline-offset:-3px;border-radius:5px}
+                .tab-button[hidden]{display:none}
+                .tab-count{display:inline-block;min-width:16px;margin-left:4px;padding:2px 5px;
+                    border-radius:10px;background:#7a22b4;color:#fff;font-size:9px}
                 .body{padding:12px;overflow:auto}.view{display:none}.view.active{display:block}
                 .category,.subgroup,.history-group,.note{border:1px solid var(--border);border-radius:11px;background:var(--card);overflow:hidden;margin-bottom:9px}
                 .accordion,.group-trigger,.history-trigger{width:100%;padding:12px;text-align:left;background:transparent;border:0;color:#fff;cursor:pointer;font-weight:600}
@@ -806,7 +839,9 @@
                     -webkit-text-fill-color:#aaa;opacity:1}
                 input[type=date]:focus,input[type=text]:focus,textarea:focus{outline:2px solid rgba(185,118,247,.65);
                     outline-offset:1px;border-color:#b976f7}
-                input[type=date]::-webkit-calendar-picker-indicator{filter:invert(1);cursor:pointer}
+                input[type=date]::-webkit-calendar-picker-indicator{
+                    width:20px;height:20px;padding:2px;margin-left:4px;border-radius:4px;
+                    background-color:#d8b4fe;filter:none;opacity:1;cursor:pointer}
                 .danger-row{display:flex;align-items:center;gap:8px}
                 .danger-row input{flex:1;min-width:0}
                 .clear{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex:none;
@@ -850,6 +885,46 @@
                     color:#fff;font-size:12px;font-weight:600}
                 .history-customer{overflow-wrap:anywhere}
                 .history-time{flex:none;color:rgba(255,255,255,.45);font-size:10px;font-weight:400}
+                .history-actions{display:flex;align-items:center;gap:6px;flex:none}
+                .history-alert{padding:4px 7px;border:1px solid var(--border);border-radius:6px;
+                    background:transparent;color:#d8b4fe;font-size:10px;font-weight:600;cursor:pointer}
+                .history-alert:hover{background:rgba(185,118,247,.12)}
+                .history-alert.active{border-color:rgba(245,158,11,.55);color:#fbbf24}
+                .history-alert:disabled{opacity:.45;cursor:not-allowed}
+                .history-actions{flex-wrap:wrap;justify-content:flex-end}
+                .followup-editor{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:7px}
+                .followup-editor[hidden]{display:none}
+                .followup-editor input{flex:1;min-width:175px;padding:6px;border:1px solid var(--border);
+                    border-radius:6px;background:var(--bg);color:#fff;color-scheme:dark;font-size:11px}
+                .followup-editor button{padding:6px 8px;border:1px solid var(--border);border-radius:6px;
+                    background:transparent;color:#d8b4fe;font-size:10px;cursor:pointer}
+                .followup-editor button:hover{background:rgba(185,118,247,.12)}
+                .followup-schedule{color:#fbbf24;font-size:10px}
+                .followup-card{padding:11px 12px;border:1px solid var(--border);border-left:3px solid #f59e0b;
+                    border-radius:10px;background:var(--card);margin-bottom:8px}
+                .followup-card-title{font-size:12px;font-weight:700;overflow-wrap:anywhere}
+                .followup-card-dni{margin-top:4px;color:#d8b4fe;font-size:11px}
+                .followup-card-date{margin-top:6px;color:rgba(255,255,255,.7);font-size:11px}
+                .followup-card-status{margin-top:4px;color:#fbbf24;font-size:10px;font-weight:700}
+                .followup-card-actions{display:flex;gap:7px;margin-top:9px}
+                .followup-card-actions button{padding:6px 9px;border:1px solid var(--border);border-radius:6px;
+                    background:transparent;color:#d8b4fe;font-size:10px;font-weight:600;cursor:pointer}
+                .followup-card-actions button:hover{background:rgba(185,118,247,.12)}
+                .followup-card-actions button:disabled{opacity:.5;cursor:wait}
+                .followup-team-heading{margin:14px 0 8px;padding:8px 10px;border:1px solid var(--border);
+                    border-radius:8px;background:rgba(122,34,180,.16);color:#d8b4fe;font-size:11px;font-weight:700}
+                .followup-card-agent{margin-top:5px;color:rgba(255,255,255,.65);font-size:10px}
+                .followup-card-actions button.remind{border-color:rgba(245,158,11,.45);color:#fbbf24}
+                .followup-date-range{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:8px;
+                    padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--card);margin-bottom:10px}
+                .followup-date-range label{display:block;min-width:0;color:#b976f7;font-size:10px;
+                    font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+                .followup-date-range input{display:block;width:100%;min-width:0;margin-top:5px;padding:7px;
+                    border:1px solid var(--border);border-radius:7px;background:var(--bg);color:#fff;
+                    color-scheme:dark;font:11px Arial,sans-serif}
+                .followup-date-clear{height:32px;padding:0 9px;border:1px solid var(--border);
+                    border-radius:7px;background:transparent;color:#d8b4fe;font-size:10px;cursor:pointer}
+                .followup-date-clear:hover{background:rgba(185,118,247,.12)}
                 .history-entry p{white-space:pre-wrap;overflow-wrap:anywhere;color:rgba(255,255,255,.65);
                     font-size:11px;margin:2px 0 0}
                 .recall-summary{padding:11px 12px;border:1px solid var(--border);border-radius:10px;
@@ -922,6 +997,12 @@
                     border-radius:8px;padding:9px;cursor:pointer}
                 .footer button:hover{background:#7a22b4}
                 .muted{text-align:center;opacity:.65;padding:12px;font-size:12px}.copied{border-color:#10b981}
+                @media(max-width:430px){
+                    .panel{top:10px;right:10px;max-height:calc(100vh - 20px)}
+                    .tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+                    .tab-button{padding:9px 3px;font-size:11px}
+                    .tab-count{display:none}
+                }
             `;
             shadow.appendChild(style);
         }
@@ -944,6 +1025,7 @@
                 <nav class="tabs" aria-label="Secciones">
                     <button class="tab-button active" data-tab="templates">Plantillas</button>
                     <button class="tab-button" data-tab="history">Historial</button>
+                    <button class="tab-button" data-tab="followups" hidden>Seguimientos</button>
                     <button class="tab-button" data-tab="recall">Rellamantes</button>
                     <button class="tab-button" data-tab="vault">Baúl</button>
                 </nav>
@@ -964,6 +1046,17 @@
                             <div class="stat tv-stat"><span class="stat-label" id="tv-label">TV</span><strong id="tv-count">0</strong></div>
                         </div>
                         <div id="history-list"></div>
+                    </section>
+                    <section class="view" data-view="followups" id="followups-view">
+                        <div class="followup-date-range">
+                            <label for="followups-date">FECHA DEL SEGUIMIENTO
+                                <input id="followups-date" type="date">
+                            </label>
+                            <button class="followup-date-clear" id="clear-followups-date" type="button">
+                                Limpiar
+                            </button>
+                        </div>
+                        <div id="followups-list"></div>
                     </section>
                     <section class="view" data-view="recall" id="recall-view">
                         <div class="recall-filter">
@@ -1065,6 +1158,7 @@
                     button.classList.add("active");
                     shadow.querySelector(`[data-view="${button.dataset.tab}"]`).classList.add("active");
                     if (button.dataset.tab === "history") renderHistory();
+                    if (button.dataset.tab === "followups") renderFollowups();
                     if (button.dataset.tab === "recall") {
                         state.recallers = null;
                         renderRecallers();
@@ -1078,6 +1172,11 @@
             shadow.getElementById("recall-supervisor-filter").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-group-filter").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-agent-filter").addEventListener("input", renderRecallers);
+            shadow.getElementById("followups-date").addEventListener("change", renderFollowups);
+            shadow.getElementById("clear-followups-date").addEventListener("click", () => {
+                shadow.getElementById("followups-date").value = "";
+                renderFollowups();
+            });
             shadow.getElementById("clear-recall-date").addEventListener("click", () => {
                 shadow.getElementById("recall-date").value = "";
                 renderRecallers();
@@ -1324,8 +1423,435 @@
             container.replaceChildren(Core.createElement("p", "muted", message));
         }
 
+        async function loadFollowupAlerts() {
+            const result = await state.db.from("g_seguimientos")
+                .select("id,agente_id,cliente,dni,due_at,reminder_mode,notified_stages")
+                .eq("agente_id", state.agentId)
+                .order("due_at", { ascending: true });
+            return DataClient.assertSuccess(result) || [];
+        }
+
+        function getAdminTeamAgentIds() {
+            if (!state.isAdmin || !state.adminSupervisorName || !state.supervisorAssignments) return [];
+            const supervisorName = normalizeRecallSearch(state.adminSupervisorName);
+            return [...state.supervisorAssignments]
+                .filter(([, assignment]) =>
+                    normalizeRecallSearch(assignment.supervisor) === supervisorName)
+                .map(([agentId]) => agentId);
+        }
+
+        async function loadTeamFollowupAlerts() {
+            if (!state.isAdmin) return [];
+            if (!state.adminSupervisorName) {
+                throw new Error("Completa supervisor_nombre para tu agente en g_usuarios_roles.");
+            }
+            if (!state.supervisorAssignments) {
+                throw new Error("No se pudo cargar la relación de agentes y supervisores.");
+            }
+            const agentIds = getAdminTeamAgentIds();
+            if (!agentIds.length) return [];
+            return fetchAllRows(() => state.db.from("g_seguimientos")
+                .select("id,agente_id,cliente,dni,due_at,reminder_mode,notified_stages")
+                .in("agente_id", agentIds)
+                .order("due_at", { ascending: true }));
+        }
+
+        async function loadPendingManualReminders() {
+            const result = await state.db.from("g_seguimientos_recordatorios")
+                .select("id,seguimiento_id,mensaje,supervisor_nombre,created_at")
+                .eq("agente_id", state.agentId)
+                .is("acknowledged_at", null)
+                .order("created_at", { ascending: true });
+            return DataClient.assertSuccess(result) || [];
+        }
+
+        function localDateTimeValue(date) {
+            const pad = value => String(value).padStart(2, "0");
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+                `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        }
+
+        function getFollowupMilestones(alert) {
+            const dueAt = new Date(alert.due_at).getTime();
+            if (!Number.isFinite(dueAt)) return [];
+            const reminders = alert.reminder_mode === "days"
+                ? [{ key: "day_before", label: "Queda 1 día", offset: 86400000 }]
+                : [
+                    { key: "one_hour", label: "Queda 1 hora", offset: 3600000 },
+                    { key: "thirty_minutes", label: "Quedan 30 minutos", offset: 1800000 },
+                    { key: "fifteen_minutes", label: "Quedan 15 minutos", offset: 900000 }
+                ];
+            return [
+                ...reminders.map(reminder => ({
+                    ...reminder,
+                    at: dueAt - reminder.offset
+                })),
+                { key: "due", label: "Es momento de llamar", at: dueAt }
+            ];
+        }
+
+        function formatFollowupDate(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return "Fecha no disponible";
+            return new Intl.DateTimeFormat("es-ES", {
+                day: "2-digit", month: "2-digit", year: "numeric",
+                hour: "2-digit", minute: "2-digit"
+            }).format(date);
+        }
+
+        async function saveFollowupAlert(record, dueAtValue, button) {
+            const dni = normalizeDni(record.dni);
+            if (!state.db || !state.agentId || !dni) return;
+            const dueAt = new Date(dueAtValue);
+            if (!Number.isFinite(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+                notify("Selecciona una fecha y hora futura para el seguimiento.", true);
+                return;
+            }
+            button.disabled = true;
+            try {
+                const reminderMode = dueAt.getTime() - Date.now() > 86400000 ? "days" : "hours";
+                const result = await state.db.from("g_seguimientos").upsert([{
+                    agente_id: state.agentId,
+                    cliente: record.cliente || "N/A",
+                    dni,
+                    due_at: dueAt.toISOString(),
+                    reminder_mode: reminderMode,
+                    notified_stages: []
+                }], { onConflict: "agente_id,dni" });
+                DataClient.assertSuccess(result);
+                notify(`Seguimiento programado para ${formatFollowupDate(dueAt)}.`);
+                await renderHistory();
+                await runFollowupScheduler();
+            } catch (error) {
+                console.error("No se pudo programar la alerta de seguimiento.", error);
+                notify(`No se pudo programar la alerta: ${error.message}`, true);
+                button.disabled = false;
+            }
+        }
+
+        async function removeFollowupAlert(alert, button) {
+            if (!state.db || !state.agentId || !alert?.id) return;
+            button.disabled = true;
+            try {
+                const result = await state.db.from("g_seguimientos").delete()
+                    .eq("id", alert.id)
+                    .eq("agente_id", state.agentId);
+                DataClient.assertSuccess(result);
+                notify(`Alerta de seguimiento eliminada para ${alert.dni}.`);
+                await renderHistory();
+                await runFollowupScheduler();
+            } catch (error) {
+                console.error("No se pudo eliminar la alerta de seguimiento.", error);
+                notify(`No se pudo eliminar la alerta: ${error.message}`, true);
+                button.disabled = false;
+            }
+        }
+
+        async function sendManualFollowupReminder(alert, button) {
+            const teamAgentIds = getAdminTeamAgentIds();
+            if (!state.isAdmin || !state.adminSupervisorName ||
+                !teamAgentIds.includes(String(alert.agente_id || "").toLowerCase())) {
+                notify("No tienes permisos para enviar un recordatorio a este agente.", true);
+                return;
+            }
+            if (!state.teamFollowupAlerts.some(item => String(item.id) === String(alert.id))) {
+                notify("El seguimiento ya no está activo o no se encuentra disponible.", true);
+                await runFollowupScheduler();
+                return;
+            }
+            button.disabled = true;
+            try {
+                const result = await state.db.from("g_seguimientos_recordatorios").insert([{
+                    seguimiento_id: alert.id,
+                    agente_id: alert.agente_id,
+                    supervisor_agente_id: state.agentId,
+                    supervisor_nombre: state.adminSupervisorName,
+                    mensaje: `Se te recuerda realizar el seguimiento programado para ${formatFollowupDate(alert.due_at)}.`
+                }]).select("id");
+                const rows = DataClient.assertSuccess(result) || [];
+                if (!rows.length) throw new Error("Supabase no confirmó el envío del recordatorio.");
+                notify(`Recordatorio enviado a ${alert.cliente || alert.agente_id}.`);
+            } catch (error) {
+                console.error("No se pudo enviar el recordatorio manual.", error);
+                notify(`No se pudo enviar el recordatorio: ${error.message}`, true);
+                button.disabled = false;
+            }
+        }
+
+        async function openCustomerByDni(dni) {
+            const documentId = normalizeDni(dni);
+            if (!documentId) {
+                notify("La alerta no contiene un DNI válido.", true);
+                return false;
+            }
+            const customerWindow = window.open(
+                new URL("/bo/milowi/user/", window.location.origin).href,
+                "_blank"
+            );
+            if (!customerWindow) {
+                notify(
+                    "El navegador bloqueó la apertura de la ficha. Permite ventanas emergentes y vuelve a intentarlo.",
+                    true,
+                    {
+                        label: "Reintentar",
+                        onClick: () => openCustomerByDni(documentId)
+                    }
+                );
+                return false;
+            }
+
+            try {
+                const deadline = Date.now() + 20000;
+                while (Date.now() < deadline) {
+                    if (customerWindow.closed) throw new Error("Se cerró la pestaña de búsqueda.");
+                    const searchInput = customerWindow.document.querySelector("#id_value");
+                    const searchButton = customerWindow.document.querySelector(
+                        'input[type="submit"][value="Buscar"]'
+                    );
+                    if (customerWindow.document.readyState === "complete" &&
+                        searchInput?.form && searchButton?.form === searchInput.form) {
+                        searchInput.focus();
+                        searchInput.value = documentId;
+                        Core.dispatchChange(searchInput);
+                        searchButton.click();
+                        return true;
+                    }
+                    await Core.wait(250);
+                }
+                throw new Error("No se encontró el formulario de búsqueda por DNI en Lowi.");
+            } catch (error) {
+                console.error("No se pudo abrir la ficha del cliente desde la alerta.", error);
+                notify(`No se pudo abrir la ficha de ${documentId}: ${error.message}`, true, {
+                    label: "Reintentar",
+                    onClick: () => openCustomerByDni(documentId)
+                });
+                return false;
+            }
+        }
+
+        function enqueueFollowupToast(alert, milestone, manualReminder = null) {
+            state.followupToastQueue.push({ alert, milestone, manualReminder });
+            if (state.followupToastQueue.length > 1) return;
+            showNextFollowupToast();
+        }
+
+        function showNextFollowupToast() {
+            window.clearTimeout(state.followupToastTimer);
+            const item = state.followupToastQueue.shift();
+            if (!item) return;
+            const { alert, milestone, manualReminder } = item;
+            notify(
+                manualReminder
+                    ? `${manualReminder.mensaje} (${manualReminder.supervisor_nombre})`
+                    : `${milestone.label}: ${alert.cliente || "Cliente"} (${alert.dni}) — ${formatFollowupDate(alert.due_at)}`,
+                false,
+                {
+                    label: manualReminder ? "Ver seguimiento" : "Ver cliente",
+                    onClick: async () => {
+                        const opened = await openCustomerByDni(alert.dni);
+                        if (!opened || !manualReminder) return opened;
+                        const result = await state.db.from("g_seguimientos_recordatorios")
+                            .update({ acknowledged_at: new Date().toISOString() })
+                            .eq("id", manualReminder.id)
+                            .eq("agente_id", state.agentId)
+                            .is("acknowledged_at", null)
+                            .select("id");
+                        if (!(DataClient.assertSuccess(result) || []).length) {
+                            throw new Error("No se pudo confirmar la recepción del recordatorio.");
+                        }
+                        return true;
+                    }
+                }
+            );
+            state.followupToastTimer = window.setTimeout(showNextFollowupToast, 12500);
+        }
+
+        function updateFollowupTab(alerts, teamAlerts = state.teamFollowupAlerts) {
+            state.followupAlerts = alerts;
+            state.teamFollowupAlerts = teamAlerts;
+            const tab = shadow?.querySelector('[data-tab="followups"]');
+            if (!tab) return;
+            const totalAlerts = alerts.length + (state.isAdmin ? teamAlerts.length : 0);
+            tab.hidden = totalAlerts === 0;
+            tab.replaceChildren(
+                document.createTextNode("Seguimientos"),
+                ...(totalAlerts
+                    ? [Core.createElement("span", "tab-count", String(totalAlerts))]
+                    : [])
+            );
+            if (!totalAlerts && tab.classList.contains("active")) {
+                tab.classList.remove("active");
+                shadow.querySelector('[data-view="followups"]').classList.remove("active");
+                shadow.querySelector('[data-tab="templates"]').classList.add("active");
+                shadow.querySelector('[data-view="templates"]').classList.add("active");
+            }
+            if (shadow.querySelector('[data-view="followups"].active')) renderFollowups();
+        }
+
+        function renderFollowups() {
+            const container = shadow.getElementById("followups-list");
+            const selectedFollowupDate = shadow.getElementById("followups-date").value;
+            container.replaceChildren();
+            const isInDateRange = alert => {
+                const dueAt = new Date(alert.due_at);
+                if (Number.isNaN(dueAt.getTime())) return false;
+                const followupDate = localDateTimeValue(dueAt).slice(0, 10);
+                return !selectedFollowupDate || followupDate === selectedFollowupDate;
+            };
+            const alerts = state.followupAlerts.filter(isInDateRange);
+            const teamAlerts = state.teamFollowupAlerts.filter(isInDateRange);
+            if (!alerts.length && !teamAlerts.length) {
+                showEmpty(container, selectedFollowupDate
+                    ? "No hay seguimientos activos para la fecha seleccionada."
+                    : "No hay seguimientos activos.");
+                return;
+            }
+            const renderCard = (alert, isTeamAlert = false) => {
+                const card = Core.createElement("article", "followup-card");
+                const dueAt = new Date(alert.due_at);
+                const overdue = Number.isFinite(dueAt.getTime()) && dueAt.getTime() <= Date.now();
+                card.append(
+                    Core.createElement("div", "followup-card-title", alert.cliente || "Cliente"),
+                    Core.createElement("div", "followup-card-dni", `DNI/NIE: ${alert.dni || "N/A"}`),
+                    ...(isTeamAlert
+                        ? [Core.createElement(
+                            "div", "followup-card-agent",
+                            `Agente: ${state.supervisorAssignments.get(String(alert.agente_id).toLowerCase())?.nombreCompleto || alert.agente_id}`
+                        )]
+                        : []),
+                    Core.createElement("div", "followup-card-date",
+                        `Llamar: ${formatFollowupDate(alert.due_at)}`),
+                    Core.createElement("div", "followup-card-status",
+                        overdue ? "Pendiente de realizar" : "Programado")
+                );
+                const actions = Core.createElement("div", "followup-card-actions");
+                const openButton = Core.createElement("button", "", "Ver cliente");
+                openButton.type = "button";
+                openButton.addEventListener("click", () => openCustomerByDni(alert.dni));
+                actions.appendChild(openButton);
+                if (isTeamAlert) {
+                    const remindButton = Core.createElement("button", "remind", "Enviar recordatorio");
+                    remindButton.type = "button";
+                    remindButton.addEventListener("click", () =>
+                        sendManualFollowupReminder(alert, remindButton));
+                    actions.appendChild(remindButton);
+                } else {
+                    const completeButton = Core.createElement("button", "", "Marcar realizado");
+                    completeButton.type = "button";
+                    completeButton.addEventListener("click", () =>
+                        removeFollowupAlert(alert, completeButton));
+                    actions.appendChild(completeButton);
+                }
+                card.appendChild(actions);
+                container.appendChild(card);
+            };
+            alerts.forEach(alert => renderCard(alert));
+            if (state.isAdmin && teamAlerts.length) {
+                const teams = new Map();
+                teamAlerts.forEach(alert => {
+                    const assignment = state.supervisorAssignments.get(
+                        String(alert.agente_id || "").toLowerCase()
+                    );
+                    const supervisor = assignment?.supervisor || "Sin supervisor asignado";
+                    const key = normalizeRecallSearch(supervisor);
+                    if (!teams.has(key)) teams.set(key, { label: supervisor, alerts: [] });
+                    teams.get(key).alerts.push(alert);
+                });
+                if (!alerts.length && !teams.size) {
+                    showEmpty(container, "No hay seguimientos activos para este supervisor.");
+                    return;
+                }
+                [...teams.values()]
+                    .sort((left, right) => left.label.localeCompare(right.label, "es"))
+                    .forEach(team => {
+                        container.appendChild(Core.createElement(
+                            "h3", "followup-team-heading", team.label
+                        ));
+                        team.alerts.forEach(alert => renderCard(alert, true));
+                    });
+            }
+        }
+
+        async function runFollowupScheduler() {
+            if (!state.db || !state.agentId) return;
+            window.clearTimeout(state.followupTimer);
+            try {
+                const alerts = await loadFollowupAlerts();
+                let teamAlerts = [];
+                if (state.isAdmin) {
+                    try {
+                        teamAlerts = await loadTeamFollowupAlerts();
+                    } catch (error) {
+                        console.error("No se pudieron cargar los seguimientos del equipo.", error);
+                        notify(`No se pudieron cargar los seguimientos del equipo: ${error.message}`, true);
+                    }
+                }
+                updateFollowupTab(alerts, teamAlerts);
+                const manualReminders = await loadPendingManualReminders();
+                const alertsById = new Map(alerts.map(alert => [String(alert.id), alert]));
+                for (const reminder of manualReminders) {
+                    const reminderId = String(reminder.id);
+                    const alert = alertsById.get(String(reminder.seguimiento_id));
+                    if (!alert || state.pendingManualReminderIds.has(reminderId)) continue;
+                    state.pendingManualReminderIds.add(reminderId);
+                    enqueueFollowupToast(alert, null, reminder);
+                }
+                const now = Date.now();
+                const notifications = [];
+                let nextReminderAt = Infinity;
+                for (const alert of alerts) {
+                    const dueAt = new Date(alert.due_at).getTime();
+                    if (!Number.isFinite(dueAt)) continue;
+                    const notified = Array.isArray(alert.notified_stages)
+                        ? alert.notified_stages
+                        : [];
+                    const milestones = getFollowupMilestones(alert);
+                    const crossed = milestones.filter(milestone =>
+                        milestone.at <= now && !notified.includes(milestone.key));
+                    if (crossed.length) {
+                        const latest = crossed[crossed.length - 1];
+                        const updatedStages = [...new Set([
+                            ...notified,
+                            ...crossed.map(milestone => milestone.key)
+                        ])];
+                        const result = await state.db.from("g_seguimientos")
+                            .update({ notified_stages: updatedStages })
+                            .eq("id", alert.id)
+                            .eq("agente_id", state.agentId)
+                            .eq("due_at", alert.due_at)
+                            .select("id");
+                        if (!(DataClient.assertSuccess(result) || []).length) continue;
+                        notifications.push({ alert, milestone: latest });
+                    }
+                    for (const milestone of milestones) {
+                        if (!notified.includes(milestone.key) && milestone.at > now) {
+                            nextReminderAt = Math.min(nextReminderAt, milestone.at);
+                        }
+                    }
+                }
+                notifications
+                    .sort((left, right) => new Date(left.alert.due_at) - new Date(right.alert.due_at))
+                    .forEach(({ alert, milestone }) => enqueueFollowupToast(alert, milestone));
+                if (Number.isFinite(nextReminderAt)) {
+                    state.followupTimer = window.setTimeout(
+                        runFollowupScheduler,
+                        Math.max(0, Math.min(nextReminderAt - Date.now(), 2147483000))
+                    );
+                }
+            } catch (error) {
+                console.error("No se pudieron revisar las alertas programadas.", error);
+                notify(`No se pudieron revisar las alertas programadas: ${error.message}`, true);
+                state.followupTimer = window.setTimeout(runFollowupScheduler, 60000);
+            }
+        }
+
+        async function showFollowupToast() {
+            if (!state.db || !state.agentId) return;
+            await runFollowupScheduler();
+        }
+
         // Historial: renderizado agrupado, métricas, filtro de fecha y limpieza.
-        function renderHistoryEntries(container, records) {
+        function renderHistoryEntries(container, records, followupAlerts, alertsAvailable) {
             container.replaceChildren();
             if (!records.length) {
                 showEmpty(container, "No hay registros para este día.");
@@ -1369,11 +1895,69 @@
                         Icons.create("clock"),
                         ` ${item.hora_str || ""}`
                     );
-                    entryHeader.append(
-                        customer,
-                        time
-                    );
+                    const dni = normalizeDni(item.dni);
+                    const activeAlert = dni ? followupAlerts.get(dni) : null;
+                    const isAlertActive = Boolean(activeAlert);
+                    const alertButton = Core.createElement("button", "history-alert",
+                        isAlertActive ? "Cambiar" : "Programar");
+                    alertButton.type = "button";
+                    alertButton.disabled = !alertsAvailable || !dni;
+                    alertButton.classList.toggle("active", isAlertActive);
+                    alertButton.setAttribute("aria-label", isAlertActive
+                        ? `Cambiar fecha u hora del seguimiento de ${item.cliente || "cliente"} (${item.dni || "DNI no disponible"})`
+                        : `Programar seguimiento para ${item.cliente || "cliente"} (${item.dni || "DNI no disponible"})`);
+                    alertButton.title = !dni
+                        ? "Este registro no tiene un DNI válido"
+                        : !alertsAvailable
+                            ? "No se pudo conectar con las alertas de seguimiento"
+                            : isAlertActive
+                                ? `Programada para ${formatFollowupDate(activeAlert.due_at)}`
+                                : "Elegir fecha y hora del seguimiento";
+                    const removeButton = Core.createElement("button", "history-alert", "Quitar");
+                    removeButton.type = "button";
+                    removeButton.hidden = !isAlertActive;
+                    removeButton.disabled = !alertsAvailable;
+                    removeButton.title = "Eliminar seguimiento programado";
+                    removeButton.addEventListener("click", () =>
+                        removeFollowupAlert(activeAlert, removeButton));
+                    const actions = Core.createElement("span", "history-actions");
+                    actions.append(time, alertButton, removeButton);
+                    entryHeader.append(customer, actions);
                     entry.appendChild(entryHeader);
+                    const scheduleEditor = Core.createElement("div", "followup-editor");
+                    scheduleEditor.hidden = true;
+                    const dateTime = document.createElement("input");
+                    dateTime.type = "datetime-local";
+                    dateTime.required = true;
+                    dateTime.min = localDateTimeValue(new Date(Date.now() + 60000));
+                    dateTime.value = activeAlert?.due_at
+                        ? localDateTimeValue(new Date(activeAlert.due_at))
+                        : localDateTimeValue(new Date(Date.now() + 3600000));
+                    dateTime.setAttribute("aria-label", `Fecha y hora para llamar a ${item.cliente || "cliente"}`);
+                    const saveButton = Core.createElement("button", "", "Guardar");
+                    saveButton.type = "button";
+                    saveButton.addEventListener("click", () =>
+                        saveFollowupAlert(item, dateTime.value, saveButton));
+                    const cancelButton = Core.createElement("button", "", "Cancelar");
+                    cancelButton.type = "button";
+                    cancelButton.addEventListener("click", () => { scheduleEditor.hidden = true; });
+                    scheduleEditor.append(dateTime, saveButton, cancelButton);
+                    alertButton.addEventListener("click", () => {
+                        scheduleEditor.hidden = !scheduleEditor.hidden;
+                        if (!scheduleEditor.hidden) dateTime.focus();
+                    });
+                    entry.appendChild(scheduleEditor);
+                    if (activeAlert?.due_at) {
+                        entry.appendChild(Core.createElement(
+                            "span", "followup-schedule",
+                            `Seguimiento: ${formatFollowupDate(activeAlert.due_at)}`
+                        ));
+                    } else if (isAlertActive) {
+                        entry.appendChild(Core.createElement(
+                            "span", "followup-schedule",
+                            "Sin fecha y hora; configura el recordatorio."
+                        ));
+                    }
                     entry.appendChild(Core.createElement("p", "", item.plantilla || ""));
                     content.appendChild(entry);
                 });
@@ -1861,11 +2445,26 @@
                 } else {
                     records = LocalHistory.forDate(selectedDate.value, state.agentId);
                 }
+                let alertsAvailable = Boolean(state.db);
+                let followupAlerts = new Map();
+                if (state.db) {
+                    try {
+                        const alerts = await loadFollowupAlerts();
+                        updateFollowupTab(alerts);
+                        followupAlerts = new Map(alerts
+                            .map(alert => [normalizeDni(alert.dni), alert])
+                            .filter(([dni]) => Boolean(dni)));
+                    } catch (error) {
+                        alertsAvailable = false;
+                        console.error("No se pudieron cargar las alertas del historial.", error);
+                        notify(`No se pudieron cargar las alertas de seguimiento: ${error.message}`, true);
+                    }
+                }
                 const tvCount = records.filter(record => record.clase === "tv").length;
                 shadow.getElementById("total-count").textContent = String(records.length);
                 shadow.getElementById("tv-count").textContent = String(tvCount);
                 shadow.getElementById("fiber-count").textContent = String(records.length - tvCount);
-                renderHistoryEntries(container, records);
+                renderHistoryEntries(container, records, followupAlerts, alertsAvailable);
             } catch (error) {
                 console.error("Error cargando historial.", error);
                 showEmpty(container, `Error al sincronizar el historial: ${error.message}`);
@@ -2125,11 +2724,17 @@
                 try {
                     state.db = await DataClient.createClient();
                     try {
-                        const result = await state.db.from("g_usuarios_roles").select("rol")
+                        const result = await state.db.from("g_usuarios_roles")
+                            .select("rol,supervisor_nombre")
                             .eq("agente_id", state.agentId).limit(1);
                         const roles = DataClient.assertSuccess(result) || [];
-                        state.isAdmin = roles.some(row => String(row.rol || "").trim().toLowerCase() === "admin");
-                        if (state.isAdmin) await loadSupervisorAssignments();
+                        const adminRole = roles.find(row =>
+                            String(row.rol || "").trim().toLowerCase() === "admin");
+                        state.isAdmin = Boolean(adminRole);
+                        if (state.isAdmin) {
+                            state.adminSupervisorName = String(adminRole.supervisor_nombre || "").trim();
+                            await loadSupervisorAssignments();
+                        }
                     } catch (error) {
                         if (state.isAdmin) state.supervisorAssignments = null;
                         console.warn("No se pudo verificar el rol del agente; se usará la vista individual de rellamadas.", error);
@@ -2145,6 +2750,7 @@
             buildShell();
             createTemplateView();
             renderCustomerRecallAlert();
+            showFollowupToast();
         }
 
         return { start };
