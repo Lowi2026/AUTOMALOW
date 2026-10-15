@@ -688,7 +688,8 @@
     const LowiModule = (() => {
         const state = {
             templates: null, services: [], agentId: null, db: null,
-            isAdmin: false, recallers: null, supervisorAssignments: null, supervisors: [],
+            isAdmin: false, recallers: null, recallAgentNames: null,
+            supervisorAssignments: null, supervisors: [],
             toastTimer: null, toastHost: null, toastElement: null
         };
         let root;
@@ -854,6 +855,21 @@
                 .recall-summary{padding:11px 12px;border:1px solid var(--border);border-radius:10px;
                     background:rgba(28,16,38,.4);margin-bottom:10px;color:rgba(255,255,255,.65);font-size:11px;line-height:1.5}
                 .recall-summary strong{color:#b976f7}
+                .recall-group-actions{display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px}
+                .recall-group-actions button{padding:6px 8px;border:1px solid var(--border);border-radius:7px;
+                    background:transparent;color:#d8b4fe;font-size:10px;font-weight:600;cursor:pointer}
+                .recall-group-actions button:hover{background:rgba(185,118,247,.12)}
+                .recall-agent-group{margin-bottom:10px}
+                .recall-group-toggle{width:100%;display:flex;align-items:center;gap:8px;padding:9px 10px;
+                    border:1px solid var(--border);border-radius:8px;background:rgba(28,16,38,.55);
+                    color:#fff;text-align:left;cursor:pointer}
+                .recall-group-toggle strong{flex:1;min-width:0;overflow-wrap:anywhere;font-size:12px}
+                .recall-group-count{min-width:22px;padding:2px 7px;border-radius:10px;background:rgba(185,118,247,.16);
+                    color:#d8b4fe;text-align:center;font-size:10px;font-weight:700}
+                .recall-group-chevron{color:#b976f7;transition:transform .15s ease}
+                .recall-group-toggle[aria-expanded="true"] .recall-group-chevron{transform:rotate(180deg)}
+                .recall-group-content{padding-top:7px}
+                .recall-group-content[hidden]{display:none}
                 .recall-filter{padding:10px;border:1px solid var(--border);border-radius:12px;
                     background:var(--card);margin-bottom:10px}
                 .recall-filter label{display:block;color:#b976f7;font-size:10px;font-weight:700;
@@ -967,6 +983,13 @@
                                 <label for="recall-supervisor-filter">FILTRAR POR SUPERVISOR</label>
                                 <select id="recall-supervisor-filter" aria-label="Filtrar rellamadas por supervisor"></select>
                             </div>
+                            <div class="recall-agent-filter" id="recall-group-filter-container" hidden>
+                                <label for="recall-group-filter">ORGANIZAR RESULTADOS</label>
+                                <select id="recall-group-filter" aria-label="Agrupar rellamadas">
+                                    <option value="all">Todas las rellamadas</option>
+                                    <option value="agent">Por agente de atención inicial</option>
+                                </select>
+                            </div>
                             <div class="recall-agent-filter" id="recall-agent-filter-container" hidden>
                                 <label for="recall-agent-filter">BUSCAR POR NOMBRE O CITRIX</label>
                                 <input id="recall-agent-filter" type="text" placeholder="Nombre o Citrix..."
@@ -997,6 +1020,7 @@
             shadow.getElementById("tv-label").prepend(Icons.create("tv"), " ");
             shadow.getElementById("clear-recall-date").replaceChildren(Icons.create("close"));
             shadow.getElementById("recall-agent-filter-container").hidden = !state.isAdmin;
+            shadow.getElementById("recall-group-filter-container").hidden = !state.isAdmin;
             const supervisorFilter = shadow.getElementById("recall-supervisor-filter-container");
             supervisorFilter.hidden = !state.isAdmin;
             const supervisorSelect = shadow.getElementById("recall-supervisor-filter");
@@ -1052,6 +1076,7 @@
             shadow.getElementById("recall-date").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-same-day").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-supervisor-filter").addEventListener("change", renderRecallers);
+            shadow.getElementById("recall-group-filter").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-agent-filter").addEventListener("input", renderRecallers);
             shadow.getElementById("clear-recall-date").addEventListener("click", () => {
                 shadow.getElementById("recall-date").value = "";
@@ -1451,6 +1476,20 @@
             state.supervisors = [...supervisors].map(([value, label]) => ({ value, label }));
         }
 
+        async function loadRecallAgentNames(agentIds) {
+            const uniqueAgentIds = [...new Set(agentIds.filter(Boolean))];
+            if (!uniqueAgentIds.length) return new Map();
+
+            const result = await state.db.from("g_citrix_supervisores")
+                .select("citrix,nombre_completo")
+                .in("citrix", uniqueAgentIds);
+            const rows = DataClient.assertSuccess(result) || [];
+            return new Map(rows.map(row => [
+                String(row.citrix || "").trim().toLowerCase(),
+                String(row.nombre_completo || "").trim()
+            ]));
+        }
+
         function findRecallers(records) {
             const byDni = new Map();
             records.forEach(record => {
@@ -1601,7 +1640,7 @@
                 .toLowerCase().trim();
         }
 
-        function renderRecallEntries(container, recallers, filterDate, isAdmin, sameDayOnly) {
+        function renderRecallEntries(container, recallers, filterDate, isAdmin, sameDayOnly, groupByAgent) {
             container.replaceChildren();
             if (!recallers.length) {
                 showEmpty(container, isAdmin
@@ -1626,48 +1665,111 @@
             );
             container.appendChild(summary);
 
-            recallers.forEach(recaller => {
-                const entry = Core.createElement("article", "recall-entry");
-                entry.append(
-                    Core.createElement("div", "recall-customer", recaller.cliente),
-                    Core.createElement("div", "recall-dni", `DNI/NIE: ${recaller.dni}`)
-                );
-                const initialAssignment = isAdmin
-                    ? state.supervisorAssignments.get(recaller.initialAgent.toLowerCase())
-                    : null;
-                const callbackAssignment = isAdmin
-                    ? state.supervisorAssignments.get(recaller.callbackAgent.toLowerCase())
-                    : null;
-                const createRecallStep = (label, agentName, agentId, timestamp) => {
-                    const step = Core.createElement("div", "recall-step");
-                    step.appendChild(Core.createElement("span", "recall-step-label", label));
-                    step.appendChild(Core.createElement("span", "recall-step-agent", agentName));
-                    if (agentId) {
-                        step.appendChild(Core.createElement("span", "recall-step-id", `Citrix: ${agentId}`));
-                    }
-                    const time = Core.createElement("span", "recall-step-time");
-                    time.append(Icons.create("clock"), formatRecallDate(timestamp));
-                    step.appendChild(time);
-                    return step;
+            if (groupByAgent) {
+                const groupActions = Core.createElement("div", "recall-group-actions");
+                const expandAll = Core.createElement("button", "", "Expandir todas");
+                const collapseAll = Core.createElement("button", "", "Colapsar todas");
+                expandAll.type = "button";
+                collapseAll.type = "button";
+                const setGroupsExpanded = expanded => {
+                    container.querySelectorAll(".recall-group-toggle").forEach(toggle => {
+                        toggle.setAttribute("aria-expanded", String(expanded));
+                    });
+                    container.querySelectorAll(".recall-group-content").forEach(content => {
+                        content.hidden = !expanded;
+                    });
                 };
-                const timeline = Core.createElement("div", "recall-timeline");
-                timeline.append(
-                    createRecallStep(
-                        "Atención inicial",
-                        isAdmin ? initialAssignment?.nombreCompleto || "Nombre no disponible" : "Tú",
-                        isAdmin ? recaller.initialAgent : "",
-                        recaller.initialDate
-                    ),
-                    createRecallStep(
-                        "Rellamada posterior",
-                        isAdmin ? callbackAssignment?.nombreCompleto || "Nombre no disponible" : "Otro agente",
-                        recaller.callbackAgent,
-                        recaller.callbackDate
-                    )
-                );
-                entry.appendChild(timeline);
-                container.appendChild(entry);
-            });
+                expandAll.addEventListener("click", () => setGroupsExpanded(true));
+                collapseAll.addEventListener("click", () => setGroupsExpanded(false));
+                groupActions.append(expandAll, collapseAll);
+                container.appendChild(groupActions);
+            }
+
+            const recallGroups = new Map();
+            if (groupByAgent) {
+                recallers.forEach(recaller => {
+                    const assignment = state.supervisorAssignments.get(recaller.initialAgent.toLowerCase());
+                    const agentName = assignment?.nombreCompleto || "Nombre no disponible";
+                    const agentId = recaller.initialAgent.toLowerCase();
+                    if (!recallGroups.has(agentId)) recallGroups.set(agentId, { agentName, entries: [] });
+                    recallGroups.get(agentId).entries.push(recaller);
+                });
+            } else {
+                recallGroups.set("", { agentName: "", entries: recallers });
+            }
+
+            [...recallGroups].sort(([, left], [, right]) =>
+                left.agentName.localeCompare(right.agentName, "es")
+            ).forEach(([, group], groupIndex) => {
+                    const { agentName, entries } = group;
+                    let groupContent = container;
+                    if (groupByAgent) {
+                        const section = Core.createElement("section", "recall-agent-group");
+                        const toggle = Core.createElement("button", "recall-group-toggle");
+                        const contentId = `recall-agent-group-${groupIndex}`;
+                        toggle.type = "button";
+                        toggle.setAttribute("aria-expanded", "true");
+                        toggle.setAttribute("aria-controls", contentId);
+                        toggle.append(
+                            Core.createElement("strong", "", agentName),
+                            Core.createElement("span", "recall-group-count", String(entries.length)),
+                            Icons.create("chevron", "icon-svg recall-group-chevron")
+                        );
+                        groupContent = Core.createElement("div", "recall-group-content");
+                        groupContent.id = contentId;
+                        toggle.addEventListener("click", () => {
+                            const expanded = toggle.getAttribute("aria-expanded") !== "true";
+                            toggle.setAttribute("aria-expanded", String(expanded));
+                            groupContent.hidden = !expanded;
+                        });
+                        section.append(toggle, groupContent);
+                        container.appendChild(section);
+                    }
+                    entries.forEach(recaller => {
+                        const entry = Core.createElement("article", "recall-entry");
+                        entry.append(
+                            Core.createElement("div", "recall-customer", recaller.cliente),
+                            Core.createElement("div", "recall-dni", `DNI/NIE: ${recaller.dni}`)
+                        );
+                        const initialAssignment = isAdmin
+                            ? state.supervisorAssignments.get(recaller.initialAgent.toLowerCase())
+                            : null;
+                        const callbackAssignment = isAdmin
+                            ? state.supervisorAssignments.get(recaller.callbackAgent.toLowerCase())
+                            : state.recallAgentNames.get(recaller.callbackAgent.toLowerCase());
+                        const createRecallStep = (label, agentName, agentId, timestamp) => {
+                            const step = Core.createElement("div", "recall-step");
+                            step.appendChild(Core.createElement("span", "recall-step-label", label));
+                            step.appendChild(Core.createElement("span", "recall-step-agent", agentName));
+                            if (agentId) {
+                                step.appendChild(Core.createElement("span", "recall-step-id", `Citrix: ${agentId}`));
+                            }
+                            const time = Core.createElement("span", "recall-step-time");
+                            time.append(Icons.create("clock"), formatRecallDate(timestamp));
+                            step.appendChild(time);
+                            return step;
+                        };
+                        const timeline = Core.createElement("div", "recall-timeline");
+                        timeline.append(
+                            createRecallStep(
+                                "Atención inicial",
+                                isAdmin ? initialAssignment?.nombreCompleto || "Nombre no disponible" : "Tú",
+                                isAdmin ? recaller.initialAgent : "",
+                                recaller.initialDate
+                            ),
+                            createRecallStep(
+                                "Rellamada posterior",
+                                isAdmin
+                                    ? callbackAssignment?.nombreCompleto || "Nombre no disponible"
+                                    : callbackAssignment || "Otro agente",
+                                recaller.callbackAgent,
+                                recaller.callbackDate
+                            )
+                        );
+                        entry.appendChild(timeline);
+                        groupContent.appendChild(entry);
+                    });
+                });
         }
 
         async function renderRecallers() {
@@ -1691,9 +1793,20 @@
                     const records = await getRelevantRecallLogs();
                     state.recallers = findRecallers(records);
                 }
+                if (!state.isAdmin && state.recallAgentNames === null) {
+                    const callbackAgents = state.recallers.map(recaller => recaller.callbackAgent);
+                    try {
+                        state.recallAgentNames = await loadRecallAgentNames(callbackAgents);
+                    } catch (error) {
+                        console.warn("No se pudieron cargar los nombres de los agentes de rellamada.", error);
+                        state.recallAgentNames = new Map();
+                    }
+                }
                 const filterDate = shadow.getElementById("recall-date").value;
                 const sameDayOnly = shadow.getElementById("recall-same-day").checked;
                 const supervisorFilter = shadow.getElementById("recall-supervisor-filter").value;
+                const groupByAgent = state.isAdmin &&
+                    shadow.getElementById("recall-group-filter").value === "agent";
                 const agentTerms = normalizeRecallSearch(
                     shadow.getElementById("recall-agent-filter").value
                 ).split(/\s+/).filter(Boolean);
@@ -1710,7 +1823,7 @@
                         (!supervisorFilter || assignment.supervisor.toLowerCase() === supervisorFilter) &&
                         agentTerms.every(term => searchableAgent.includes(term));
                 });
-                renderRecallEntries(container, recallers, filterDate, state.isAdmin, sameDayOnly);
+                renderRecallEntries(container, recallers, filterDate, state.isAdmin, sameDayOnly, groupByAgent);
             } catch (error) {
                 console.error("No se pudieron calcular las rellamadas.", error);
                 showEmpty(container,
