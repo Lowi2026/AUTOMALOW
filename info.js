@@ -392,12 +392,12 @@
             return date;
         }
 
-        async function selectReactOption(selectors, steps, fieldName) {
+        async function selectReactOption(selectors, steps, fieldName, optional = false) {
             if (!Number.isInteger(steps) || steps < 0) {
                 throw new Error("La configuración contiene un índice de opción inválido.");
             }
 
-            const deadline = Date.now() + 5000;
+            const deadline = Date.now() + (optional ? 500 : 5000);
             let input = null;
             while (Date.now() < deadline) {
                 for (const selector of selectors) {
@@ -411,49 +411,68 @@
                 await Core.wait(100);
             }
             if (!input) {
+                if (optional) return false;
                 throw new Error(`No se encontró el desplegable "${fieldName}". Comprueba que el formulario de Jira haya terminado de cargar.`);
             }
 
             input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-            await Core.wait(350);
+            await Core.wait(100);
             input.value = " ";
             Core.dispatchChange(input);
-            await Core.wait(200);
+            await Core.wait(100);
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
-            await Core.wait(250);
+            await Core.wait(50);
             for (let index = 0; index < steps; index++) {
                 input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
-                await Core.wait(150);
+                await Core.wait(60);
             }
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-            await Core.wait(400);
+            await Core.wait(150);
         }
 
         function setFieldValue(id, value, notify = false) {
             const field = document.getElementById(id);
-            if (!field) throw new Error(`No se encontró el campo Jira "${id}".`);
-            field.value = value;
+            if (!field) return false;
+            const prototype = field instanceof HTMLTextAreaElement
+                ? HTMLTextAreaElement.prototype
+                : HTMLInputElement.prototype;
+            const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+            if (setter) setter.call(field, value);
+            else field.value = value;
             if (notify) Core.dispatchChange(field);
+            return true;
         }
 
-        function fillCommonFields() {
+        async function fillCommonFields() {
             const now = new Date();
             const start = nextBusinessDay(new Date(now));
             start.setHours(8, 0, 0, 0);
             const end = new Date(start);
             end.setHours(16, 0, 0, 0);
 
-            setFieldValue("customfield_16825", formatDateTime(now), true);
-            setFieldValue("customfield_16823", formatDateTime(start), true);
-            setFieldValue("customfield_16824", formatDateTime(end), true);
-            setFieldValue("customfield_16833", "OK", true);
+            const fields = [
+                ["customfield_16825", formatDateTime(now)],
+                ["customfield_16823", formatDateTime(start)],
+                ["customfield_16824", formatDateTime(end)],
+                ["customfield_16833", "OK"]
+            ];
+            const fieldIds = [...fields.map(([id]) => id), "customfield_16820", "customfield_16821"];
 
-            const product = document.getElementById("customfield_16820");
-            const description = document.getElementById("customfield_16821");
-            if (product?.value && description) {
-                description.value = product.value;
-                Core.dispatchChange(description);
+            const deadline = Date.now() + 2000;
+            while (Date.now() < deadline && fieldIds.some(id => !document.getElementById(id))) {
+                await Core.wait(100);
             }
+
+            const missingFields = [];
+            fields.forEach(([id, value]) => {
+                if (!setFieldValue(id, value, true)) missingFields.push(id);
+            });
+            const product = document.getElementById("customfield_16820");
+            if (!product) missingFields.push("customfield_16820");
+            else if (product.value.trim() && !setFieldValue("customfield_16821", product.value, true)) {
+                missingFields.push("customfield_16821");
+            }
+            return missingFields;
         }
 
         function makeToast(message, isError = false) {
@@ -604,13 +623,17 @@
                             [["#insight-atlas-select-16800 input"], steps.TIPO, "Tipo"],
                             [["#insight-atlas-select-16801 input"], steps.SUBTIPO_L1, "Subtipo nivel 1"],
                             [["#insight-atlas-select-16802 input"], steps.SUBTIPO_L2, "Subtipo nivel 2"],
-                            [['#cd-1 input[id^="react-select"]', "#cd-1 input"], steps.EXTRA_CIERRE, "Extra cierre"]
+                            [['#cd-1 input[id^="react-select"]', "#cd-1 input"], steps.EXTRA_CIERRE, "Extra cierre", true]
                         ];
-                        for (const [fieldSelectors, index, fieldName] of selectors) {
-                            await selectReactOption(fieldSelectors, index, fieldName);
+                        for (const [fieldSelectors, index, fieldName, optional] of selectors) {
+                            await selectReactOption(fieldSelectors, index, fieldName, optional);
                         }
-                        fillCommonFields();
-                        makeToast("Ticket completado.");
+                        const missingFields = await fillCommonFields();
+                        if (missingFields.length) {
+                            makeToast(`No se encontraron campos Jira: ${missingFields.join(", ")}.`, true);
+                        } else {
+                            makeToast("Ticket completado.");
+                        }
                     } catch (error) {
                         console.error("Error durante la inyección en Jira.", error);
                         makeToast(error.message || "Error durante la inyección.", true);
