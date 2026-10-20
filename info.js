@@ -422,6 +422,8 @@
             await Core.wait(100);
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
             await Core.wait(50);
+            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+            await Core.wait(60);
             for (let index = 0; index < steps; index++) {
                 input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
                 await Core.wait(60);
