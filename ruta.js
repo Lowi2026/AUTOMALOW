@@ -1,18 +1,49 @@
 (async function(){
 
-// Cargar agentes desde GitHub
-const respuesta = await fetch(
-"https://cdn.jsdelivr.net/gh/Lowi2026/AUTOMALOW@main/agentes.json?v="+Date.now()
-);
+const b=prompt("BMS:")?.trim();
 
-const db = await respuesta.json();
+if(!b){
+alert("Ingresa un BMS para buscar.");
+return;
+}
 
+const supabaseUrl="https://gjchhoraaukfaumzcwnd.supabase.co";
+const supabaseKey="sb_publishable_3AVUNcIiNxzTMAhDnvon1Q_GMBwjSW3";
 
-const b=prompt("BSM:");
+try{
+const endpoint=new URL("/rest/v1/head_count",supabaseUrl);
+endpoint.search=new URLSearchParams({
+select:"nombre_completo,mail,tel_movil,localidad,barrio,direccion",
+bms:`eq.${b}`,
+limit:"1"
+}).toString();
 
-if(db[b]){
+const response=await fetch(endpoint,{
+headers:{
+apikey:supabaseKey,
+Authorization:`Bearer ${supabaseKey}`
+}
+});
 
-const d=db[b];
+if(!response.ok){
+const detail=await response.text();
+throw new Error(`${response.status} ${detail}`);
+}
+
+const rows=await response.json();
+const data=rows[0]??null;
+
+if(data){
+
+const d={
+nombre:data.nombre_completo,
+correo:data.mail,
+tel:data.tel_movil,
+loc:data.localidad,
+barrio:data.barrio,
+dir:data.direccion,
+hora:""
+};
 
 const h=new Date();
 
@@ -126,9 +157,14 @@ alert("Listo: "+d.nombre);
 }else{
 
 
-alert("BSM no encontrado");
+ alert(`No se encontró el BMS ${b} entre los registros visibles. Verifica el valor y los permisos SELECT de RLS.`);
 
 
+}
+
+}catch(error){
+console.error("Error consultando head_count en Supabase:",error);
+alert("No se pudo consultar head_count en Supabase: "+error.message);
 }
 
 
