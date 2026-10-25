@@ -226,14 +226,6 @@
             return write(entries.slice(0, CONFIG.historyLimit));
         }
 
-        function removeByDate(date, agentId) {
-            if (!agentId) return false;
-            const filtered = read().filter(entry => {
-                return !(entry.agenteId === agentId && entry.fechaStr === date);
-            });
-            return write(filtered);
-        }
-
         function forDate(date, agentId) {
             if (!agentId) return [];
             return read().filter(entry => {
@@ -248,7 +240,7 @@
             }));
         }
 
-        return { add, removeByDate, forDate };
+        return { add, forDate };
     })();
 
     // Carga el SDK y centraliza la creación y validación de consultas Supabase.
@@ -867,13 +859,6 @@
                 input[type=date]::-webkit-calendar-picker-indicator{
                     width:20px;height:20px;padding:2px;margin-left:4px;border-radius:4px;
                     background-color:#d8b4fe;filter:none;opacity:1;cursor:pointer}
-                .danger-row{display:flex;align-items:center;gap:8px}
-                .danger-row input{flex:1;min-width:0}
-                .clear{width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex:none;
-                    color:#ef4444;background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.2)}
-                .calendar .clear{padding:0}
-                .clear:hover{background:rgba(239,68,68,.2);color:#ff6b6b}
-                .clear.confirming{width:auto;padding:0 12px;background:#ef4444;color:#fff;font-size:11px;font-weight:700}
                 .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
                 .stat{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
                     background:rgba(28,16,38,.4);border-color:rgba(185,118,247,.08);margin:0}
@@ -883,6 +868,9 @@
                 .stat strong{display:block;color:#b976f7;font-size:18px;margin-top:2px}
                 .stat.total strong{font-size:22px}
                 #fiber-count{color:#00f0ff}.stat.tv-stat strong{color:#f59e0b}
+                .indicator-card{min-height:86px}
+                .indicator-card strong{font-size:28px}
+                .indicator-description{margin-top:4px;color:rgba(255,255,255,.55);font-size:10px}
                 .history-group{border-radius:12px;margin-bottom:8px}
                 .history-trigger{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;
                     text-align:left;font-size:13px}
@@ -921,6 +909,9 @@
                 .followup-editor[hidden]{display:none}
                 .followup-editor input{flex:1;min-width:175px;padding:6px;border:1px solid var(--border);
                     border-radius:6px;background:var(--bg);color:#fff;color-scheme:dark;font-size:11px}
+                .followup-editor textarea{width:100%;min-height:64px;resize:vertical;padding:7px;
+                    border:1px solid var(--border);border-radius:6px;background:var(--bg);color:#fff;
+                    font:11px Arial,sans-serif}
                 .followup-editor button{padding:6px 8px;border:1px solid var(--border);border-radius:6px;
                     background:transparent;color:#d8b4fe;font-size:10px;cursor:pointer}
                 .followup-editor button:hover{background:rgba(185,118,247,.12)}
@@ -930,6 +921,8 @@
                 .followup-card-title{font-size:12px;font-weight:700;overflow-wrap:anywhere}
                 .followup-card-dni{margin-top:4px;color:#d8b4fe;font-size:11px}
                 .followup-card-date{margin-top:6px;color:rgba(255,255,255,.7);font-size:11px}
+                .followup-card-note{margin-top:7px;color:rgba(255,255,255,.8);font-size:11px;
+                    white-space:pre-wrap;overflow-wrap:anywhere}
                 .followup-card-status{margin-top:4px;color:#fbbf24;font-size:10px;font-weight:700}
                 .followup-card-actions{display:flex;gap:7px;margin-top:9px}
                 .followup-card-actions button{padding:6px 9px;border:1px solid var(--border);border-radius:6px;
@@ -1052,18 +1045,15 @@
                     <button class="tab-button" data-tab="history">Historial</button>
                     <button class="tab-button" data-tab="followups" hidden>Seguimientos</button>
                     <button class="tab-button" data-tab="recall">Rellamantes</button>
+                    <button class="tab-button" data-tab="indicators" hidden>Indicadores</button>
                     <button class="tab-button" data-tab="vault">Baúl</button>
                 </nav>
                 <main class="body" id="body">
                     <section class="view active" data-view="templates" id="templates-view"></section>
                     <section class="view" data-view="history" id="history-view">
                         <div class="calendar">
-                            <label for="history-date">FILTRO Y LIMPIEZA</label>
-                            <div class="danger-row">
-                                <input id="history-date" type="date">
-                                <button class="clear" id="clear-history" type="button" title="Limpiar historial"
-                                        aria-label="Limpiar historial"></button>
-                            </div>
+                            <label for="history-date">FILTRAR POR FECHA</label>
+                            <input id="history-date" type="date">
                         </div>
                         <div class="stats">
                             <div class="stat total"><span class="stat-label">Total copiadas</span><strong id="total-count">0</strong></div>
@@ -1071,6 +1061,25 @@
                             <div class="stat tv-stat"><span class="stat-label" id="tv-label">TV</span><strong id="tv-count">0</strong></div>
                         </div>
                         <div id="history-list"></div>
+                    </section>
+                    <section class="view" data-view="indicators" id="indicators-view">
+                        <div class="calendar">
+                            <label for="indicators-date">FECHA DE LOS INDICADORES</label>
+                            <input id="indicators-date" type="date">
+                        </div>
+                        <div class="stats">
+                            <div class="stat indicator-card">
+                                <span class="stat-label">Gestiones</span>
+                                <strong id="indicator-management-count">0</strong>
+                                <span class="indicator-description">Atenciones registradas por tus agentes</span>
+                            </div>
+                            <div class="stat indicator-card">
+                                <span class="stat-label">Rellamadas</span>
+                                <strong id="indicator-recall-count">0</strong>
+                                <span class="indicator-description">Contactos posteriores dentro de 7 días</span>
+                            </div>
+                        </div>
+                        <div id="indicators-status" aria-live="polite"></div>
                     </section>
                     <section class="view" data-view="followups" id="followups-view">
                         <div class="followup-date-range">
@@ -1133,7 +1142,7 @@
             `;
             shadow.appendChild(panel);
             shadow.getElementById("close").replaceChildren(Icons.create("close"));
-            shadow.getElementById("clear-history").appendChild(Icons.create("trash"));
+            shadow.querySelector('[data-tab="indicators"]').hidden = !state.isAdmin;
             shadow.getElementById("fiber-label").prepend(Icons.create("bolt"), " ");
             shadow.getElementById("tv-label").prepend(Icons.create("tv"), " ");
             shadow.getElementById("clear-recall-date").replaceChildren(Icons.create("close"));
@@ -1184,6 +1193,7 @@
                     shadow.querySelector(`[data-view="${button.dataset.tab}"]`).classList.add("active");
                     if (button.dataset.tab === "history") renderHistory();
                     if (button.dataset.tab === "followups") renderFollowups();
+                    if (button.dataset.tab === "indicators") renderIndicators();
                     if (button.dataset.tab === "recall") {
                         state.recallers = null;
                         renderRecallers();
@@ -1192,6 +1202,8 @@
                 });
             });
             selectedDate.addEventListener("change", () => renderHistory());
+            shadow.getElementById("indicators-date").value = Core.todayLocal();
+            shadow.getElementById("indicators-date").addEventListener("change", renderIndicators);
             shadow.getElementById("recall-date").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-same-day").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-supervisor-filter").addEventListener("change", renderRecallers);
@@ -1206,7 +1218,6 @@
                 shadow.getElementById("recall-date").value = "";
                 renderRecallers();
             });
-            shadow.getElementById("clear-history").addEventListener("click", clearHistory);
             shadow.getElementById("save-note").addEventListener("click", saveNote);
             shadow.getElementById("note-content").addEventListener("input", resizeNoteEditor);
             shadow.getElementById("cancel-note-edit").addEventListener("click", () => {
@@ -1450,7 +1461,7 @@
 
         async function loadFollowupAlerts() {
             const result = await state.db.from("g_seguimientos")
-                .select("id,agente_id,cliente,dni,due_at,reminder_mode,notified_stages")
+                .select("id,agente_id,cliente,dni,due_at,nota,reminder_mode,notified_stages")
                 .eq("agente_id", state.agentId)
                 .order("due_at", { ascending: true });
             return DataClient.assertSuccess(result) || [];
@@ -1462,7 +1473,7 @@
             return [...state.supervisorAssignments]
                 .filter(([, assignment]) =>
                     normalizeRecallSearch(assignment.supervisor) === supervisorName)
-                .map(([agentId]) => agentId);
+                .map(([, assignment]) => assignment.agentId);
         }
 
         async function loadTeamFollowupAlerts() {
@@ -1476,7 +1487,7 @@
             const agentIds = getAdminTeamAgentIds();
             if (!agentIds.length) return [];
             return fetchAllRows(() => state.db.from("g_seguimientos")
-                .select("id,agente_id,cliente,dni,due_at,reminder_mode,notified_stages")
+                .select("id,agente_id,cliente,dni,due_at,nota,reminder_mode,notified_stages")
                 .in("agente_id", agentIds)
                 .order("due_at", { ascending: true }));
         }
@@ -1524,7 +1535,7 @@
             }).format(date);
         }
 
-        async function saveFollowupAlert(record, dueAtValue, button) {
+        async function saveFollowupAlert(record, dueAtValue, noteValue, button) {
             const dni = normalizeDni(record.dni);
             if (!state.db || !state.agentId || !dni) return;
             const dueAt = new Date(dueAtValue);
@@ -1540,6 +1551,7 @@
                     cliente: record.cliente || "N/A",
                     dni,
                     due_at: dueAt.toISOString(),
+                    nota: String(noteValue || "").trim(),
                     reminder_mode: reminderMode,
                     notified_stages: []
                 }], { onConflict: "agente_id,dni" });
@@ -1575,7 +1587,9 @@
         async function sendManualFollowupReminder(alert, button) {
             const teamAgentIds = getAdminTeamAgentIds();
             if (!state.isAdmin || !state.adminSupervisorName ||
-                !teamAgentIds.includes(String(alert.agente_id || "").toLowerCase())) {
+                !teamAgentIds.some(agentId =>
+                    String(agentId).trim().toLowerCase() ===
+                    String(alert.agente_id || "").trim().toLowerCase())) {
                 notify("No tienes permisos para enviar un recordatorio a este agente.", true);
                 return;
             }
@@ -1697,14 +1711,14 @@
             const tab = shadow?.querySelector('[data-tab="followups"]');
             if (!tab) return;
             const totalAlerts = alerts.length + (state.isAdmin ? teamAlerts.length : 0);
-            tab.hidden = totalAlerts === 0;
+            tab.hidden = totalAlerts === 0 && !state.isAdmin;
             tab.replaceChildren(
                 document.createTextNode("Seguimientos"),
                 ...(totalAlerts
                     ? [Core.createElement("span", "tab-count", String(totalAlerts))]
                     : [])
             );
-            if (!totalAlerts && tab.classList.contains("active")) {
+            if (!totalAlerts && !state.isAdmin && tab.classList.contains("active")) {
                 tab.classList.remove("active");
                 shadow.querySelector('[data-view="followups"]').classList.remove("active");
                 shadow.querySelector('[data-tab="templates"]').classList.add("active");
@@ -1728,6 +1742,8 @@
             if (!alerts.length && !teamAlerts.length) {
                 showEmpty(container, selectedFollowupDate
                     ? "No hay seguimientos activos para la fecha seleccionada."
+                    : state.isAdmin
+                        ? "No hay seguimientos activos de tus agentes"
                     : "No hay seguimientos activos.");
                 return;
             }
@@ -1746,6 +1762,10 @@
                         : []),
                     Core.createElement("div", "followup-card-date",
                         `Llamar: ${formatFollowupDate(alert.due_at)}`),
+                    ...(String(alert.nota || "").trim()
+                        ? [Core.createElement("div", "followup-card-note",
+                            `Nota: ${String(alert.nota).trim()}`)]
+                        : []),
                     Core.createElement("div", "followup-card-status",
                         overdue ? "Pendiente de realizar" : "Programado")
                 );
@@ -1959,14 +1979,19 @@
                         ? localDateTimeValue(new Date(activeAlert.due_at))
                         : localDateTimeValue(new Date(Date.now() + 3600000));
                     dateTime.setAttribute("aria-label", `Fecha y hora para llamar a ${item.cliente || "cliente"}`);
+                    const noteInput = document.createElement("textarea");
+                    noteInput.maxLength = 2000;
+                    noteInput.value = activeAlert?.nota || "";
+                    noteInput.placeholder = "Escribe una nota para este seguimiento (opcional)";
+                    noteInput.setAttribute("aria-label", `Nota para el seguimiento de ${item.cliente || "cliente"}`);
                     const saveButton = Core.createElement("button", "", "Guardar");
                     saveButton.type = "button";
                     saveButton.addEventListener("click", () =>
-                        saveFollowupAlert(item, dateTime.value, saveButton));
+                        saveFollowupAlert(item, dateTime.value, noteInput.value, saveButton));
                     const cancelButton = Core.createElement("button", "", "Cancelar");
                     cancelButton.type = "button";
                     cancelButton.addEventListener("click", () => { scheduleEditor.hidden = true; });
-                    scheduleEditor.append(dateTime, saveButton, cancelButton);
+                    scheduleEditor.append(dateTime, noteInput, saveButton, cancelButton);
                     alertButton.addEventListener("click", () => {
                         scheduleEditor.hidden = !scheduleEditor.hidden;
                         if (!scheduleEditor.hidden) dateTime.focus();
@@ -2075,6 +2100,7 @@
                 const supervisor = String(row.supervisor || "").trim();
                 if (!agentId || !supervisor) return;
                 assignments.set(agentId.toLowerCase(), {
+                    agentId,
                     nombreCompleto: String(row.nombre_completo || "").trim(),
                     supervisor
                 });
@@ -2440,6 +2466,73 @@
             }
         }
 
+        async function renderIndicators() {
+            const status = shadow.getElementById("indicators-status");
+            const date = shadow.getElementById("indicators-date").value;
+            const managementCount = shadow.getElementById("indicator-management-count");
+            const recallCount = shadow.getElementById("indicator-recall-count");
+            managementCount.textContent = "—";
+            recallCount.textContent = "—";
+            if (!state.isAdmin) {
+                showEmpty(status, "Este módulo está disponible solo para administradores.");
+                return;
+            }
+            if (!state.db || !state.agentId) {
+                showEmpty(status, "No se pudo conectar con los datos de indicadores.");
+                return;
+            }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                showEmpty(status, "Selecciona una fecha válida para consultar los indicadores.");
+                return;
+            }
+            if (!state.adminSupervisorName || !state.supervisorAssignments) {
+                showEmpty(status, "No se pudo cargar la asignación de agentes del supervisor.");
+                return;
+            }
+
+            managementCount.textContent = "…";
+            recallCount.textContent = "…";
+            showEmpty(status, "Cargando indicadores...");
+            try {
+                const agentIds = getAdminTeamAgentIds();
+                let totalManagements = 0;
+                if (agentIds.length) {
+                    const result = await state.db.from("logs_soporte")
+                        .select("id", { count: "exact", head: true })
+                        .in("agente_id", agentIds)
+                        .eq("fecha_str", date);
+                    DataClient.assertSuccess(result);
+                    if (!Number.isInteger(result.count)) {
+                        throw new Error("Supabase no devolvió el total de gestiones.");
+                    }
+                    totalManagements = result.count;
+                }
+
+                if (state.recallers === null) {
+                    const records = await getRelevantRecallLogs();
+                    state.recallers = findRecallers(records);
+                }
+                const supervisorName = normalizeRecallSearch(state.adminSupervisorName);
+                const totalRecalls = state.recallers.filter(recaller => {
+                    if (recaller.callbackDay !== date) return false;
+                    const assignment = state.supervisorAssignments.get(
+                        String(recaller.initialAgent || "").toLowerCase()
+                    );
+                    return assignment &&
+                        normalizeRecallSearch(assignment.supervisor) === supervisorName;
+                }).length;
+
+                managementCount.textContent = String(totalManagements);
+                recallCount.textContent = String(totalRecalls);
+                status.replaceChildren();
+            } catch (error) {
+                console.error("No se pudieron cargar los indicadores.", error);
+                managementCount.textContent = "—";
+                recallCount.textContent = "—";
+                showEmpty(status, `No se pudieron cargar los indicadores: ${error.message}`);
+            }
+        }
+
         // Coordina la lectura, el filtrado por fecha y el renderizado del historial.
         async function renderHistory() {
             const container = shadow.getElementById("history-list");
@@ -2493,49 +2586,6 @@
             } catch (error) {
                 console.error("Error cargando historial.", error);
                 showEmpty(container, `Error al sincronizar el historial: ${error.message}`);
-            }
-        }
-
-        async function clearHistory(event) {
-            const button = event.currentTarget;
-            if (button.dataset.confirming !== "true") {
-                button.dataset.confirming = "true";
-                button.classList.add("confirming");
-                button.textContent = "¿Borrar?";
-                window.setTimeout(() => {
-                    if (button.dataset.confirming === "true") {
-                        delete button.dataset.confirming;
-                        button.classList.remove("confirming");
-                        button.replaceChildren(Icons.create("trash"));
-                    }
-                }, 4000);
-                return;
-            }
-            delete button.dataset.confirming;
-            button.classList.remove("confirming");
-            button.replaceChildren(Icons.create("trash"));
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate.value)) {
-                notify("Selecciona una fecha válida antes de borrar el historial.", true);
-                return;
-            }
-            if (!state.agentId) {
-                notify("No se puede borrar el historial sin identificar al agente.", true);
-                return;
-            }
-            try {
-                if (state.db && state.agentId) {
-                    const result = await state.db.from("logs_soporte").delete()
-                        .eq("agente_id", state.agentId).eq("fecha_str", selectedDate.value);
-                    DataClient.assertSuccess(result);
-                }
-                if (!LocalHistory.removeByDate(selectedDate.value, state.agentId)) {
-                    throw new Error("No se pudo actualizar el historial local.");
-                }
-                notify("Historial borrado.");
-                await renderHistory();
-            } catch (error) {
-                console.error("No se pudo borrar el historial.", error);
-                notify(`Error al borrar historial: ${error.message}`, true);
             }
         }
 
@@ -2751,7 +2801,7 @@
                     try {
                         const result = await state.db.from("g_usuarios_roles")
                             .select("rol,supervisor_nombre")
-                            .eq("agente_id", state.agentId).limit(1);
+                            .eq("agente_id", state.agentId);
                         const roles = DataClient.assertSuccess(result) || [];
                         const adminRole = roles.find(row =>
                             String(row.rol || "").trim().toLowerCase() === "admin");
