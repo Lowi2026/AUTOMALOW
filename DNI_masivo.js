@@ -4,10 +4,10 @@
     const clientMemoryKey = "LOWI_DNI_CLIENT_MEMORY_V1";
     const isLowiHost = location.hostname === "www.lowi.es" || location.hostname.endsWith(".lowi.es");
     const isOrdersPage = isLowiHost && /^\/bo\/orders?(?:\/|$)/.test(location.pathname);
-    const isUserPage = isLowiHost && /^\/bo\/milowi\/user\/(?:\d+\/detail\/)?$/.test(location.pathname);
+    const isUserPage = isLowiHost && /^\/bo\/milowi(?:\/user\/(?:\d+\/detail\/)?|\/?)$/.test(location.pathname);
 
     if (!isOrdersPage && !isUserPage) {
-        alert("Ejecuta este script en /bo/order/, /bo/orders/ o /bo/milowi/user/.");
+        alert("Ejecuta este script en /bo/order/, /bo/orders/ o /bo/milowi/.");
         return;
     }
     document.getElementById(panelId)?.remove();
@@ -298,7 +298,7 @@
                     <input data-complete-template type="checkbox">
                     Plantilla completa
                 </label>
-                <textarea data-dni-input aria-label="DNI de prueba" placeholder="Un DNI sintético por línea" style="box-sizing:border-box;width:100%;height:100px;margin-top:8px;padding:8px;resize:vertical"></textarea>
+                <textarea data-dni-input aria-label="DNI o ID Cliente" placeholder="Un DNI o ID Cliente por línea" style="box-sizing:border-box;width:100%;height:100px;margin-top:8px;padding:8px;resize:vertical"></textarea>
                 <textarea data-traces aria-label="Plantillas de trazabilidad" placeholder="Pega aquí las plantillas de trazabilidad al terminar las consultas" style="box-sizing:border-box;width:100%;height:130px;margin-top:8px;padding:8px;resize:vertical"></textarea>
             </details>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -397,10 +397,10 @@
 
         function updateModeControls() {
             const useCompleteTemplate = fullTemplateMode.checked;
-            textarea.setAttribute("aria-label", useCompleteTemplate ? "Plantillas DNI completas pegadas" : "DNI de prueba");
+            textarea.setAttribute("aria-label", useCompleteTemplate ? "Plantillas DNI completas pegadas" : "DNI o ID Cliente");
             textarea.placeholder = useCompleteTemplate
                 ? "Pega aquí las plantillas DNI completas"
-                : "Un DNI sintético por línea";
+                : "Un DNI o ID Cliente por línea";
             traceTextarea.placeholder = useCompleteTemplate
                 ? "Pega trazas con ID CLIENTE: o bloques completos con • ID: antes de NUMERO DE OT:"
                 : "Pega aquí las plantillas de trazabilidad al terminar las consultas";
@@ -540,7 +540,9 @@
                 const label = document.createElement("strong");
                 label.textContent = dni
                     ? `DNI/NIE ${dni} — ID Cliente: ${clientId || "no encontrado en la trazabilidad"}: `
-                    : `${worker}: `;
+                    : clientId
+                        ? `ID Cliente ${clientId}: `
+                        : `${worker}: `;
                 item.append(label, document.createTextNode(message));
                 errorList.appendChild(item);
             });
@@ -620,12 +622,12 @@
 
         status.textContent = savedServiceIds.length
             ? `${savedServiceIds.length} IDs recuperados. Pulsa Consultar para abrir la pestaña de trabajo.`
-            : "No hay IDs guardados. Pega los DNI sintéticos en esta lista y pulsa Consultar.";
+            : "No hay IDs guardados. Pega los DNI o ID Cliente, uno por línea, y pulsa Consultar.";
         fullTemplateMode.addEventListener("change", () => {
             updateModeControls();
             status.textContent = fullTemplateMode.checked
                 ? "Pega las plantillas DNI completas y la trazabilidad para combinarlas, sin abrir consultas."
-                : "Modo de consulta masiva activado. Pega los DNI sintéticos y pulsa Consultar.";
+                : "Modo de consulta masiva activado. Pega los DNI o ID Cliente y pulsa Consultar.";
         });
         completeTemplate.addEventListener("change", renderTemplates);
 
@@ -853,15 +855,34 @@
             }
             const sourceIds = retryMode
                 ? retryQueue
-                : savedServiceIds.length
-                    ? savedServiceIds
-                    : textarea.value.split(/[\s,;]+/);
-            const dnis = [...new Set(sourceIds
+                : textarea.value.split(/[\s,;]+/);
+            const inputValues = [...new Set(sourceIds
                 .map(value => value.trim())
-                .filter(Boolean)
-                .map(value => clientMemory.get(`id:${value}`)?.dni || value))];
+                .filter(Boolean))];
+            if (!inputValues.length) {
+                status.textContent = "Introduce al menos un DNI o ID Cliente.";
+                return;
+            }
+            const clientIdByInputDni = new Map();
+            const unresolvedClientIds = [];
+            const dnis = [...new Set(inputValues.flatMap(value => {
+                if (retryMode || !/^\d+$/.test(value)) return [value.toUpperCase()];
+                const remembered = clientMemory.get(`id:${value}`);
+                const dni = remembered?.dni || "";
+                if (!dni) {
+                    unresolvedClientIds.push(value);
+                    return [];
+                }
+                clientIdByInputDni.set(dni, value);
+                return [dni];
+            }))];
+            const inputErrors = unresolvedClientIds.map(clientId => ({
+                clientId,
+                message: "No se encontró este ID Cliente en la memoria local."
+            }));
             if (!dnis.length) {
-                status.textContent = "Introduce al menos un DNI sintético.";
+                renderErrors(inputErrors);
+                status.textContent = "No hay DNI para consultar. Comprueba que los ID Cliente estén guardados en la memoria.";
                 return;
             }
             if (!retryMode) {
@@ -873,6 +894,8 @@
             const clientIdByDni = new Map(
                 allDnis.map((dni, index) => [dni, traceClientIds[index] ?? ""])
             );
+            clientIdByInputDni.forEach((clientId, dni) => clientIdByDni.set(dni, clientId));
+            renderErrors(inputErrors);
             let reusedCount = 0;
             for (const dni of dnis) {
                 if (templatesByDni.has(dni)) continue;
@@ -926,7 +949,7 @@
             try {
                 let nextIndex = 0;
                 let completed = 0;
-                const errors = [];
+                const errors = [...inputErrors];
 
                 async function runWorker(workerWindow, workerIndex) {
                     while (!cancelled) {
