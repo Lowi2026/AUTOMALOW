@@ -54,6 +54,59 @@
         return supabaseClientPromise;
     }
 
+    function setupPanelWindowControls(panel) {
+        const heading = panel.firstElementChild;
+        const content = document.createElement("div");
+        while (panel.firstChild) {
+            const child = panel.firstChild;
+            if (child !== heading) content.appendChild(child);
+            else panel.removeChild(child);
+        }
+
+        const header = document.createElement("div");
+        header.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px";
+        heading.style.cssText = "display:block;margin:0;font-size:14px;line-height:1.3";
+        const actions = document.createElement("div");
+        actions.style.cssText = "display:flex;gap:6px;flex:none";
+
+        const createControl = (label, title) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.setAttribute("aria-label", label);
+            button.title = title;
+            button.style.cssText = "width:30px;height:30px;display:grid;place-items:center;padding:0;border:1px solid #888;border-radius:4px;background:#fff;color:#222;font:20px/1 Arial,sans-serif;cursor:pointer";
+            return button;
+        };
+
+        const minimizeButton = createControl("Minimizar panel", "Minimizar");
+        minimizeButton.textContent = "−";
+        const closeButton = createControl("Cerrar panel", "Cerrar");
+        closeButton.textContent = "×";
+        closeButton.dataset.action = "close";
+        actions.append(minimizeButton, closeButton);
+        header.append(heading, actions);
+        panel.append(header, content);
+
+        const originalStyle = {
+            width: panel.style.width,
+            maxHeight: panel.style.maxHeight,
+            overflowY: panel.style.overflowY,
+            padding: panel.style.padding
+        };
+        minimizeButton.addEventListener("click", () => {
+            const minimized = !content.hidden;
+            content.hidden = minimized;
+            panel.style.width = minimized ? "min(250px,calc(100vw - 40px))" : originalStyle.width;
+            panel.style.maxHeight = minimized ? "none" : originalStyle.maxHeight;
+            panel.style.overflowY = minimized ? "hidden" : originalStyle.overflowY;
+            panel.style.padding = minimized ? "8px 10px" : originalStyle.padding;
+            minimizeButton.textContent = minimized ? "+" : "−";
+            minimizeButton.setAttribute("aria-label", minimized ? "Restaurar panel" : "Minimizar panel");
+            minimizeButton.title = minimized ? "Restaurar" : "Minimizar";
+        });
+        closeButton.addEventListener("click", () => panel.remove());
+    }
+
     async function loadClientMemoryFromSupabase() {
         const client = await getSupabaseClient();
         const { data, error } = await client
@@ -240,11 +293,11 @@
                 <button type="button" data-action="start">Consultar IDs</button>
                 <button type="button" data-action="cancel" disabled>Cancelar</button>
                 <button type="button" data-action="copy" disabled>Copiar DNIs</button>
-                <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
             <div role="status" aria-live="polite" style="margin-top:8px;overflow-wrap:anywhere">Introduce los IDs, uno por línea. Los DNI ya guardados se reutilizarán.</div>
         `;
         document.body.appendChild(panel);
+        setupPanelWindowControls(panel);
 
         const textarea = panel.querySelector("textarea");
         const startButton = panel.querySelector('[data-action="start"]');
@@ -422,7 +475,6 @@
             }
         });
 
-        panel.querySelector('[data-action="close"]').addEventListener("click", () => panel.remove());
     }
 
     function runTemplateMass() {
@@ -455,7 +507,6 @@
                 <button type="button" data-action="export-memory">Exportar base</button>
                 <button type="button" data-action="import-memory">Importar base</button>
                 <button type="button" data-action="clear-memory">Borrar copia local</button>
-                <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
             <input data-memory-file type="file" accept=".json,application/json" hidden>
             <div data-memory-status role="status" style="margin-top:6px;color:#555;font-size:12px"></div>
@@ -485,6 +536,7 @@
             <div role="status" aria-live="polite" style="margin-top:8px;overflow-wrap:anywhere"></div>
         `;
         document.body.appendChild(templatePanel);
+        setupPanelWindowControls(templatePanel);
 
         const textarea = templatePanel.querySelector("[data-dni-input]");
         const traceTextarea = templatePanel.querySelector("[data-traces]");
@@ -1508,7 +1560,6 @@
                 : `${status.textContent} ${summary}`;
         });
 
-        templatePanel.querySelector('[data-action="close"]').addEventListener("click", () => templatePanel.remove());
         updateMemoryStatus();
     }
 })();
