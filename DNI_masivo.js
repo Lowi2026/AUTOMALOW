@@ -2,6 +2,10 @@
     const panelId = "dni-masivo-panel";
     const serviceIdsStorageKey = "lowi.dniMasivo.serviceIds";
     const clientMemoryKey = "LOWI_DNI_CLIENT_MEMORY_V1";
+    const supabaseUrl = "https://gjchhoraaukfaumzcwnd.supabase.co";
+    const supabaseKey = "sb_publishable_3AVUNcIiNxzTMAhDnvon1Q_GMBwjSW3";
+    const supabaseScriptUrl = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+    const clientMemoryTable = "clientes_dni";
     const isLowiHost = location.hostname === "www.lowi.es" || location.hostname.endsWith(".lowi.es");
     const isOrdersPage = isLowiHost && /^\/bo\/orders?(?:\/|$)/.test(location.pathname);
     const isUserPage = isLowiHost && /^\/bo\/milowi(?:\/user\/(?:\d+\/detail\/)?|\/?)$/.test(location.pathname);
@@ -11,6 +15,98 @@
         return;
     }
     document.getElementById(panelId)?.remove();
+    let supabaseClientPromise;
+    let memoryCorruptionDetected = false;
+
+    function getSupabaseClient() {
+        if (!supabaseClientPromise) {
+            supabaseClientPromise = (async () => {
+                if (!window.supabase?.createClient) {
+                    await new Promise((resolve, reject) => {
+                        const existing = document.querySelector(`script[src="${supabaseScriptUrl}"]`);
+                        const script = existing || document.createElement("script");
+                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar Supabase.")), 15000);
+                        const onLoad = () => {
+                            clearTimeout(timeout);
+                            window.supabase?.createClient
+                                ? resolve()
+                                : reject(new Error("El SDK de Supabase no está disponible."));
+                        };
+                        const onError = () => {
+                            clearTimeout(timeout);
+                            reject(new Error("No se pudo cargar el SDK de Supabase."));
+                        };
+                        script.addEventListener("load", onLoad, { once: true });
+                        script.addEventListener("error", onError, { once: true });
+                        if (!existing) {
+                            script.src = supabaseScriptUrl;
+                            script.async = true;
+                            document.head.appendChild(script);
+                        }
+                    });
+                }
+                return window.supabase.createClient(supabaseUrl, supabaseKey);
+            })().catch(error => {
+                supabaseClientPromise = null;
+                throw error;
+            });
+        }
+        return supabaseClientPromise;
+    }
+
+    async function loadClientMemoryFromSupabase() {
+        const client = await getSupabaseClient();
+        const { data, error } = await client
+            .from(clientMemoryTable)
+            .select("client_id,dni,template,updated_at");
+        if (error) throw error;
+        return data.map(row => normalizeMemoryEntry({
+            clientId: row.client_id,
+            dni: row.dni,
+            template: row.template,
+            updatedAt: row.updated_at
+        })).filter(Boolean);
+    }
+
+    async function saveClientMemoryToSupabase(entries) {
+        const rows = entries
+            .filter(entry => entry?.clientId && entry.dni)
+            .map(entry => ({
+                client_id: entry.clientId,
+                dni: entry.dni,
+                template: entry.template && !entry.template.includes("\uFFFD") ? entry.template : null,
+                updated_at: entry.updatedAt
+            }));
+        if (!rows.length) return 0;
+        const client = await getSupabaseClient();
+        for (let index = 0; index < rows.length; index += 500) {
+            const { error } = await client
+                .from(clientMemoryTable)
+                .upsert(rows.slice(index, index + 500), { onConflict: "client_id" });
+            if (error) throw error;
+        }
+        return rows.length;
+    }
+
+    function mergeClientMemorySnapshots(primaryEntries, secondaryEntries) {
+        const mergedByClient = new Map();
+        for (const entry of [...primaryEntries, ...secondaryEntries]) {
+            const key = entry.clientId ? `id:${entry.clientId}` : `dni:${entry.dni}`;
+            const current = mergedByClient.get(key);
+            if (!current) {
+                mergedByClient.set(key, entry);
+                continue;
+            }
+            const newest = Date.parse(entry.updatedAt) >= Date.parse(current.updatedAt) ? entry : current;
+            mergedByClient.set(key, normalizeMemoryEntry({
+                ...newest,
+                clientId: newest.clientId || current.clientId,
+                dni: newest.dni || current.dni,
+                template: newest.template || current.template
+            }));
+        }
+        return [...mergedByClient.values()];
+    }
 
     function extractTemplateClientId(template) {
         return template.match(/^\s*•?\s*ID:\s*(.+)$/im)?.[1]?.trim() || "";
@@ -20,18 +116,45 @@
         return template.match(/^\s*•?\s*(?:DNI\/NIE|DNI|NIE):\s*(.+)$/im)?.[1]?.trim() || "";
     }
 
+    function sanitizeTemplateText(value) {
+        let text = String(value ?? "").normalize("NFC");
+        const knownRepairs = [
+            [/Mar\uFFFDa/gi, "María"],
+            [/Direcci\uFFFDn/gi, "Dirección"],
+            [/M\uFFFDvil/gi, "Móvil"],
+            [/\bQu\uFFFD\b/gi, "Qué"],
+            [/Diagn\uFFFDstico/gi, "Diagnóstico"],
+            [/Soluci\uFFFDn/gi, "Solución"],
+            [/Tecnolog\uFFFDa/gi, "Tecnología"]
+        ];
+        for (const [pattern, replacement] of knownRepairs) {
+            text = text.replace(pattern, match => {
+                if (match === match.toUpperCase()) return replacement.toUpperCase();
+                if (match[0] === match[0].toUpperCase()) {
+                    return replacement[0].toUpperCase() + replacement.slice(1);
+                }
+                return replacement.toLowerCase();
+            });
+        }
+        return text
+            .replace(/\uFFFD+/g, "")
+            .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+    }
+
     function normalizeMemoryEntry(entry) {
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
             throw new Error("Cada ficha de memoria debe ser un objeto.");
         }
-        const template = typeof entry.template === "string" ? entry.template.trim() : "";
+        const rawTemplate = typeof entry.template === "string" ? entry.template.trim() : "";
         if (entry.template !== undefined && typeof entry.template !== "string") {
             throw new Error("La plantilla de una ficha debe ser texto.");
         }
-        const clientId = String(entry.clientId || extractTemplateClientId(template)).trim();
-        const dni = String(entry.dni || extractTemplateDni(template))
+        if (rawTemplate.includes("\uFFFD")) memoryCorruptionDetected = true;
+        const clientId = String(entry.clientId || extractTemplateClientId(rawTemplate)).trim();
+        const dni = String(entry.dni || extractTemplateDni(rawTemplate))
             .trim()
             .toUpperCase();
+        const template = sanitizeTemplateText(rawTemplate).trim();
         if (!clientId && !dni) {
             throw new Error("Cada ficha debe contener un ID de cliente o un DNI.");
         }
@@ -56,10 +179,10 @@
     function readClientMemoryEntries() {
         const savedMemory = JSON.parse(localStorage.getItem(clientMemoryKey) || "[]");
         if (!Array.isArray(savedMemory)) throw new Error("El formato guardado no es válido.");
-        return savedMemory.map(normalizeMemoryEntry);
+        return savedMemory.map(normalizeMemoryEntry).filter(Boolean);
     }
 
-    function saveClientMapping(clientId, dni) {
+    async function saveClientMapping(clientId, dni) {
         const entries = readClientMemoryEntries();
         const currentIndex = entries.findIndex(entry => entry.clientId === clientId);
         const current = currentIndex >= 0 ? entries[currentIndex] : null;
@@ -74,6 +197,12 @@
         if (currentIndex >= 0) entries[currentIndex] = mapping;
         else entries.push(mapping);
         localStorage.setItem(clientMemoryKey, JSON.stringify(entries));
+        try {
+            await saveClientMemoryToSupabase([mapping]);
+            return "";
+        } catch (error) {
+            return error.message;
+        }
     }
 
     function readSavedServiceIds() {
@@ -193,17 +322,28 @@
                 status.textContent = "Introduce al menos un ID de cliente.";
                 return;
             }
-            let cachedById;
+            let entries;
             try {
-                cachedById = new Map(
-                    readClientMemoryEntries()
-                        .filter(entry => entry.clientId && entry.dni)
-                        .map(entry => [entry.clientId, entry.dni])
-                );
+                entries = readClientMemoryEntries();
             } catch (error) {
                 status.textContent = `No se pudo leer la base local de clientes: ${error.message}. Corrige o borra la memoria desde /bo/milowi/user/.`;
                 return;
             }
+            let memorySyncError = "";
+            status.textContent = "Sincronizando la memoria de clientes con Supabase...";
+            try {
+                const remoteEntries = await loadClientMemoryFromSupabase();
+                entries = mergeClientMemorySnapshots(remoteEntries, entries);
+                localStorage.setItem(clientMemoryKey, JSON.stringify(entries));
+                await saveClientMemoryToSupabase(entries);
+            } catch (error) {
+                memorySyncError = error.message;
+            }
+            const cachedById = new Map(
+                entries
+                    .filter(entry => entry.clientId && entry.dni)
+                    .map(entry => [entry.clientId, entry.dni])
+            );
 
             let columnIndex;
             try {
@@ -236,12 +376,16 @@
                     if (dni) {
                         serviceIds.push(dni);
                         results.push({ id, dni, cached: false });
-                        saveClientMapping(id, dni);
+                        const syncError = await saveClientMapping(id, dni);
+                        if (syncError) memorySyncError = syncError;
                         cachedById.set(id, dni);
                     }
                 }
                 const reused = results.filter(result => result.cached).length;
-                status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length}/${ids.length} DNI obtenidos; ${reused} reutilizados de la base local.`;
+                const syncStatus = memorySyncError
+                    ? ` No se pudo sincronizar con Supabase: ${memorySyncError}.`
+                    : " Memoria sincronizada con Supabase.";
+                status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length}/${ids.length} DNI obtenidos; ${reused} reutilizados de la base compartida.${syncStatus}`;
             } catch (error) {
                 status.textContent = `Proceso detenido: ${error.message} Se conservaron ${serviceIds.length} DNI obtenidos y las relaciones ya guardadas.`;
             } finally {
@@ -310,7 +454,7 @@
                 <button type="button" data-action="retry" disabled>Reprocesar errores</button>
                 <button type="button" data-action="export-memory">Exportar base</button>
                 <button type="button" data-action="import-memory">Importar base</button>
-                <button type="button" data-action="clear-memory">Borrar memoria de clientes</button>
+                <button type="button" data-action="clear-memory">Borrar copia local</button>
                 <button type="button" data-action="close" aria-label="Cerrar" title="Cerrar">×</button>
             </div>
             <input data-memory-file type="file" accept=".json,application/json" hidden>
@@ -371,6 +515,8 @@
         const templatesByDni = new Map();
         const clientMemory = new Map();
         let memoryLoadError = "";
+        let memorySyncError = "";
+        let memoryReady = false;
         try {
             readClientMemoryEntries().forEach(entry => {
                 if (entry.clientId) clientMemory.set(`id:${entry.clientId}`, entry);
@@ -404,7 +550,7 @@
             traceTextarea.placeholder = useCompleteTemplate
                 ? "Pega trazas con ID CLIENTE: o bloques completos con • ID: antes de NUMERO DE OT:"
                 : "Pega aquí las plantillas de trazabilidad al terminar las consultas";
-            startButton.disabled = running || useCompleteTemplate;
+            startButton.disabled = running || useCompleteTemplate || !memoryReady;
             pauseButton.disabled = !running || useCompleteTemplate;
             stopButton.disabled = !running || useCompleteTemplate;
             copyButton.disabled = useCompleteTemplate || templatesByDni.size === 0;
@@ -416,14 +562,20 @@
             const uniqueClients = new Set(clientMemory.values());
             memoryStatus.textContent = memoryLoadError
                 ? `No se pudo leer la memoria local: ${memoryLoadError}`
-                : `${uniqueClients.size} clientes guardados en la memoria de este navegador.${message ? ` ${message}` : ""}`;
+                : `${uniqueClients.size} clientes en memoria.${memoryReady
+                    ? memorySyncError
+                        ? ` Supabase no disponible: ${memorySyncError}.`
+                        : " Sincronizado con Supabase."
+                    : " Conectando con Supabase..."}${memoryCorruptionDetected
+                    ? " Se limpiaron caracteres dañados al cargar plantillas; revisa los nombres propios."
+                    : ""}${message ? ` ${message}` : ""}`;
         }
 
         function formatSupportTemplate(template, includeDiagnosticFields) {
             const readValue = (pattern, fallback = "[No encontrado]") => {
                 for (const line of template.split(/\r?\n/)) {
                     const match = line.match(pattern);
-                    if (match) return match[1].trim();
+                    if (match) return sanitizeTemplateText(match[1].trim());
                 }
                 return fallback;
             };
@@ -517,6 +669,35 @@
             return merged.length;
         }
 
+        async function initializeClientMemory() {
+            try {
+                const remoteEntries = await loadClientMemoryFromSupabase();
+                mergeMemoryEntries(remoteEntries);
+                const savedCount = await saveClientMemoryToSupabase(getMemoryEntries());
+                memorySyncError = "";
+                updateMemoryStatus(`${savedCount} fichas sincronizadas.`);
+            } catch (error) {
+                memorySyncError = error.message;
+                updateMemoryStatus("Se conservará la copia local mientras no haya conexión.");
+            } finally {
+                memoryReady = true;
+                updateModeControls();
+                updateMemoryStatus();
+            }
+        }
+
+        function syncClientMemoryInBackground() {
+            saveClientMemoryToSupabase(getMemoryEntries()).then(() => {
+                memorySyncError = "";
+                updateMemoryStatus();
+            }).catch(error => {
+                memorySyncError = error.message;
+                updateMemoryStatus();
+            });
+        }
+
+        initializeClientMemory();
+
         function findRememberedTemplate(dni, clientId) {
             const id = String(clientId || "").trim();
             const byId = id ? clientMemory.get(`id:${id}`) : null;
@@ -530,6 +711,7 @@
             const normalizedDni = String(dni).trim().toUpperCase();
             const entry = { clientId, dni: normalizedDni, template, updatedAt: new Date().toISOString() };
             mergeMemoryEntries([normalizeMemoryEntry(entry)]);
+            syncClientMemoryInBackground();
         }
 
         function renderErrors(errors) {
@@ -806,7 +988,7 @@
                 (doc, url) => /^\/bo\/milowi\/user\/\d+\/detail\/?$/.test(url.pathname) && doc.querySelector("#content-main"),
                 `la ficha de ${dni}`
             );
-            return extractShortTemplate(detailDoc);
+            return sanitizeTemplateText(extractShortTemplate(detailDoc));
         }
 
         async function returnToSearchPage(workerWindow) {
@@ -820,6 +1002,7 @@
         }
 
         async function copyCombinedResult(text) {
+            text = sanitizeTemplateText(text);
             window.dniMasivoResultadoCombinado = text;
             output.value = text;
             outputContainer.hidden = false;
@@ -1037,11 +1220,15 @@
 
         exportMemoryButton.addEventListener("click", () => {
             try {
+                const clients = getMemoryEntries().map(entry => ({
+                    ...entry,
+                    ...(entry.template ? { template: sanitizeTemplateText(entry.template) } : {})
+                }));
                 const backup = {
                     app: "LOWI_DNI_CLIENT_MEMORY",
                     version: 1,
                     exportedAt: new Date().toISOString(),
-                    clients: getMemoryEntries()
+                    clients
                 };
                 if (!backup.clients.length) {
                     updateMemoryStatus("No hay clientes para exportar.");
@@ -1098,10 +1285,21 @@
                 if (!sourceEntries || !sourceEntries.length) {
                     throw new Error("El archivo no contiene fichas de clientes.");
                 }
-                const validatedEntries = sourceEntries.map(normalizeMemoryEntry);
+                const validatedEntries = sourceEntries.map(normalizeMemoryEntry).filter(Boolean);
+                if (!validatedEntries.length) {
+                    throw new Error("No hay fichas válidas para importar; las plantillas dañadas no se pueden recuperar desde el archivo.");
+                }
                 const total = mergeMemoryEntries(validatedEntries);
-                updateMemoryStatus(`${validatedEntries.length} fichas importadas; ${total} clientes en memoria.`);
-                status.textContent = `Copia importada correctamente: ${validatedEntries.length} fichas procesadas.`;
+                try {
+                    const savedCount = await saveClientMemoryToSupabase(getMemoryEntries());
+                    memorySyncError = "";
+                    updateMemoryStatus(`${validatedEntries.length} fichas importadas; ${total} clientes en memoria; ${savedCount} sincronizados.`);
+                    status.textContent = `Copia importada y sincronizada: ${validatedEntries.length} fichas procesadas.`;
+                } catch (error) {
+                    memorySyncError = error.message;
+                    updateMemoryStatus(`${validatedEntries.length} fichas importadas localmente; no se pudieron sincronizar.`);
+                    status.textContent = `Copia importada en este navegador, pero no en Supabase: ${error.message}`;
+                }
             } catch (error) {
                 updateMemoryStatus(`No se importó ningún dato: ${error.message}`);
                 status.textContent = `Error al importar la base: ${error.message}`;
@@ -1111,12 +1309,12 @@
         });
 
         clearMemoryButton.addEventListener("click", () => {
-            if (!confirm("¿Borrar todas las relaciones ID-DNI y fichas guardadas en este navegador?")) return;
+            if (!confirm("¿Borrar la copia local? Los datos guardados en Supabase no se borrarán.")) return;
             try {
                 localStorage.removeItem(clientMemoryKey);
                 clientMemory.clear();
                 memoryLoadError = "";
-                updateMemoryStatus("Memoria borrada.");
+                updateMemoryStatus("Copia local borrada; Supabase conserva los datos.");
             } catch (error) {
                 updateMemoryStatus(`No se pudo borrar la memoria: ${error.message}`);
             }
