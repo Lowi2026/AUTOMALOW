@@ -717,6 +717,21 @@
         let root;
         let shadow;
         let selectedDate;
+        let spainClockInterval = null;
+        const spainClockFormatter = new Intl.DateTimeFormat("es-ES", {
+            timeZone: "Europe/Madrid",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hourCycle: "h23"
+        });
+
+        function stopSpainClock() {
+            if (spainClockInterval !== null) {
+                window.clearInterval(spainClockInterval);
+                spainClockInterval = null;
+            }
+        }
 
         // Identificadores que activan textos dinámicos de plantillas.
         const TEMPLATE_MARKERS = Object.freeze({
@@ -805,6 +820,9 @@
                 .header,.footer{padding:14px 16px;background:var(--bg);display:flex;align-items:center;justify-content:space-between}
                 .header{cursor:move;border-bottom:1px solid var(--border)}
                 .header h2{font-size:15px;margin:0 0 4px}.header p{font-size:11px;color:#b976f7;margin:0}
+                .header-clock{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none;
+                    color:#b976f7;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+                .header-clock-label{font-size:13px;font-weight:700}
                 button,input,textarea{font:inherit}.button{color:#fff;border:0;border-radius:8px;padding:9px 11px;background:#7a22b4;cursor:pointer}
                 .header-actions{display:flex;align-items:center;gap:5px}
                 .header-actions button{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
@@ -970,6 +988,9 @@
                 .recall-filter-row{display:flex;align-items:center;gap:7px}
                 .recall-filter-row input{flex:1;min-width:0}
                 .recall-agent-filter{margin-top:8px}
+                .recall-dni-filter{margin-top:8px}
+                .recall-dni-filter input{display:block;width:100%;min-width:0;padding:8px;
+                    border:1px solid var(--border);border-radius:7px;background:var(--bg);color:#fff}
                 .recall-same-day-filter{display:flex;align-items:flex-start;gap:7px;margin-top:9px}
                 .recall-same-day-filter input{width:15px;height:15px;flex:none;margin-top:1px;accent-color:#b976f7}
                 .recall-filter .recall-same-day-filter label{margin:0;color:rgba(255,255,255,.75);font-size:11px;
@@ -1035,6 +1056,10 @@
             panel.innerHTML = `
                 <header class="header" id="drag-handle">
                     <div><h2>Generador de Plantillas</h2><p>lowi.es — Maestro Principal</p></div>
+                    <div class="header-clock" title="Hora peninsular de España">
+                        <span class="header-clock-label">Hora España</span>
+                        <time id="spain-clock" aria-label="Hora actual de España" aria-live="off">--:--:--</time>
+                    </div>
                     <div class="header-actions">
                         <button id="restore-panel" type="button" aria-label="Mostrar interfaz" title="Mostrar interfaz" hidden>+</button>
                         <button class="close" id="close" type="button" aria-label="Cerrar" title="Cerrar">×</button>
@@ -1106,6 +1131,11 @@
                                 <input id="recall-same-day" type="checkbox">
                                 <label for="recall-same-day">Solo atención y rellamada del mismo día</label>
                             </div>
+                            <div class="recall-dni-filter" id="recall-dni-filter-container" hidden>
+                                <label for="recall-dni-filter">BUSCAR RELLAMADAS POR DNI/NIE</label>
+                                <input id="recall-dni-filter" type="search" placeholder="Introduce el DNI o NIE..."
+                                    autocomplete="off" aria-label="Buscar tus rellamadas por DNI o NIE">
+                            </div>
                             <div class="recall-agent-filter" id="recall-supervisor-filter-container" hidden>
                                 <label for="recall-supervisor-filter">FILTRAR POR SUPERVISOR</label>
                                 <select id="recall-supervisor-filter" aria-label="Filtrar rellamadas por supervisor"></select>
@@ -1142,10 +1172,18 @@
             `;
             shadow.appendChild(panel);
             shadow.getElementById("close").replaceChildren(Icons.create("close"));
+            const clock = shadow.getElementById("spain-clock");
+            const updateSpainClock = () => {
+                clock.textContent = spainClockFormatter.format(new Date());
+            };
+            updateSpainClock();
+            stopSpainClock();
+            spainClockInterval = window.setInterval(updateSpainClock, 1000);
             shadow.querySelector('[data-tab="indicators"]').hidden = !state.isAdmin;
             shadow.getElementById("fiber-label").prepend(Icons.create("bolt"), " ");
             shadow.getElementById("tv-label").prepend(Icons.create("tv"), " ");
             shadow.getElementById("clear-recall-date").replaceChildren(Icons.create("close"));
+            shadow.getElementById("recall-dni-filter-container").hidden = state.isAdmin;
             shadow.getElementById("recall-agent-filter-container").hidden = !state.isAdmin;
             shadow.getElementById("recall-group-filter-container").hidden = !state.isAdmin;
             const supervisorFilter = shadow.getElementById("recall-supervisor-filter-container");
@@ -1169,7 +1207,10 @@
         }
 
         function bindShellEvents(panel) {
-            shadow.getElementById("close").addEventListener("click", () => root.remove());
+            shadow.getElementById("close").addEventListener("click", () => {
+                stopSpainClock();
+                root.remove();
+            });
             const body = shadow.getElementById("body");
             const nav = shadow.querySelector(".tabs");
             const toggleButton = shadow.getElementById("toggle-panel");
@@ -1209,6 +1250,7 @@
             shadow.getElementById("recall-supervisor-filter").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-group-filter").addEventListener("change", renderRecallers);
             shadow.getElementById("recall-agent-filter").addEventListener("input", renderRecallers);
+            shadow.getElementById("recall-dni-filter").addEventListener("input", renderRecallers);
             shadow.getElementById("followups-date").addEventListener("change", renderFollowups);
             shadow.getElementById("clear-followups-date").addEventListener("click", () => {
                 shadow.getElementById("followups-date").value = "";
@@ -2275,11 +2317,13 @@
                 .toLowerCase().trim();
         }
 
-        function renderRecallEntries(container, recallers, filterDate, isAdmin, sameDayOnly, groupByAgent) {
+        function renderRecallEntries(container, recallers, filterDate, isAdmin, sameDayOnly, groupByAgent, dniSearch = "") {
             container.replaceChildren();
             if (!recallers.length) {
                 showEmpty(container, isAdmin
                     ? "No se encontraron rellamadas para los filtros seleccionados."
+                    : dniSearch
+                        ? "No se encontraron rellamadas tuyas para el DNI/NIE indicado."
                     : sameDayOnly
                         ? "No se encontraron atenciones y rellamadas del mismo día con los filtros seleccionados."
                         : filterDate
@@ -2296,6 +2340,7 @@
                     : " cliente(s) atendido(s) después por otro agente dentro de los 7 días siguientes. ",
                 "Las tipificaciones consecutivas del mismo agente se consolidan usando la última.",
                 filterDate ? ` Fecha de rellamada: ${formatDateOnly(filterDate)}.` : "",
+                dniSearch ? ` DNI/NIE: ${dniSearch}.` : "",
                 sameDayOnly ? " Solo atenciones y rellamadas del mismo día." : ""
             );
             container.appendChild(summary);
@@ -2439,6 +2484,9 @@
                 }
                 const filterDate = shadow.getElementById("recall-date").value;
                 const sameDayOnly = shadow.getElementById("recall-same-day").checked;
+                const dniSearch = state.isAdmin
+                    ? ""
+                    : normalizeDni(shadow.getElementById("recall-dni-filter").value) || "";
                 const supervisorFilter = shadow.getElementById("recall-supervisor-filter").value;
                 const groupByAgent = state.isAdmin &&
                     shadow.getElementById("recall-group-filter").value === "agent";
@@ -2448,7 +2496,8 @@
                 const recallers = state.recallers.filter(recaller => {
                     const matchesDate = !filterDate || recaller.callbackDay === filterDate;
                     const matchesSameDay = !sameDayOnly || recaller.initialDay === recaller.callbackDay;
-                    if (!state.isAdmin) return matchesDate && matchesSameDay;
+                    const matchesDni = !dniSearch || normalizeDni(recaller.dni)?.includes(dniSearch);
+                    if (!state.isAdmin) return matchesDate && matchesSameDay && matchesDni;
                     const assignment = state.supervisorAssignments.get(recaller.initialAgent.toLowerCase());
                     if (!assignment) return false;
                     const searchableAgent = normalizeRecallSearch(
@@ -2458,7 +2507,7 @@
                         (!supervisorFilter || assignment.supervisor.toLowerCase() === supervisorFilter) &&
                         agentTerms.every(term => searchableAgent.includes(term));
                 });
-                renderRecallEntries(container, recallers, filterDate, state.isAdmin, sameDayOnly, groupByAgent);
+                renderRecallEntries(container, recallers, filterDate, state.isAdmin, sameDayOnly, groupByAgent, dniSearch);
             } catch (error) {
                 console.error("No se pudieron calcular las rellamadas.", error);
                 showEmpty(container,
@@ -2821,6 +2870,7 @@
                 console.warn("No se identificó un agente; se deshabilitarán las funciones en la nube.");
             }
 
+            stopSpainClock();
             document.getElementById(CONFIG.rootId)?.remove();
             buildShell();
             createTemplateView();

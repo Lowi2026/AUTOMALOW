@@ -25,7 +25,7 @@
                     await new Promise((resolve, reject) => {
                         const existing = document.querySelector(`script[src="${supabaseScriptUrl}"]`);
                         const script = existing || document.createElement("script");
-                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar Supabase.")), 15000);
+                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar la base.")), 15000);
                         const onLoad = () => {
                             clearTimeout(timeout);
                             window.supabase?.createClient
@@ -616,7 +616,7 @@
                 ? `No se pudo leer la memoria local: ${memoryLoadError}`
                 : `${uniqueClients.size} clientes en memoria.${memoryReady
                     ? memorySyncError
-                        ? ` Supabase no disponible: ${memorySyncError}.`
+                        ? ` No disponible: ${memorySyncError}.`
                         : " Sincronizado."
                     : " Conectando con Supabase..."}${memoryCorruptionDetected
                     ? " Se limpiaron caracteres dañados al cargar plantillas; revisa los nombres propios."
@@ -1350,7 +1350,7 @@
                 } catch (error) {
                     memorySyncError = error.message;
                     updateMemoryStatus(`${validatedEntries.length} fichas importadas localmente; no se pudieron sincronizar.`);
-                    status.textContent = `Copia importada en este navegador, pero no en Supabase: ${error.message}`;
+                    status.textContent = `Copia importada en este navegador, pero no base: ${error.message}`;
                 }
             } catch (error) {
                 updateMemoryStatus(`No se importó ningún dato: ${error.message}`);
@@ -1361,12 +1361,12 @@
         });
 
         clearMemoryButton.addEventListener("click", () => {
-            if (!confirm("¿Borrar la copia local? Los datos guardados en Supabase no se borrarán.")) return;
+            if (!confirm("¿Borrar la copia local? Los datos guardados en Base no se borrarán.")) return;
             try {
                 localStorage.removeItem(clientMemoryKey);
                 clientMemory.clear();
                 memoryLoadError = "";
-                updateMemoryStatus("Copia local borrada; Supabase conserva los datos.");
+                updateMemoryStatus("Copia local borrada; base conserva los datos.");
             } catch (error) {
                 updateMemoryStatus(`No se pudo borrar la memoria: ${error.message}`);
             }
