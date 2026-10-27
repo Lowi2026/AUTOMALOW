@@ -383,7 +383,7 @@
                 return;
             }
             let memorySyncError = "";
-            status.textContent = "Sincronizando la memoria de clientes con Supabase...";
+            status.textContent = "Sincronizando la memoria de los clientes ...";
             try {
                 const remoteEntries = await loadClientMemoryFromSupabase();
                 entries = mergeClientMemorySnapshots(remoteEntries, entries);
@@ -436,8 +436,8 @@
                 }
                 const reused = results.filter(result => result.cached).length;
                 const syncStatus = memorySyncError
-                    ? ` No se pudo sincronizar con Supabase: ${memorySyncError}.`
-                    : " Memoria sincronizada con Supabase.";
+                    ? ` No se pudo sincronizar : ${memorySyncError}.`
+                    : " Memoria sincronizada .";
                 status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length}/${ids.length} DNI obtenidos; ${reused} reutilizados de la base compartida.${syncStatus}`;
             } catch (error) {
                 status.textContent = `Proceso detenido: ${error.message} Se conservaron ${serviceIds.length} DNI obtenidos y las relaciones ya guardadas.`;
@@ -617,7 +617,7 @@
                 : `${uniqueClients.size} clientes en memoria.${memoryReady
                     ? memorySyncError
                         ? ` Supabase no disponible: ${memorySyncError}.`
-                        : " Sincronizado con Supabase."
+                        : " Sincronizado."
                     : " Conectando con Supabase..."}${memoryCorruptionDetected
                     ? " Se limpiaron caracteres dañados al cargar plantillas; revisa los nombres propios."
                     : ""}${message ? ` ${message}` : ""}`;
