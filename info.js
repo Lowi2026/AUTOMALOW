@@ -705,7 +705,7 @@
     const LowiModule = (() => {
         const state = {
             templates: null, services: [], agentId: null, db: null,
-            isAdmin: false, recallers: null, recallAgentNames: null,
+            isAdmin: false, isSuperAdmin: false, recallers: null, recallAgentNames: null,
             supervisorAssignments: null, supervisors: [],
             adminSupervisorName: null,
             teamFollowupAlerts: [],
@@ -829,14 +829,18 @@
                     padding:0;border:0;border-radius:7px;background:transparent;color:#fff;cursor:pointer;font-size:17px}
                 .header-actions button:hover{background:#7a22b4}
                 #restore-panel[hidden]{display:none}
-                .tabs{display:flex;min-width:0;border-bottom:1px solid var(--border)}
-                .tab-button{flex:1;padding:11px 6px;background:transparent;border:0;color:#aaa;cursor:pointer;font-weight:600}
+                .tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));min-width:0;
+                    border-bottom:1px solid var(--border)}
+                .tab-button{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0;
+                    min-height:36px;padding:8px 4px;background:transparent;border:0;color:#aaa;
+                    cursor:pointer;font-weight:600;line-height:1.2;white-space:normal}
                 .tab-button.active{color:white;border-bottom:2px solid #b976f7}
-                .tab-button{min-width:0;padding-left:4px;padding-right:4px;font-size:12px;white-space:nowrap}
+                .tab-button{font-size:12px}
+                .tab-label{min-width:0;overflow-wrap:anywhere}
                 .tab-button:focus-visible{outline:2px solid #d8b4fe;outline-offset:-3px;border-radius:5px}
                 .tab-button[hidden]{display:none}
-                .tab-count{display:inline-block;min-width:16px;margin-left:4px;padding:2px 5px;
-                    border-radius:10px;background:#7a22b4;color:#fff;font-size:9px}
+                .tab-count{display:inline-block;flex:none;min-width:16px;padding:2px 5px;
+                    border-radius:10px;background:#7a22b4;color:#fff;font-size:9px;line-height:1.2}
                 .body{padding:12px;overflow:auto}.view{display:none}.view.active{display:block}
                 .category,.subgroup,.history-group,.note{border:1px solid var(--border);border-radius:11px;background:var(--card);overflow:hidden;margin-bottom:9px}
                 .accordion,.group-trigger,.history-trigger{width:100%;padding:12px;text-align:left;background:transparent;border:0;color:#fff;cursor:pointer;font-weight:600}
@@ -942,7 +946,7 @@
                 .followup-card-note{margin-top:7px;color:rgba(255,255,255,.8);font-size:11px;
                     white-space:pre-wrap;overflow-wrap:anywhere}
                 .followup-card-status{margin-top:4px;color:#fbbf24;font-size:10px;font-weight:700}
-                .followup-card-actions{display:flex;gap:7px;margin-top:9px}
+                .followup-card-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
                 .followup-card-actions button{padding:6px 9px;border:1px solid var(--border);border-radius:6px;
                     background:transparent;color:#d8b4fe;font-size:10px;font-weight:600;cursor:pointer}
                 .followup-card-actions button:hover{background:rgba(185,118,247,.12)}
@@ -1038,9 +1042,7 @@
                 .muted{text-align:center;opacity:.65;padding:12px;font-size:12px}.copied{border-color:#10b981}
                 @media(max-width:430px){
                     .panel{top:10px;right:10px;max-height:calc(100vh - 20px)}
-                    .tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
                     .tab-button{padding:9px 3px;font-size:11px}
-                    .tab-count{display:none}
                 }
             `;
             shadow.appendChild(style);
@@ -1068,7 +1070,9 @@
                 <nav class="tabs" aria-label="Secciones">
                     <button class="tab-button active" data-tab="templates">Plantillas</button>
                     <button class="tab-button" data-tab="history">Historial</button>
-                    <button class="tab-button" data-tab="followups" hidden>Seguimientos</button>
+                    <button class="tab-button" data-tab="followups" hidden>
+                        <span class="tab-label">Seguimientos</span>
+                    </button>
                     <button class="tab-button" data-tab="recall">Rellamantes</button>
                     <button class="tab-button" data-tab="indicators" hidden>Indicadores</button>
                     <button class="tab-button" data-tab="vault">Baúl</button>
@@ -1510,7 +1514,11 @@
         }
 
         function getAdminTeamAgentIds() {
-            if (!state.isAdmin || !state.adminSupervisorName || !state.supervisorAssignments) return [];
+            if (!state.isAdmin || !state.supervisorAssignments) return [];
+            if (state.isSuperAdmin) {
+                return [...state.supervisorAssignments.values()].map(assignment => assignment.agentId);
+            }
+            if (!state.adminSupervisorName) return [];
             const supervisorName = normalizeRecallSearch(state.adminSupervisorName);
             return [...state.supervisorAssignments]
                 .filter(([, assignment]) =>
@@ -1520,7 +1528,7 @@
 
         async function loadTeamFollowupAlerts() {
             if (!state.isAdmin) return [];
-            if (!state.adminSupervisorName) {
+            if (!state.isSuperAdmin && !state.adminSupervisorName) {
                 throw new Error("Completa supervisor_nombre para tu agente en g_usuarios_roles.");
             }
             if (!state.supervisorAssignments) {
@@ -1531,6 +1539,7 @@
             return fetchAllRows(() => state.db.from("g_seguimientos")
                 .select("id,agente_id,cliente,dni,due_at,nota,reminder_mode,notified_stages")
                 .in("agente_id", agentIds)
+                .neq("agente_id", state.agentId)
                 .order("due_at", { ascending: true }));
         }
 
@@ -1608,6 +1617,48 @@
             }
         }
 
+        async function rescheduleFollowupAlert(alert, dueAtValue, noteValue, button) {
+            const agentId = String(alert?.agente_id || "").trim();
+            const isOwnAlert = agentId.toLowerCase() === String(state.agentId || "").toLowerCase();
+            const isAssignedTeamAlert = state.isSuperAdmin &&
+                state.teamFollowupAlerts.some(item =>
+                    String(item.id) === String(alert?.id) &&
+                    String(item.agente_id || "").trim().toLowerCase() === agentId.toLowerCase());
+            if (!state.db || !state.agentId || !alert?.id ||
+                (!isOwnAlert && !isAssignedTeamAlert)) {
+                notify("No tienes permisos para reprogramar este seguimiento.", true);
+                return;
+            }
+            const dueAt = new Date(dueAtValue);
+            if (!Number.isFinite(dueAt.getTime()) || dueAt.getTime() <= Date.now()) {
+                notify("Selecciona una fecha y hora futura para el seguimiento.", true);
+                return;
+            }
+            button.disabled = true;
+            try {
+                const reminderMode = dueAt.getTime() - Date.now() > 86400000 ? "days" : "hours";
+                const result = await state.db.from("g_seguimientos")
+                    .update({
+                        due_at: dueAt.toISOString(),
+                        nota: String(noteValue || "").trim(),
+                        reminder_mode: reminderMode,
+                        notified_stages: []
+                    })
+                    .eq("id", alert.id)
+                    .eq("agente_id", agentId)
+                    .select("id");
+                if (!(DataClient.assertSuccess(result) || []).length) {
+                    throw new Error("No se encontró el seguimiento para actualizarlo.");
+                }
+                notify(`Contacto reprogramado para ${formatFollowupDate(dueAt)}.`);
+                await runFollowupScheduler();
+            } catch (error) {
+                console.error("No se pudo reprogramar el seguimiento.", error);
+                notify(`No se pudo reprogramar el contacto: ${error.message}`, true);
+                button.disabled = false;
+            }
+        }
+
         async function removeFollowupAlert(alert, button) {
             if (!state.db || !state.agentId || !alert?.id) return;
             button.disabled = true;
@@ -1628,7 +1679,7 @@
 
         async function sendManualFollowupReminder(alert, button) {
             const teamAgentIds = getAdminTeamAgentIds();
-            if (!state.isAdmin || !state.adminSupervisorName ||
+            if (!state.isAdmin || (!state.isSuperAdmin && !state.adminSupervisorName) ||
                 !teamAgentIds.some(agentId =>
                     String(agentId).trim().toLowerCase() ===
                     String(alert.agente_id || "").trim().toLowerCase())) {
@@ -1646,7 +1697,7 @@
                     seguimiento_id: alert.id,
                     agente_id: alert.agente_id,
                     supervisor_agente_id: state.agentId,
-                    supervisor_nombre: state.adminSupervisorName,
+                    supervisor_nombre: state.isSuperAdmin ? "SuperAdmin" : state.adminSupervisorName,
                     mensaje: `Se te recuerda realizar el seguimiento programado para ${formatFollowupDate(alert.due_at)}.`
                 }]).select("id");
                 const rows = DataClient.assertSuccess(result) || [];
@@ -1755,7 +1806,7 @@
             const totalAlerts = alerts.length + (state.isAdmin ? teamAlerts.length : 0);
             tab.hidden = totalAlerts === 0 && !state.isAdmin;
             tab.replaceChildren(
-                document.createTextNode("Seguimientos"),
+                Core.createElement("span", "tab-label", "Seguimientos"),
                 ...(totalAlerts
                     ? [Core.createElement("span", "tab-count", String(totalAlerts))]
                     : [])
@@ -1780,12 +1831,17 @@
                 return !selectedFollowupDate || followupDate === selectedFollowupDate;
             };
             const alerts = state.followupAlerts.filter(isInDateRange);
-            const teamAlerts = state.teamFollowupAlerts.filter(isInDateRange);
+            const teamAlerts = state.teamFollowupAlerts.filter(alert =>
+                String(alert.agente_id || "").trim().toLowerCase() !==
+                    String(state.agentId || "").trim().toLowerCase() &&
+                isInDateRange(alert));
             if (!alerts.length && !teamAlerts.length) {
                 showEmpty(container, selectedFollowupDate
                     ? "No hay seguimientos activos para la fecha seleccionada."
                     : state.isAdmin
-                        ? "No hay seguimientos activos de tus agentes"
+                        ? state.isSuperAdmin
+                            ? "No hay seguimientos activos de los agentes asignados."
+                            : "No hay seguimientos activos de tus agentes"
                     : "No hay seguimientos activos.");
                 return;
             }
@@ -1812,6 +1868,7 @@
                         overdue ? "Pendiente de realizar" : "Programado")
                 );
                 const actions = Core.createElement("div", "followup-card-actions");
+                let editor = null;
                 const openButton = Core.createElement("button", "", "Ver cliente");
                 openButton.type = "button";
                 openButton.addEventListener("click", () => openCustomerByDni(alert.dni));
@@ -1822,14 +1879,33 @@
                     remindButton.addEventListener("click", () =>
                         sendManualFollowupReminder(alert, remindButton));
                     actions.appendChild(remindButton);
+                    if (state.isSuperAdmin) {
+                        const rescheduleButton = Core.createElement("button", "", "Reprogramar contacto");
+                        rescheduleButton.type = "button";
+                        actions.appendChild(rescheduleButton);
+                        editor = createFollowupRescheduleEditor(alert, dueAt);
+                        rescheduleButton.addEventListener("click", () => {
+                            editor.hidden = !editor.hidden;
+                            if (!editor.hidden) editor.querySelector('input[type="datetime-local"]').focus();
+                        });
+                    }
                 } else {
+                    const rescheduleButton = Core.createElement("button", "", "Reprogramar contacto");
+                    rescheduleButton.type = "button";
+                    actions.appendChild(rescheduleButton);
                     const completeButton = Core.createElement("button", "", "Marcar realizado");
                     completeButton.type = "button";
                     completeButton.addEventListener("click", () =>
                         removeFollowupAlert(alert, completeButton));
                     actions.appendChild(completeButton);
+                    editor = createFollowupRescheduleEditor(alert, dueAt);
+                    rescheduleButton.addEventListener("click", () => {
+                        editor.hidden = !editor.hidden;
+                        if (!editor.hidden) editor.querySelector('input[type="datetime-local"]').focus();
+                    });
                 }
                 card.appendChild(actions);
+                if (editor) card.appendChild(editor);
                 container.appendChild(card);
             };
             alerts.forEach(alert => renderCard(alert));
@@ -1857,6 +1933,33 @@
                         team.alerts.forEach(alert => renderCard(alert, true));
                     });
             }
+        }
+
+        function createFollowupRescheduleEditor(alert, dueAt) {
+            const editor = Core.createElement("div", "followup-editor");
+            editor.hidden = true;
+            const dateTime = document.createElement("input");
+            dateTime.type = "datetime-local";
+            dateTime.required = true;
+            dateTime.min = localDateTimeValue(new Date(Date.now() + 60000));
+            dateTime.value = Number.isFinite(dueAt.getTime())
+                ? localDateTimeValue(dueAt)
+                : localDateTimeValue(new Date(Date.now() + 3600000));
+            dateTime.setAttribute("aria-label", `Nueva fecha y hora para ${alert.cliente || "cliente"}`);
+            const noteInput = document.createElement("textarea");
+            noteInput.maxLength = 2000;
+            noteInput.value = alert.nota || "";
+            noteInput.placeholder = "Nota del seguimiento (opcional)";
+            noteInput.setAttribute("aria-label", `Nota para el seguimiento de ${alert.cliente || "cliente"}`);
+            const saveButton = Core.createElement("button", "", "Guardar nueva fecha");
+            saveButton.type = "button";
+            saveButton.addEventListener("click", () =>
+                rescheduleFollowupAlert(alert, dateTime.value, noteInput.value, saveButton));
+            const cancelButton = Core.createElement("button", "", "Cancelar");
+            cancelButton.type = "button";
+            cancelButton.addEventListener("click", () => { editor.hidden = true; });
+            editor.append(dateTime, noteInput, saveButton, cancelButton);
+            return editor;
         }
 
         async function runFollowupScheduler() {
@@ -2500,6 +2603,8 @@
                     if (!state.isAdmin) return matchesDate && matchesSameDay && matchesDni;
                     const assignment = state.supervisorAssignments.get(recaller.initialAgent.toLowerCase());
                     if (!assignment) return false;
+                    if (state.isSuperAdmin &&
+                        !state.supervisorAssignments.has(recaller.callbackAgent.toLowerCase())) return false;
                     const searchableAgent = normalizeRecallSearch(
                         `${assignment.nombreCompleto} ${recaller.initialAgent}`
                     );
@@ -2534,7 +2639,7 @@
                 showEmpty(status, "Selecciona una fecha válida para consultar los indicadores.");
                 return;
             }
-            if (!state.adminSupervisorName || !state.supervisorAssignments) {
+            if ((!state.isSuperAdmin && !state.adminSupervisorName) || !state.supervisorAssignments) {
                 showEmpty(status, "No se pudo cargar la asignación de agentes del supervisor.");
                 return;
             }
@@ -2561,14 +2666,19 @@
                     const records = await getRelevantRecallLogs();
                     state.recallers = findRecallers(records);
                 }
-                const supervisorName = normalizeRecallSearch(state.adminSupervisorName);
                 const totalRecalls = state.recallers.filter(recaller => {
                     if (recaller.callbackDay !== date) return false;
                     const assignment = state.supervisorAssignments.get(
                         String(recaller.initialAgent || "").toLowerCase()
                     );
-                    return assignment &&
-                        normalizeRecallSearch(assignment.supervisor) === supervisorName;
+                    if (!assignment) return false;
+                    if (state.isSuperAdmin) {
+                        return state.supervisorAssignments.has(
+                            String(recaller.callbackAgent || "").toLowerCase()
+                        );
+                    }
+                    return normalizeRecallSearch(assignment.supervisor) ===
+                        normalizeRecallSearch(state.adminSupervisorName);
                 }).length;
 
                 managementCount.textContent = String(totalManagements);
@@ -2852,11 +2962,15 @@
                             .select("rol,supervisor_nombre")
                             .eq("agente_id", state.agentId);
                         const roles = DataClient.assertSuccess(result) || [];
+                        const superAdminRole = roles.find(row =>
+                            String(row.rol || "").trim().toLowerCase() === "superadmin");
                         const adminRole = roles.find(row =>
                             String(row.rol || "").trim().toLowerCase() === "admin");
-                        state.isAdmin = Boolean(adminRole);
-                        if (state.isAdmin) {
-                            state.adminSupervisorName = String(adminRole.supervisor_nombre || "").trim();
+                        const privilegedRole = superAdminRole || adminRole;
+                        state.isSuperAdmin = Boolean(superAdminRole);
+                        state.isAdmin = Boolean(privilegedRole);
+                        if (privilegedRole) {
+                            state.adminSupervisorName = String(privilegedRole.supervisor_nombre || "").trim();
                             await loadSupervisorAssignments();
                         }
                     } catch (error) {
