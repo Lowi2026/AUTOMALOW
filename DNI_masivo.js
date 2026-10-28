@@ -25,7 +25,7 @@
                     await new Promise((resolve, reject) => {
                         const existing = document.querySelector(`script[src="${supabaseScriptUrl}"]`);
                         const script = existing || document.createElement("script");
-                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar la base.")), 15000);
+                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar Supabase.")), 15000);
                         const onLoad = () => {
                             clearTimeout(timeout);
                             window.supabase?.createClient
@@ -199,7 +199,7 @@
             throw new Error("Cada ficha de memoria debe ser un objeto.");
         }
         const rawTemplate = typeof entry.template === "string" ? entry.template.trim() : "";
-        if (entry.template !== undefined && typeof entry.template !== "string") {
+        if (entry.template !== undefined && entry.template !== null && typeof entry.template !== "string") {
             throw new Error("La plantilla de una ficha debe ser texto.");
         }
         if (rawTemplate.includes("\uFFFD")) memoryCorruptionDetected = true;
@@ -383,7 +383,7 @@
                 return;
             }
             let memorySyncError = "";
-            status.textContent = "Sincronizando la memoria de los clientes ...";
+            status.textContent = "Sincronizando la memoria de clientes con Supabase...";
             try {
                 const remoteEntries = await loadClientMemoryFromSupabase();
                 entries = mergeClientMemorySnapshots(remoteEntries, entries);
@@ -436,8 +436,8 @@
                 }
                 const reused = results.filter(result => result.cached).length;
                 const syncStatus = memorySyncError
-                    ? ` No se pudo sincronizar : ${memorySyncError}.`
-                    : " Memoria sincronizada .";
+                    ? ` No se pudo sincronizar con Supabase: ${memorySyncError}.`
+                    : " Memoria sincronizada con Supabase.";
                 status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length}/${ids.length} DNI obtenidos; ${reused} reutilizados de la base compartida.${syncStatus}`;
             } catch (error) {
                 status.textContent = `Proceso detenido: ${error.message} Se conservaron ${serviceIds.length} DNI obtenidos y las relaciones ya guardadas.`;
@@ -616,8 +616,8 @@
                 ? `No se pudo leer la memoria local: ${memoryLoadError}`
                 : `${uniqueClients.size} clientes en memoria.${memoryReady
                     ? memorySyncError
-                        ? ` No disponible: ${memorySyncError}.`
-                        : " Sincronizado."
+                        ? ` Supabase no disponible: ${memorySyncError}.`
+                        : " Sincronizado con la base."
                     : " Conectando con Supabase..."}${memoryCorruptionDetected
                     ? " Se limpiaron caracteres dañados al cargar plantillas; revisa los nombres propios."
                     : ""}${message ? ` ${message}` : ""}`;
@@ -1350,7 +1350,7 @@
                 } catch (error) {
                     memorySyncError = error.message;
                     updateMemoryStatus(`${validatedEntries.length} fichas importadas localmente; no se pudieron sincronizar.`);
-                    status.textContent = `Copia importada en este navegador, pero no base: ${error.message}`;
+                    status.textContent = `Copia importada en este navegador, pero no en la base: ${error.message}`;
                 }
             } catch (error) {
                 updateMemoryStatus(`No se importó ningún dato: ${error.message}`);
@@ -1361,12 +1361,12 @@
         });
 
         clearMemoryButton.addEventListener("click", () => {
-            if (!confirm("¿Borrar la copia local? Los datos guardados en Base no se borrarán.")) return;
+            if (!confirm("¿Borrar la copia local? Los datos guardados en la base no se borrarán.")) return;
             try {
                 localStorage.removeItem(clientMemoryKey);
                 clientMemory.clear();
                 memoryLoadError = "";
-                updateMemoryStatus("Copia local borrada; base conserva los datos.");
+                updateMemoryStatus("Copia local borrada; la base conserva los datos.");
             } catch (error) {
                 updateMemoryStatus(`No se pudo borrar la memoria: ${error.message}`);
             }
