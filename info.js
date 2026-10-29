@@ -384,6 +384,41 @@
             return date;
         }
 
+        async function waitForReactOptions(input) {
+            const deadline = Date.now() + 3000;
+            const tracksExpandedState = input.hasAttribute("aria-expanded");
+            while (Date.now() < deadline) {
+                const listboxId = input.getAttribute("aria-controls");
+                const listbox = listboxId ? document.getElementById(listboxId) : null;
+                const options = (listbox || document).querySelectorAll('[role="option"]');
+                if (options.length) return options.length;
+                if (input.getAttribute("aria-expanded") === "true") {
+                    await Core.wait(300);
+                    const loadedListboxId = input.getAttribute("aria-controls");
+                    const loadedListbox = loadedListboxId
+                        ? document.getElementById(loadedListboxId)
+                        : null;
+                    return (loadedListbox || document).querySelectorAll('[role="option"]').length || null;
+                }
+                if (!tracksExpandedState && Date.now() >= deadline - 2700) return null;
+                await Core.wait(100);
+            }
+            return null;
+        }
+
+        async function waitForReactSelection(input, fieldName) {
+            if (input.hasAttribute("aria-expanded")) {
+                const deadline = Date.now() + 5000;
+                while (Date.now() < deadline && input.getAttribute("aria-expanded") === "true") {
+                    await Core.wait(100);
+                }
+                if (input.getAttribute("aria-expanded") === "true") {
+                    throw new Error(`Jira no confirmó la selección del campo "${fieldName}".`);
+                }
+            }
+            await Core.wait(300);
+        }
+
         async function selectReactOption(selectors, steps, fieldName, optional = false) {
             if (!Number.isInteger(steps) || steps < 0) {
                 throw new Error("La configuración contiene un índice de opción inválido.");
@@ -393,11 +428,14 @@
             let input = null;
             while (Date.now() < deadline) {
                 for (const selector of selectors) {
-                    const candidate = document.querySelector(selector);
-                    if (candidate instanceof HTMLInputElement) {
-                        input = candidate;
-                        break;
+                    for (const candidate of document.querySelectorAll(selector)) {
+                        if (candidate instanceof HTMLInputElement && !candidate.disabled &&
+                            candidate.getClientRects().length > 0) {
+                            input = candidate;
+                            break;
+                        }
                     }
+                    if (input) break;
                 }
                 if (input) break;
                 await Core.wait(100);
@@ -407,6 +445,7 @@
                 throw new Error(`No se encontró el desplegable "${fieldName}". Comprueba que el formulario de Jira haya terminado de cargar.`);
             }
 
+            input.focus();
             input.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
             await Core.wait(100);
             input.value = " ";
@@ -414,6 +453,10 @@
             await Core.wait(100);
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true }));
             await Core.wait(50);
+            const optionCount = await waitForReactOptions(input);
+            if (optionCount !== null && steps >= optionCount) {
+                throw new Error(`El índice configurado para "${fieldName}" no existe entre sus ${optionCount} opciones.`);
+            }
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
             await Core.wait(60);
             for (let index = 0; index < steps; index++) {
@@ -421,7 +464,7 @@
                 await Core.wait(60);
             }
             input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-            await Core.wait(150);
+            await waitForReactSelection(input, fieldName);
         }
 
         function setFieldValue(id, value, notify = false) {
