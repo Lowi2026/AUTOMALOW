@@ -25,16 +25,16 @@
                     await new Promise((resolve, reject) => {
                         const existing = document.querySelector(`script[src="${supabaseScriptUrl}"]`);
                         const script = existing || document.createElement("script");
-                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar Supabase.")), 15000);
+                        const timeout = setTimeout(() => reject(new Error("Tiempo agotado al cargar la base.")), 15000);
                         const onLoad = () => {
                             clearTimeout(timeout);
                             window.supabase?.createClient
                                 ? resolve()
-                                : reject(new Error("El SDK de Supabase no está disponible."));
+                                : reject(new Error("El SDK de la base no está disponible."));
                         };
                         const onError = () => {
                             clearTimeout(timeout);
-                            reject(new Error("No se pudo cargar el SDK de Supabase."));
+                            reject(new Error("No se pudo cargar el SDK de la base."));
                         };
                         script.addEventListener("load", onLoad, { once: true });
                         script.addEventListener("error", onError, { once: true });
@@ -383,7 +383,7 @@
                 return;
             }
             let memorySyncError = "";
-            status.textContent = "Sincronizando la memoria de clientes con Supabase...";
+            status.textContent = "Sincronizando la memoria de clientes con la base...";
             try {
                 const remoteEntries = await loadClientMemoryFromSupabase();
                 entries = mergeClientMemorySnapshots(remoteEntries, entries);
@@ -436,8 +436,8 @@
                 }
                 const reused = results.filter(result => result.cached).length;
                 const syncStatus = memorySyncError
-                    ? ` No se pudo sincronizar con Supabase: ${memorySyncError}.`
-                    : " Memoria sincronizada con Supabase.";
+                    ? ` No se pudo sincronizar con la base: ${memorySyncError}.`
+                    : " Memoria sincronizada con la base.";
                 status.textContent = `${cancelled ? "Consulta cancelada" : "Proceso terminado"}. ${serviceIds.length}/${ids.length} DNI obtenidos; ${reused} reutilizados de la base compartida.${syncStatus}`;
             } catch (error) {
                 status.textContent = `Proceso detenido: ${error.message} Se conservaron ${serviceIds.length} DNI obtenidos y las relaciones ya guardadas.`;
@@ -616,9 +616,9 @@
                 ? `No se pudo leer la memoria local: ${memoryLoadError}`
                 : `${uniqueClients.size} clientes en memoria.${memoryReady
                     ? memorySyncError
-                        ? ` Supabase no disponible: ${memorySyncError}.`
+                        ? ` base no disponible: ${memorySyncError}.`
                         : " Sincronizado con la base."
-                    : " Conectando con Supabase..."}${memoryCorruptionDetected
+                    : " Conectando con la base..."}${memoryCorruptionDetected
                     ? " Se limpiaron caracteres dañados al cargar plantillas; revisa los nombres propios."
                     : ""}${message ? ` ${message}` : ""}`;
         }
